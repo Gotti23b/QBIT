@@ -1,2 +1,55 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>QBIT</title></head><body style="background:#07111f;color:#22d3ee;font-family:system-ui;padding:3rem"><h1>QBIT</h1><p>Tu asistente personal está en construcción.</p></body></html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07111f">
+<title>QBIT — Asistente personal</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="brand"><div class="logo">Q</div><div><h1>QBIT</h1><p>Tu asistente personal</p></div></div>
+  <div id="userBar" class="row hidden" style="flex:0 1 auto"><span id="userEmail" class="muted"></span><button id="logoutBtn" class="small">Cerrar sesión</button></div>
+</header>
+<section id="loginView" class="card login">
+  <h2>Hola 👋</h2><p class="muted">Entrá a tu espacio privado de QBIT.</p>
+  <form id="loginForm" class="stack">
+    <div><label for="email">Correo electrónico</label><input id="email" type="email" autocomplete="username" required></div>
+    <div><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password" required></div>
+    <button class="primary" type="submit">Iniciar sesión</button><p id="loginMsg" class="muted" aria-live="polite"></p>
+  </form>
+</section>
+<section id="appView" class="hidden">
+  <div class="tabs"><button class="active" data-tab="chatView">💬 Asistente</button><button data-tab="adminView">⚙️ Administrar QBIT</button></div>
+  <section id="chatView"><div class="layout">
+    <div class="card"><div class="section-title"><h2>Chat</h2><button id="clearChat" class="small">Limpiar chat</button></div>
+      <p class="muted">Probá escribir uno de los comandos que guardaste.</p>
+      <div id="chatbox" class="chatbox" aria-live="polite"><div class="bubble bot"><small>QBIT</small>¡Hola! Soy QBIT. Agregá comandos y respuestas en el panel de administración para empezar. ✨</div></div>
+      <form id="sendForm" class="send"><input id="chatInput" placeholder="Escribí un mensaje…" autocomplete="off" required><button class="primary">Enviar</button></form>
+    </div>
+    <aside class="card"><h3>Comandos disponibles</h3><p class="muted">Estos comandos salen de tu base de datos.</p><div id="quickCommands" class="list"><div class="empty">Todavía no hay comandos.</div></div></aside>
+  </div></section>
+  <section id="adminView" class="hidden">
+    <div class="card"><h2>Panel de administración</h2><p class="muted">Todo se guarda en Supabase y queda asociado a tu cuenta.</p><div id="adminMsg" aria-live="polite"></div></div>
+    <div class="layout" style="margin-top:16px">
+      <div class="card"><h3>1. Categorías</h3><form id="categoryForm"><input type="hidden" id="categoryId"><label for="categoryName">Nombre de categoría</label><div class="row"><input id="categoryName" placeholder="Ej. Informática" required><button class="primary">Guardar</button></div><button id="cancelCategory" class="small hidden" type="button">Cancelar edición</button></form><div id="categoriesList" class="list"></div></div>
+      <div class="card"><h3>2. Comandos</h3><form id="commandForm"><input type="hidden" id="commandId"><label for="commandName">Nombre</label><input id="commandName" placeholder="Ej. Saludo" required><label for="commandTrigger">Palabra o frase para activarlo</label><input id="commandTrigger" placeholder="Ej. hola" required><label for="commandCategory">Categoría</label><select id="commandCategory" required><option value="">Creá una categoría primero</option></select><div class="row" style="margin-top:12px"><button class="primary">Guardar comando</button><button id="cancelCommand" class="small hidden" type="button">Cancelar</button></div></form><div id="commandsList" class="list"></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>3. Respuestas</h3>
+      <form id="responseForm"><input type="hidden" id="responseId"><div class="formgrid">
+        <div class="full"><label for="responseCommand">Comando asociado</label><select id="responseCommand" required><option value="">Creá un comando primero</option></select></div>
+        <div class="full"><label for="responseContent">Texto de la respuesta</label><textarea id="responseContent" placeholder="Escribí la respuesta que QBIT va a mostrar…" required></textarea></div>
+        <div><label for="responsePriority">Prioridad (más alto = primero)</label><input id="responsePriority" type="number" value="1" min="0" step="1"></div>
+        <div><label style="display:flex;align-items:center;gap:8px"><input id="responseActive" type="checkbox" checked style="width:auto"> Respuesta activa</label></div>
+      </div><div class="row"><button class="primary">Guardar respuesta</button><button id="cancelResponse" class="small hidden" type="button">Cancelar edición</button></div></form>
+      <div id="responsesList" class="list"></div>
+    </div>
+  </section>
+</section>
+<footer>QBIT · Primera versión en construcción 🩵</footer>
+</div>
+</body></html>
