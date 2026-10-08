@@ -19,7 +19,7 @@
     ]);
     const error=a.error||b.error||c.error;if(error){notice("Error al cargar: "+error.message,true);return;}
     categories=a.data||[];commands=b.data||[];responses=c.data||[];
-    if(!categories.length&&!commands.length&&!responses.length){await addStarterCommands();return;}
+    if(!commands.length){await addStarterCommands();return;}
     render();
   }
   function render(){
@@ -93,8 +93,13 @@
       ]}
     ];
     for(const group of groups){
-      let {data:cat,error:catError}=await db.from("qbit_categories").insert({user_id:user.id,name:group.name}).select("id").single();
-      if(catError){notice("No se pudo crear la categoría "+group.name+": "+catError.message,true);return;}
+      let {data:cat,error:catError}=await db.from("qbit_categories").select("id").eq("user_id",user.id).eq("name",group.name).maybeSingle();
+      if(catError){notice("No se pudo buscar la categoría "+group.name+": "+catError.message,true);return;}
+      if(!cat){
+        const created=await db.from("qbit_categories").insert({user_id:user.id,name:group.name}).select("id").single();
+        cat=created.data;catError=created.error;
+        if(catError){notice("No se pudo crear la categoría "+group.name+": "+catError.message,true);return;}
+      }
       for(const item of group.items){
         const {data:cmd,error:cmdError}=await db.from("qbit_commands").insert({user_id:user.id,category_id:cat.id,name:item[0],trigger_text:item[1]}).select("id").single();
         if(cmdError){notice("No se pudo crear el comando "+item[0]+": "+cmdError.message,true);return;}
