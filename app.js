@@ -36,17 +36,40 @@
       btn("Borrar","small danger",()=>remove("qbit_categories",c.id,"¿Borrar esta categoría?") )
     ])));
     if(!commands.length)ml.append(node("div","empty","Todavía no hay comandos."));
-    commands.forEach(c=>{const cat=categories.find(x=>x.id===c.category_id);ml.append(card(c.name,"Activador: "+c.trigger_text+" · "+(cat?cat.name:"Sin categoría"),[
-      btn("Editar","small",()=>{$("commandId").value=c.id;$("commandName").value=c.name;$("commandTrigger").value=c.trigger_text;$("commandCategory").value=c.category_id;$("cancelCommand").classList.remove("hidden");}),
-      btn("Borrar","small danger",()=>remove("qbit_commands",c.id,"¿Borrar el comando?"))
-    ]));});
+    const uncategorized=commands.filter(c=>!categories.some(cat=>cat.id===c.category_id));
+    categories.forEach(cat=>{
+      const grouped=commands.filter(c=>c.category_id===cat.id);
+      if(!grouped.length)return;
+      const group=node("section","command-category");
+      group.append(node("h4","category-heading",cat.name));
+      grouped.forEach(c=>group.append(card(c.name,"Activador: "+c.trigger_text,[
+        btn("Editar","small",()=>{$("commandId").value=c.id;$("commandName").value=c.name;$("commandTrigger").value=c.trigger_text;$("commandCategory").value=c.category_id;$("cancelCommand").classList.remove("hidden");}),
+        btn("Borrar","small danger",()=>remove("qbit_commands",c.id,"¿Borrar el comando?"))
+      ])));
+      ml.append(group);
+    });
+    if(uncategorized.length){
+      const group=node("section","command-category");
+      group.append(node("h4","category-heading","Sin categoría"));
+      uncategorized.forEach(c=>group.append(card(c.name,"Activador: "+c.trigger_text,[
+        btn("Editar","small",()=>{$("commandId").value=c.id;$("commandName").value=c.name;$("commandTrigger").value=c.trigger_text;$("commandCategory").value="";$("cancelCommand").classList.remove("hidden");}),
+        btn("Borrar","small danger",()=>remove("qbit_commands",c.id,"¿Borrar el comando?"))
+      ])));
+      ml.append(group);
+    }
     if(!responses.length)rl.append(node("div","empty","Todavía no hay respuestas."));
     responses.forEach(r=>{const c=commands.find(x=>x.id===r.command_id);rl.append(card((c?c.name:"Comando")+" · prioridad "+r.priority,(r.is_active?"Activa":"Inactiva")+"\n"+r.content,[
       btn("Editar","small",()=>{$("responseId").value=r.id;$("responseCommand").value=r.command_id;$("responseContent").value=r.content;$("responsePriority").value=r.priority;$("responseActive").checked=r.is_active;$("cancelResponse").classList.remove("hidden");}),
       btn("Borrar","small danger",()=>remove("qbit_responses",r.id,"¿Borrar esta respuesta?"))
     ]));});
     if(!commands.length)qc.append(node("div","empty","Agregá comandos desde el panel."));
-    commands.forEach(c=>{const x=node("div","item");x.append(node("strong","",c.name),node("p","muted","Escribí: "+c.trigger_text));x.append(btn("Probar comando","small",()=>{$("chatInput").value=c.trigger_text;$("sendForm").requestSubmit();}));qc.append(x);});
+    categories.forEach(cat=>{
+      const grouped=commands.filter(c=>c.category_id===cat.id);
+      if(!grouped.length)return;
+      qc.append(node("h4","category-heading",cat.name));
+      grouped.forEach(c=>{const x=node("div","item");x.append(node("strong","",c.name),node("p","muted","Escribí: "+c.trigger_text));x.append(btn("Probar comando","small",()=>{$("chatInput").value=c.trigger_text;$("sendForm").requestSubmit();}));qc.append(x);});
+    });
+    commands.filter(c=>!categories.some(cat=>cat.id===c.category_id)).forEach(c=>{const x=node("div","item");x.append(node("strong","","Sin categoría · "+c.name),node("p","muted","Escribí: "+c.trigger_text));x.append(btn("Probar comando","small",()=>{$("chatInput").value=c.trigger_text;$("sendForm").requestSubmit();}));qc.append(x);});
   }
   async function save(table,idField,values,reset){
     const id=$(idField).value,payload={...values,user_id:user.id};
