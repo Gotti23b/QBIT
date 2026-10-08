@@ -18,7 +18,9 @@
       db.from("qbit_responses").select("id,command_id,content,is_active,priority").order("priority",{ascending:false})
     ]);
     const error=a.error||b.error||c.error;if(error){notice("Error al cargar: "+error.message,true);return;}
-    categories=a.data||[];commands=b.data||[];responses=c.data||[];render();
+    categories=a.data||[];commands=b.data||[];responses=c.data||[];
+    if(!categories.length&&!commands.length&&!responses.length){await addStarterCommands();return;}
+    render();
   }
   function render(){
     const cl=$("categoriesList"),ml=$("commandsList"),rl=$("responsesList"),qc=$("quickCommands");
