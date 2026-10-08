@@ -71,5 +71,37 @@
   $("clearChat").onclick=()=>{$("chatbox").replaceChildren();bubble("QBIT","Chat limpio. ¿Qué probamos?","bot");};
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));$("chatView").classList.toggle("hidden",b.dataset.tab!=="chatView");$("adminView").classList.toggle("hidden",b.dataset.tab!=="adminView");});
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
+  async function addStarterCommands(){
+    if(!user)return;
+    const {count,error:countError}=await db.from("qbit_commands").select("id",{count:"exact",head:true});
+    if(countError){notice("No se pudieron comprobar los comandos: "+countError.message,true);return;}
+    if(count>0){notice("Ya hay comandos. No se agregaron duplicados.");return;}
+    const groups=[
+      {name:"Básicos",items:[
+        ["Saludar","hola","¡Hola! 👋 Soy QBIT. ¿Qué necesitás?"],
+        ["Pedir ayuda","ayuda","Probá: hola, ayuda, quién sos, qué podés hacer, gracias o contame un chiste."],
+        ["Dar las gracias","gracias","¡De nada! 😄"]
+      ]},
+      {name:"QBIT",items:[
+        ["Quién sos","quién sos","Soy QBIT, tu asistente personal. Por ahora respondo con comandos guardados en Supabase."],
+        ["Qué podés hacer","qué podés hacer","Por ahora respondo a los comandos configurados. Podés administrar categorías, comandos y respuestas desde Admin."]
+      ]},
+      {name:"Diversión",items:[
+        ["Contar un chiste","contame un chiste","¿Qué hace una abeja en el gimnasio? ¡Zum-ba! 🐝"]
+      ]}
+    ];
+    for(const group of groups){
+      let {data:cat,error:catError}=await db.from("qbit_categories").insert({user_id:user.id,name:group.name}).select("id").single();
+      if(catError){notice("No se pudo crear la categoría "+group.name+": "+catError.message,true);return;}
+      for(const item of group.items){
+        const {data:cmd,error:cmdError}=await db.from("qbit_commands").insert({user_id:user.id,category_id:cat.id,name:item[0],trigger_text:item[1]}).select("id").single();
+        if(cmdError){notice("No se pudo crear el comando "+item[0]+": "+cmdError.message,true);return;}
+        const {error:respError}=await db.from("qbit_responses").insert({user_id:user.id,command_id:cmd.id,content:item[2],is_active:true,priority:1});
+        if(respError){notice("No se pudo guardar la respuesta de "+item[0]+": "+respError.message,true);return;}
+      }
+    }
+    notice("¡Listo! Se agregaron 6 comandos iniciales.");
+    await refresh();
+  }
   (async()=>{const {data}=await db.auth.getSession();if(data.session){session(data.session.user);await refresh();}else session(null);})();
 })();
