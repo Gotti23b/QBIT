@@ -19,7 +19,7 @@
     ]);
     const error=a.error||b.error||c.error;if(error){notice("Error al cargar: "+error.message,true);return;}
     categories=a.data||[];commands=b.data||[];responses=c.data||[];
-    if(!commands.length){await addStarterCommands();return;}
+    if(["hola","ayuda","gracias","quién sos","qué podés hacer","contame un chiste"].some(t=>!commands.some(cmd=>cmd.trigger_text===t))){await addStarterCommands();return;}
     render();
   }
   function render(){
@@ -75,9 +75,6 @@
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
   async function addStarterCommands(){
     if(!user)return;
-    const {count,error:countError}=await db.from("qbit_commands").select("id",{count:"exact",head:true});
-    if(countError){notice("No se pudieron comprobar los comandos: "+countError.message,true);return;}
-    if(count>0){notice("Ya hay comandos. No se agregaron duplicados.");return;}
     const groups=[
       {name:"Básicos",items:[
         ["Saludar","hola","¡Hola! 👋 Soy QBIT. ¿Qué necesitás?"],
@@ -101,6 +98,9 @@
         if(catError){notice("No se pudo crear la categoría "+group.name+": "+catError.message,true);return;}
       }
       for(const item of group.items){
+        const {data:existing,error:existingError}=await db.from("qbit_commands").select("id").eq("user_id",user.id).eq("trigger_text",item[1]).maybeSingle();
+        if(existingError){notice("No se pudo comprobar el comando "+item[0]+": "+existingError.message,true);return;}
+        if(existing)continue;
         const {data:cmd,error:cmdError}=await db.from("qbit_commands").insert({user_id:user.id,category_id:cat.id,name:item[0],trigger_text:item[1]}).select("id").single();
         if(cmdError){notice("No se pudo crear el comando "+item[0]+": "+cmdError.message,true);return;}
         const {error:respError}=await db.from("qbit_responses").insert({user_id:user.id,command_id:cmd.id,content:item[2],is_active:true,priority:1});
