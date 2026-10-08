@@ -18,7 +18,30 @@
       db.from("qbit_responses").select("id,command_id,content,is_active,priority").order("priority",{ascending:false})
     ]);
     const error=a.error||b.error||c.error;if(error){notice("Error al cargar: "+error.message,true);return;}
+
     categories=a.data||[];commands=b.data||[];responses=c.data||[];
+    const variants={
+      "hola":["¡Buenas! ¿En qué te doy una mano? 👋","¡Ey, hola! Acá QBIT, listo para ayudarte.","¡Hola! ¿Qué hacemos hoy?"],
+      "buenas":["¡Buenas! 😎 ¿Todo bien?","¡Buenasss! ¿Qué onda?","¡Hola! ¿Qué necesitás?"],
+      "gracias":["¡No hay de qué! 😊","¡Cuando quieras!","¡De nada! Para eso estoy."],
+      "ayuda":["Podés probar hola, buenas, gracias, quién sos, qué podés hacer o contame un chiste.","¡Estoy para ayudarte! Escribí uno de los comandos que ya tengo configurados.","Si querés cambiar lo que respondo, entrá a Admin y editá las respuestas."],
+      "quién sos":["Soy QBIT, tu asistente personal. Respondo usando comandos guardados.","¡Soy QBIT! Todavía estoy aprendiendo comandos, pero podés configurar mis respuestas.","Me llamo QBIT y soy un asistente personal en desarrollo."],
+      "qué podés hacer":["Puedo responder los comandos que tengo configurados. ¡Probá alguno!","Por ahora funciono con comandos y respuestas guardadas en Supabase.","Podés probar los comandos del panel y administrar todo desde Admin."],
+      "contame un chiste":["¿Qué le dice un techo a otro? Techo de menos. 😄","¿Cuál es el colmo de un jardinero? Que siempre lo dejen plantado. 🌱","¿Qué hace una computadora cuando tiene frío? Cierra Windows. 🥶"]
+    };
+    let seeded=false;
+    for(const [trigger,contents] of Object.entries(variants)){
+      const cmd=commands.find(x=>x.trigger_text===trigger);
+      if(!cmd)continue;
+      for(const value of contents){
+        if(responses.some(x=>x.command_id===cmd.id&&x.content===value))continue;
+        const {data:added,error:addError}=await db.from("qbit_responses").insert({user_id:user.id,command_id:cmd.id,content:value,is_active:true,priority:1}).select("id,command_id,content,is_active,priority").single();
+        if(addError){notice("No se pudieron guardar las variantes: "+addError.message,true);return;}
+        responses.push(added);seeded=true;
+      }
+    }
+    if(seeded){notice("¡Se agregaron las variantes de respuesta!");}
+
     if(["hola","ayuda","gracias","quién sos","qué podés hacer","contame un chiste"].some(t=>!commands.some(cmd=>cmd.trigger_text===t))){await addStarterCommands();return;}
     render();
   }
