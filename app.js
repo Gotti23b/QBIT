@@ -162,6 +162,40 @@
     if(general)return {engine:engines.google,query:general[1].trim()};
     return null;
   }
+  function getOpenRequest(message){
+    const n=normalizeText(message).replace(/\s+/g," ").trim();
+    const command=n.match(/^(?:qbit[,: ]+)?(?:abre|abrí|abrir|abrime|anda a|ve a|ir a|entra a|entrar a|open)\s+(.+?)[.!?]*$/);
+    if(!command)return null;
+    const target=command[1].trim().replace(/^(?:la pagina de|la web de|el sitio de|la pagina|el sitio)\s+/,"");
+    const sites=[
+      {keys:["youtube","yt"],label:"YouTube",url:"https://www.youtube.com/"},
+      {keys:["google"],label:"Google",url:"https://www.google.com/"},
+      {keys:["bing"],label:"Bing",url:"https://www.bing.com/"},
+      {keys:["wikipedia","wiki"],label:"Wikipedia",url:"https://es.wikipedia.org/"},
+      {keys:["github","mi repositorio de github","mi repo de github","repositorio qbit","mi repositorio qbit"],label:"tu repositorio de QBIT en GitHub",url:"https://github.com/Gotti23b/QBIT"},
+      {keys:["qbit"],label:"QBIT en GitHub",url:"https://gotti23b.github.io/QBIT/"},
+      {keys:["reddit"],label:"Reddit",url:"https://www.reddit.com/"},
+      {keys:["google drive","drive"],label:"Google Drive",url:"https://drive.google.com/"},
+      {keys:["gmail"],label:"Gmail",url:"https://mail.google.com/"},
+      {keys:["google maps","maps","mapas"],label:"Google Maps",url:"https://maps.google.com/"},
+      {keys:["google classroom","classroom"],label:"Google Classroom",url:"https://classroom.google.com/"},
+      {keys:["spotify"],label:"Spotify",url:"https://open.spotify.com/"},
+      {keys:["twitch"],label:"Twitch",url:"https://www.twitch.tv/"},
+      {keys:["roblox"],label:"Roblox",url:"https://www.roblox.com/"},
+      {keys:["minecraft"],label:"Minecraft",url:"https://www.minecraft.net/"}
+    ];
+    const site=sites.find(x=>x.keys.includes(target));
+    if(site)return {type:"url",label:site.label,url:site.url};
+    if(/^(?:la )?(?:calculadora|bloc de notas|notepad|explorador de archivos|configuracion|configuracion de windows|administrador de tareas|cmd|terminal|powershell|paint|word|excel|minecraft instalado)$/.test(target)){
+      return {type:"local",label:target};
+    }
+    let raw=target.replace(/^https?:\/\//,"");
+    if(/^[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?$/i.test(raw)){
+      const url="https://"+raw;
+      try{const parsed=new URL(url);if(parsed.protocol==="https:"||parsed.protocol==="http:")return {type:"url",label:parsed.hostname,url:parsed.href};}catch{}
+    }
+    return {type:"unknown",label:target};
+  }
   function getBrowserName(){
     const ua=navigator.userAgent||"";
     if(/Edg\//.test(ua))return "Microsoft Edge";
@@ -213,6 +247,18 @@
     e.preventDefault();
     const q=$("chatInput").value.trim();if(!q)return;
     bubble("Vos",q,"user");$("chatInput").value="";
+    const openRequest=getOpenRequest(q);
+    if(openRequest){
+      if(openRequest.type==="url"){
+        const opened=window.open(openRequest.url,"_blank","noopener,noreferrer");
+        bubble("QBIT",opened===null?"Intenté abrir "+openRequest.label+", pero el navegador pudo bloquear la pestaña. Permití las ventanas emergentes para QBIT y probá otra vez.":"Abriendo "+openRequest.label+" 🌐","bot");
+      }else if(openRequest.type==="local"){
+        bubble("QBIT","Puedo abrir páginas web, pero esta versión de QBIT funciona dentro del navegador y no tiene permiso para ejecutar programas o abrir archivos locales de Windows. Para eso haría falta una aplicación auxiliar instalada en la PC. 💻","bot");
+      }else{
+        bubble("QBIT","No reconocí ese sitio. Probá con un nombre conocido (por ejemplo, YouTube o GitHub) o escribí el dominio, como ejemplo.com. 🌐","bot");
+      }
+      return;
+    }
     const webRequest=getWebSearchRequest(q);
     if(webRequest&&webRequest.query){
       const searchUrl=webRequest.engine.base+encodeURIComponent(webRequest.query);
