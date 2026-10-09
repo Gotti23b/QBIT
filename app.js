@@ -145,11 +145,92 @@
   $("commandForm").onsubmit=async e=>{e.preventDefault();if(!$("commandCategory").value){notice("Elegí una categoría primero.",true);return;}await save("qbit_commands","commandId",{name:$("commandName").value.trim(),trigger_text:$("commandTrigger").value.trim(),category_id:$("commandCategory").value},resetCommand);};
   $("responseForm").onsubmit=async e=>{e.preventDefault();if(!$("responseCommand").value){notice("Elegí un comando primero.",true);return;}await save("qbit_responses","responseId",{command_id:$("responseCommand").value,content:$("responseContent").value.trim(),priority:Number($("responsePriority").value)||0,is_active:$("responseActive").checked,updated_at:new Date().toISOString()},resetResponse);};
   $("cancelCategory").onclick=resetCategory;$("cancelCommand").onclick=resetCommand;$("cancelResponse").onclick=resetResponse;
-  function getWebSearchQuery(message){
-    const m=String(message).trim().match(/^(?:busca(?:r)?(?:\s+en)?(?:\s+la)?\s+(?:web|internet)|busca(?:r)?)\s*[:,-]?\s+(.+)$/i);
-    return m?m[1].trim():"";
+  function getWebSearchRequest(message){
+    const n=normalizeText(message).replace(/\s+/g," ").trim();
+    const engines={
+      google:{name:"Google",base:"https://www.google.com/search?q="},
+      bing:{name:"Bing",base:"https://www.bing.com/search?q="},
+      youtube:{name:"YouTube",base:"https://www.youtube.com/results?search_query="},
+      wikipedia:{name:"Wikipedia",base:"https://es.wikipedia.org/w/index.php?search="},
+      imagenes:{name:"Google Imágenes",base:"https://www.google.com/search?tbm=isch&q="},
+      noticias:{name:"Google Noticias",base:"https://news.google.com/search?q="},
+      mapas:{name:"Google Maps",base:"https://www.google.com/maps/search/"}
+    };
+    const site=n.match(/^(?:busca(?:r)?(?:me)?\s+(?:en\s+)?)(youtube|wikipedia|imagenes|noticias|mapas|bing|google)\s*(?:[:,-]\s*|\s+)(.+)$/);
+    if(site){const key=site[1];return {engine:engines[key],query:site[2].trim()};}
+    const general=n.match(/^(?:(?:busca(?:r)?(?:me)?)(?:\s+en)?(?:\s+la)?\s+(?:web|internet)|busca(?:r)?(?:me)?)\s*[:,-]?\s+(.+)$/);
+    if(general)return {engine:engines.google,query:general[1].trim()};
+    return null;
   }
-  $("sendForm").onsubmit=e=>{e.preventDefault();const q=$("chatInput").value.trim();if(!q)return;bubble("Vos",q,"user");$("chatInput").value="";const webQuery=getWebSearchQuery(q);if(webQuery){const searchUrl="https://www.google.com/search?q="+encodeURIComponent(webQuery);window.open(searchUrl,"_blank","noopener,noreferrer");bubble("QBIT","Buscando en Google: "+webQuery+" 🔎 Si no se abrió una pestaña, permití las ventanas emergentes para este sitio.","bot");return;}const mathAnswer=solveMathQuestion(q);if(mathAnswer!==null){bubble("QBIT",mathAnswer,"bot");return;}const n=normalizeText(q);const found=commands.filter(c=>{const trigger=normalizeText(c.trigger_text);return trigger && (" "+n+" ").includes(" "+trigger+" ");}).sort((a,b)=>normalizeText(b.trigger_text).length-normalizeText(a.trigger_text).length)[0];if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");};
+  function getBrowserName(){
+    const ua=navigator.userAgent||"";
+    if(/Edg\//.test(ua))return "Microsoft Edge";
+    if(/SamsungBrowser\//.test(ua))return "Samsung Internet";
+    if(/OPR\//.test(ua)||/Opera/.test(ua))return "Opera";
+    if(/Firefox\//.test(ua))return "Mozilla Firefox";
+    if(/Chrome\//.test(ua))return "Google Chrome o un navegador basado en Chromium";
+    if(/Safari\//.test(ua))return "Safari";
+    return "un navegador no identificado";
+  }
+  async function getSystemAnswer(message){
+    const n=normalizeText(message);
+    const has=(...words)=>words.some(w=>n.includes(w));
+    const now=new Date();
+    if(has("que hora es","hora actual","hora de ahora","que fecha es","fecha de hoy","que dia es hoy","dia de hoy","hoy que dia","que dia estamos")){
+      return "Ahora son las "+new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now)+". Hoy es "+new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now)+". 🕒";
+    }
+    if(has("bateria","nivel de carga","esta cargando","esta enchufada","estado de carga")){
+      if(!navigator.getBattery)return "Este navegador no permite consultar la batería desde una página web. 🔋";
+      try{const b=await navigator.getBattery();return "Batería: "+Math.round(b.level*100)+" %. "+(b.charging?"Está cargándose ⚡":"No está cargándose")+(Number.isFinite(b.chargingTime)&&b.chargingTime!==Infinity&&b.chargingTime>0?" · Tiempo estimado para cargar: "+Math.round(b.chargingTime/60)+" min.":"")+(Number.isFinite(b.dischargingTime)&&b.dischargingTime!==Infinity&&b.dischargingTime>0?" · Tiempo estimado restante: "+Math.round(b.dischargingTime/60)+" min.":"");}
+      catch{return "No pude acceder al estado de la batería. El navegador puede bloquear esta función. 🔋";}
+    }
+    if(has("informacion de mi pc","info de mi pc","datos de mi pc","informacion del sistema","datos del sistema","que equipo tengo")){
+      const platform=navigator.userAgentData?.platform||navigator.platform||"No disponible";
+      const mem=navigator.deviceMemory?("RAM estimada que informa el navegador: "+navigator.deviceMemory+" GB"):"RAM estimada: no disponible";
+      const cores=navigator.hardwareConcurrency?("Procesadores lógicos informados: "+navigator.hardwareConcurrency):"Procesadores lógicos: no disponibles";
+      const conn=navigator.connection;
+      const net=conn?("Conexión estimada: "+(conn.effectiveType||"tipo desconocido")+(conn.downlink?" · "+conn.downlink+" Mb/s estimados":"")):"Tipo de conexión: no disponible en este navegador";
+      return "Información que la página puede consultar:\n• Sistema/plataforma: "+platform+"\n• Navegador: "+getBrowserName()+"\n• Pantalla: "+screen.width+" × "+screen.height+" (escala "+(window.devicePixelRatio||1)+"×)\n• Idioma: "+(navigator.language||"no disponible")+"\n• Zona horaria: "+(Intl.DateTimeFormat().resolvedOptions().timeZone||"no disponible")+"\n• "+mem+"\n• "+cores+"\n• "+net+"\n• Conexión de red: "+(navigator.onLine?"aparece conectada":"aparece sin conexión")+"\n\nEstos datos son limitados; una página web no puede leer todo Windows.";
+    }
+    if(has("que navegador","nombre del navegador","cual es mi navegador"))return "Estás usando "+getBrowserName()+". 🌐";
+    if(has("resolucion de pantalla","tamano de pantalla","mi pantalla","resolucion de mi pantalla"))return "La pantalla informa "+screen.width+" × "+screen.height+" píxeles CSS, con una escala de "+(window.devicePixelRatio||1)+"×. 🖥️";
+    if(has("zona horaria","mi zona horaria"))return "La zona horaria que informa tu navegador es "+(Intl.DateTimeFormat().resolvedOptions().timeZone||"desconocida")+". 🌎";
+    if(has("idioma del navegador","idioma tengo","que idioma usa"))return "El idioma principal del navegador es "+(navigator.language||"desconocido")+".";
+    if(has("cuantos nucleos","procesadores logicos"))return navigator.hardwareConcurrency?"El navegador informa "+navigator.hardwareConcurrency+" procesadores lógicos. No necesariamente es el número físico de núcleos.":"Este navegador no informa esa cantidad.";
+    if(has("memoria ram","cuanta ram","cuanta memoria"))return navigator.deviceMemory?"El navegador informa una estimación de "+navigator.deviceMemory+" GB de memoria del dispositivo; no es una lectura exacta de la RAM instalada.":"Este navegador no permite consultar una estimación de la RAM.";
+    if(has("estoy conectado","hay internet","tengo internet","estado de internet","conexion a internet","conectado a internet","estoy online"))return navigator.onLine?"El navegador indica que hay conexión de red. Eso no garantiza por sí solo que Internet esté funcionando correctamente. 🌐":"El navegador indica que no hay conexión de red. 📡";
+    if(has("donde estoy","mi ubicacion","ubicacion actual","ubicacion del dispositivo")){
+      if(!navigator.geolocation)return "Este navegador no permite consultar la ubicación desde esta página.";
+      return await new Promise(resolve=>navigator.geolocation.getCurrentPosition(
+        p=>resolve("Ubicación aproximada autorizada por el navegador: latitud "+p.coords.latitude.toFixed(4)+", longitud "+p.coords.longitude.toFixed(4)+". Precisión estimada: "+Math.round(p.coords.accuracy)+" m."),
+        e=>resolve(e.code===1?"No se concedió permiso para consultar la ubicación. Podés seguir usando QBIT sin activarlo.":e.code===2?"El dispositivo no pudo determinar la ubicación.":"La consulta de ubicación tardó demasiado o no se pudo completar."),
+        {enableHighAccuracy:false,timeout:10000,maximumAge:60000}
+      ));
+    }
+    return null;
+  }
+  $("sendForm").onsubmit=async e=>{
+    e.preventDefault();
+    const q=$("chatInput").value.trim();if(!q)return;
+    bubble("Vos",q,"user");$("chatInput").value="";
+    const webRequest=getWebSearchRequest(q);
+    if(webRequest&&webRequest.query){
+      const searchUrl=webRequest.engine.base+encodeURIComponent(webRequest.query);
+      window.open(searchUrl,"_blank","noopener,noreferrer");
+      bubble("QBIT","Abriendo "+webRequest.engine.name+" para buscar: "+webRequest.query+" 🔎\n\nQBIT abre la búsqueda en otra pestaña; no puede leer automáticamente todos los resultados de Google desde esta página por las restricciones de seguridad del navegador. Si no se abre, revisá el bloqueo de ventanas emergentes.","bot");
+      return;
+    }
+    const systemAnswer=await getSystemAnswer(q);
+    if(systemAnswer){bubble("QBIT",systemAnswer,"bot");return;}
+    const mathAnswer=solveMathQuestion(q);
+    if(mathAnswer!==null){bubble("QBIT",mathAnswer,"bot");return;}
+    const n=normalizeText(q);
+    const found=commands.filter(c=>{const trigger=normalizeText(c.trigger_text);return trigger&&(" "+n+" ").includes(" "+trigger+" ");}).sort((a,b)=>normalizeText(b.trigger_text).length-normalizeText(a.trigger_text).length)[0];
+    if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}
+    const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);
+    const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;
+    bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");
+  };
   $("clearChat").onclick=()=>{$("chatbox").replaceChildren();bubble("QBIT","Chat limpio. ¿Qué probamos?","bot");};
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));$("chatView").classList.toggle("hidden",b.dataset.tab!=="chatView");$("adminView").classList.toggle("hidden",b.dataset.tab!=="adminView");});
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
