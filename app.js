@@ -11,7 +11,7 @@
   function bubble(who,text,kind){const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;}
   function solveMathQuestion(message){
     let s=normalizeText(message);
-    const match=s.match(/^cuanto es\\s+(.+)$/);
+    const match=s.match(/^cuanto es\s+(.+)$/);
     if(!match)return null;
     s=match[1]
       .replace(/dividido entre|dividido por|dividida entre|dividida por/g,"/")
