@@ -32,3 +32,4 @@ jobs:
           name: QBIT-Windows-Installer
           path: dist/*.exe
           if-no-files-found: error
+          retention-days: 7
