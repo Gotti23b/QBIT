@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "electron": "^35.0.0",
