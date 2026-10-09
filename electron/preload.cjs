@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   isDesktop: true,
+  openUrl: url => ipcRenderer.invoke("qbit:open-url", url),
   getStatus: () => ipcRenderer.invoke("qbit:status"),
   openApp: name => ipcRenderer.invoke("qbit:open-app", name),
   openFolder: name => ipcRenderer.invoke("qbit:open-folder", name),
