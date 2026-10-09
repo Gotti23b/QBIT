@@ -47,7 +47,7 @@ const knownFolders = {
 ipcMain.handle("qbit:status", async () => {
   const cpus = os.cpus();
   const batteryText = await runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_Battery | Select-Object -First 1 -ExpandProperty EstimatedChargeRemaining) -join ''"], 5000).catch(() => "");
-  const batteryPercent = /^\\d{1,3}$/.test(batteryText) ? Number(batteryText) : null;
+  const batteryPercent = /^\d{1,3}$/.test(batteryText) ? Number(batteryText) : null;
   return { os: os.type() + " " + os.release(), computer: os.hostname(), cpu: cpus[0]?.model || "No disponible", logicalProcessors: cpus.length, ramTotalGB: Number((os.totalmem() / 1024 ** 3).toFixed(1)), ramFreeGB: Number((os.freemem() / 1024 ** 3).toFixed(1)), uptimeHours: Number((os.uptime() / 3600).toFixed(1)), batteryPercent };
 });
 
