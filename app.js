@@ -300,9 +300,14 @@
     const openRequest=getOpenRequest(q);
     if(openRequest){
       if(openRequest.type==="url"){
-        const opened=window.open(openRequest.url,"_blank");
-        if(opened)opened.opener=null;
-        bubble("QBIT",opened===null?"El navegador bloqueó la pestaña. Permití las ventanas emergentes para QBIT y volvé a intentarlo.":"Abriendo "+openRequest.label+" 🌐","bot");
+        if(window.qbitPC?.isDesktop){
+          try{await window.qbitPC.openUrl(openRequest.url);bubble("QBIT","Abriendo "+openRequest.label+" en tu navegador 🌐","bot");}
+          catch(error){bubble("QBIT","No pude abrir el sitio: "+(error?.message||"error desconocido"),"bot");}
+        }else{
+          const opened=window.open(openRequest.url,"_blank");
+          if(opened)opened.opener=null;
+          bubble("QBIT",opened===null?"El navegador bloqueó la pestaña. Permití las ventanas emergentes para QBIT y volvé a intentarlo.":"Abriendo "+openRequest.label+" 🌐","bot");
+        }
       }else if(openRequest.type==="local"){
         bubble("QBIT","Puedo abrir páginas web, pero esta versión de QBIT funciona dentro del navegador y no tiene permiso para ejecutar programas o abrir archivos locales de Windows. Para eso haría falta una aplicación auxiliar instalada en la PC. 💻","bot");
       }else{
@@ -313,8 +318,13 @@
     const webRequest=getWebSearchRequest(q);
     if(webRequest&&webRequest.query){
       const searchUrl=webRequest.engine.base+encodeURIComponent(webRequest.query);
-      window.open(searchUrl,"_blank","noopener,noreferrer");
-      bubble("QBIT","Abriendo "+webRequest.engine.name+" para buscar: "+webRequest.query+" 🔎\n\nQBIT abre la búsqueda en otra pestaña; no puede leer automáticamente todos los resultados de Google desde esta página por las restricciones de seguridad del navegador. Si no se abre, revisá el bloqueo de ventanas emergentes.","bot");
+      if(window.qbitPC?.isDesktop){
+        try{await window.qbitPC.openUrl(searchUrl);bubble("QBIT","Abriendo la búsqueda en "+webRequest.engine.name+": "+webRequest.query+" 🔎","bot");}
+        catch(error){bubble("QBIT","No pude abrir la búsqueda: "+(error?.message||"error desconocido"),"bot");}
+      }else{
+        window.open(searchUrl,"_blank","noopener,noreferrer");
+        bubble("QBIT","Abriendo "+webRequest.engine.name+" para buscar: "+webRequest.query+" 🔎\n\nQBIT abre la búsqueda en otra pestaña; no puede leer automáticamente todos los resultados de Google desde esta página por las restricciones de seguridad del navegador. Si no se abre, revisá el bloqueo de ventanas emergentes.","bot");
+      }
       return;
     }
     const systemAnswer=await getSystemAnswer(q);
