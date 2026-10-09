@@ -11,7 +11,10 @@
   },
   "devDependencies": {
     "electron": "^35.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/android": "^7.4.3"
   },
   "build": {
     "appId": "com.gotti23b.qbit",
