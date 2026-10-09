@@ -290,7 +290,7 @@
           bubble("QBIT",result.message+" 📚","bot");
         }else if(desktopRequest.type==="status"){
           const st=await window.qbitPC.getStatus();
-          bubble("QBIT","Información de tu PC 🖥️\\n• Sistema: "+st.os+"\\n• Equipo: "+st.computer+"\\n• Procesador: "+st.cpu+"\\n• Procesadores lógicos: "+st.logicalProcessors+"\\n• RAM total: "+st.ramTotalGB+" GB\\n• RAM libre: "+st.ramFreeGB+" GB\\n• Tiempo encendida: "+st.uptimeHours+" horas","bot");
+          bubble("QBIT","Información de tu PC 🖥️\n• Sistema: "+st.os+"\n• Equipo: "+st.computer+"\n• Procesador: "+st.cpu+"\n• Procesadores lógicos: "+st.logicalProcessors+"\n• RAM total: "+st.ramTotalGB+" GB\n• RAM libre: "+st.ramFreeGB+" GB\n• Tiempo encendida: "+st.uptimeHours+" horas"+(st.batteryPercent===null?"":"\n• Batería: "+st.batteryPercent+" %"),"bot");
         }
       }catch(error){
         bubble("QBIT","No pude completar esa acción: "+(error?.message||"error desconocido")+" ⚠️","bot");
