@@ -163,17 +163,18 @@
     return null;
   }
   function getOpenRequest(message){
-    const n=normalizeText(message).replace(/\s+/g," ").trim();
-    const command=n.match(/^(?:qbit[,: ]+)?(?:abre|abrí|abrir|abrime|anda a|ve a|ir a|entra a|entrar a|open)\s+(.+?)[.!?]*$/);
+    const rawMessage=String(message).trim().replace(/[!?]+$/,"");
+    const command=rawMessage.match(/^(?:qbit[,: ]+)?(?:abre|abrí|abrir|abrime|anda a|ve a|ir a|entra a|entrar a|open)\s+(.+)$/i);
     if(!command)return null;
-    const target=command[1].trim().replace(/^(?:la pagina de|la web de|el sitio de|la pagina|el sitio)\s+/,"");
+    const targetRaw=command[1].trim().replace(/^(?:la pagina de|la web de|el sitio de|la pagina|el sitio)\s+/i,"");
+    const target=normalizeText(targetRaw);
     const sites=[
       {keys:["youtube","yt"],label:"YouTube",url:"https://www.youtube.com/"},
       {keys:["google"],label:"Google",url:"https://www.google.com/"},
       {keys:["bing"],label:"Bing",url:"https://www.bing.com/"},
       {keys:["wikipedia","wiki"],label:"Wikipedia",url:"https://es.wikipedia.org/"},
       {keys:["github","mi repositorio de github","mi repo de github","repositorio qbit","mi repositorio qbit"],label:"tu repositorio de QBIT en GitHub",url:"https://github.com/Gotti23b/QBIT"},
-      {keys:["qbit"],label:"QBIT en GitHub",url:"https://gotti23b.github.io/QBIT/"},
+      {keys:["qbit"],label:"QBIT",url:"https://gotti23b.github.io/QBIT/"},
       {keys:["reddit"],label:"Reddit",url:"https://www.reddit.com/"},
       {keys:["google drive","drive"],label:"Google Drive",url:"https://drive.google.com/"},
       {keys:["gmail"],label:"Gmail",url:"https://mail.google.com/"},
@@ -189,12 +190,11 @@
     if(/^(?:la )?(?:calculadora|bloc de notas|notepad|explorador de archivos|configuracion|configuracion de windows|administrador de tareas|cmd|terminal|powershell|paint|word|excel|minecraft instalado)$/.test(target)){
       return {type:"local",label:target};
     }
-    let raw=target.replace(/^https?:\/\//,"");
-    if(/^[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?$/i.test(raw)){
-      const url="https://"+raw;
-      try{const parsed=new URL(url);if(parsed.protocol==="https:"||parsed.protocol==="http:")return {type:"url",label:parsed.hostname,url:parsed.href};}catch{}
+    let urlText=targetRaw.replace(/^https?:\/\//i,"").replace(/\/+$/,"");
+    if(/^[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?$/i.test(urlText)){
+      try{const parsed=new URL(/^https?:\/\//i.test(targetRaw)?targetRaw:"https://"+urlText);if(parsed.protocol==="https:"||parsed.protocol==="http:")return {type:"url",label:parsed.hostname,url:parsed.href};}catch{}
     }
-    return {type:"unknown",label:target};
+    return {type:"unknown",label:targetRaw};
   }
   function getBrowserName(){
     const ua=navigator.userAgent||"";
