@@ -162,6 +162,23 @@
     if(general)return {engine:engines.google,query:general[1].trim()};
     return null;
   }
+  function getDesktopRequest(message){
+    const n=normalizeText(message);
+    const openMatch=n.match(/^(?:qbit )?(?:abre|abri|abrir|abrime|anda a|ve a|ir a|entra a|entrar a) (.+)$/);
+    if(openMatch){
+      const target=openMatch[1].replace(/^(?:la pagina de|la web de|el sitio de|la pagina|el sitio) /,"").trim();
+      const apps={"calculadora":"calculadora","bloc de notas":"bloc de notas","notepad":"bloc de notas","paint":"paint","administrador de tareas":"administrador de tareas","explorador de archivos":"explorador","explorador":"explorador"};
+      const folders={"inicio":"inicio","mi inicio":"inicio","documentos":"documentos","descargas":"descargas","escritorio":"escritorio","imagenes":"imagenes","musica":"musica","videos":"videos"};
+      if(apps[target])return {type:"app",name:apps[target]};
+      if(folders[target])return {type:"folder",name:folders[target]};
+    }
+    if(/^(?:subi|sube|aumenta|subir) (?:el )?volumen$/.test(n))return {type:"volume",action:"up"};
+    if(/^(?:baja|baja|disminui|disminuye|bajar) (?:el )?volumen$/.test(n))return {type:"volume",action:"down"};
+    if(/^(?:silencia|silencia|silenciar|mutea|mute) (?:el )?volumen$/.test(n)||n==="silencia"||n==="silenciar")return {type:"volume",action:"mute"};
+    if(/^(?:informacion|datos) (?:de )?(?:mi )?(?:pc|computadora|equipo|sistema)$/.test(n)||["estado de mi pc","estado del sistema","como esta mi pc","informacion del sistema"].includes(n))return {type:"status"};
+    if(["prepara el entorno de estudio","preparar el entorno de estudio","prepara mi entorno de estudio","modo estudio","inicia modo estudio"].includes(n))return {type:"automation",name:"study"};
+    return null;
+  }
   function getOpenRequest(message){
     const rawMessage=String(message).trim().replace(/[!?]+$/,"");
     const command=rawMessage.match(/^(?:qbit[,: ]+)?(?:abre|abrí|abrir|abrime|anda a|ve a|ir a|entra a|entrar a|open)\s+(.+)$/i);
@@ -248,6 +265,38 @@
     e.preventDefault();
     const q=$("chatInput").value.trim();if(!q)return;
     bubble("Vos",q,"user");$("chatInput").value="";
+    const desktopRequest=getDesktopRequest(q);
+    if(desktopRequest){
+      if(!window.qbitPC?.isDesktop){
+        bubble("QBIT","Esa función necesita la aplicación de escritorio de QBIT instalada en Windows. La versión web no puede controlar programas, carpetas ni el volumen. 💻","bot");
+        return;
+      }
+      if(desktopRequest.type==="automation"&&!window.confirm("QBIT va a abrir Calculadora, Bloc de notas y Documentos. ¿Querés continuar?")){
+        bubble("QBIT","Automatización cancelada. 👍","bot");
+        return;
+      }
+      try{
+        if(desktopRequest.type==="app"){
+          const result=await window.qbitPC.openApp(desktopRequest.name);
+          bubble("QBIT",result.message+" 🖥️","bot");
+        }else if(desktopRequest.type==="folder"){
+          const result=await window.qbitPC.openFolder(desktopRequest.name);
+          bubble("QBIT",result.message+" 📁","bot");
+        }else if(desktopRequest.type==="volume"){
+          const result=await window.qbitPC.volume(desktopRequest.action);
+          bubble("QBIT",result.message+" 🔊","bot");
+        }else if(desktopRequest.type==="automation"){
+          const result=await window.qbitPC.runAutomation(desktopRequest.name);
+          bubble("QBIT",result.message+" 📚","bot");
+        }else if(desktopRequest.type==="status"){
+          const st=await window.qbitPC.getStatus();
+          bubble("QBIT","Información de tu PC 🖥️\\n• Sistema: "+st.os+"\\n• Equipo: "+st.computer+"\\n• Procesador: "+st.cpu+"\\n• Procesadores lógicos: "+st.logicalProcessors+"\\n• RAM total: "+st.ramTotalGB+" GB\\n• RAM libre: "+st.ramFreeGB+" GB\\n• Tiempo encendida: "+st.uptimeHours+" horas","bot");
+        }
+      }catch(error){
+        bubble("QBIT","No pude completar esa acción: "+(error?.message||"error desconocido")+" ⚠️","bot");
+      }
+      return;
+    }
     const openRequest=getOpenRequest(q);
     if(openRequest){
       if(openRequest.type==="url"){
