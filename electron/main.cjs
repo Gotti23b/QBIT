@@ -46,7 +46,9 @@ const knownFolders = {
 
 ipcMain.handle("qbit:status", async () => {
   const cpus = os.cpus();
-  return { os: os.type() + " " + os.release(), computer: os.hostname(), cpu: cpus[0]?.model || "No disponible", logicalProcessors: cpus.length, ramTotalGB: Number((os.totalmem() / 1024 ** 3).toFixed(1)), ramFreeGB: Number((os.freemem() / 1024 ** 3).toFixed(1)), uptimeHours: Number((os.uptime() / 3600).toFixed(1)) };
+  const batteryText = await runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_Battery | Select-Object -First 1 -ExpandProperty EstimatedChargeRemaining) -join ''"], 5000).catch(() => "");
+  const batteryPercent = /^\\d{1,3}$/.test(batteryText) ? Number(batteryText) : null;
+  return { os: os.type() + " " + os.release(), computer: os.hostname(), cpu: cpus[0]?.model || "No disponible", logicalProcessors: cpus.length, ramTotalGB: Number((os.totalmem() / 1024 ** 3).toFixed(1)), ramFreeGB: Number((os.freemem() / 1024 ** 3).toFixed(1)), uptimeHours: Number((os.uptime() / 3600).toFixed(1)), batteryPercent };
 });
 
 ipcMain.handle("qbit:open-app", async (_event, appName) => {
@@ -72,7 +74,7 @@ ipcMain.handle("qbit:open-folder", async (_event, folderName) => {
 ipcMain.handle("qbit:volume", async (_event, action) => {
   if (!["up", "down", "mute"].includes(action)) throw new Error("Acción de volumen no permitida.");
   const virtualKey = action === "up" ? 0xAF : action === "down" ? 0xAE : 0xAD;
-  const script = "$sig='[DllImport(\"user32.dll\")] public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);' ; Add-Type -MemberDefinition $sig -Name NativeKeys -Namespace Qbit; [Qbit.NativeKeys]::keybd_event(" + virtualKey + ",0,0,0)";
+  const script = "$src = 'using System; using System.Runtime.InteropServices; public static class QbitNativeKeys { [DllImport(\"user32.dll\")] public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo); }'; Add-Type -TypeDefinition $src; [QbitNativeKeys]::keybd_event(" + virtualKey + ",0,0,0)";
   await runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]);
   return { ok: true, message: action === "up" ? "Subiendo el volumen." : action === "down" ? "Bajando el volumen." : "Alternando silencio." };
 });
