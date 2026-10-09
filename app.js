@@ -192,7 +192,8 @@
     }
     const urlText=targetRaw.replace(/^https?:\/\//i,"").replace(/\/+$/,"");
     if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?$/i.test(urlText)){
-      try{const parsed=new URL(/^https?:\/\//i.test(targetRaw)?targetRaw:"https://"+urlText);if(parsed.protocol==="https:"||parsed.protocol==="http:")return {type:"url",label:parsed.hostname,url:parsed.href};}catch{}
+      const directUrl=/^https?:\/\//i.test(targetRaw)?targetRaw:"https://"+urlText;
+      return {type:"url",label:urlText.split("/")[0],url:directUrl};
     }
     return {type:"unknown",label:targetRaw};
   }
