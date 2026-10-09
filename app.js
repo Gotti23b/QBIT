@@ -13,9 +13,10 @@
     const match=s.match(/^cuanto es\\s+(.+?)\\s*[?¿.!]*$/);
     if(!match)return null;
     s=match[1]
-      .replace(/multiplicado por|multiplicada por|por/g,"*")
       .replace(/dividido entre|dividido por|dividida entre|dividida por/g,"/")
+      .replace(/multiplicado por|multiplicada por/g,"*")
       .replace(/mas/g,"+").replace(/menos/g,"-")
+      .replace(/\\bpor\\b/g,"*")
       .replace(/[×·]/g,"*").replace(/÷/g,"/")
       .replace(/\\bpor\\b/g,"*").replace(/\\bx\\b/g,"*")
       .replace(/,/g,".");
