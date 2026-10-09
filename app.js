@@ -6,11 +6,12 @@
   let user = null, categories = [], commands = [], responses = [];
   const say = (id, text, error=false) => { $(id).textContent=text; $(id).className=error?"error":"muted"; };
   const node = (tag, cls, text) => { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; };
+  function normalizeText(value){ return String(value).toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?¡!.,;:]/g," ").replace(/\s+/g," ").trim(); }
   const btn = (text, cls, fn) => { const b=node("button",cls,text); b.type="button"; b.onclick=fn; return b; };
   function bubble(who,text,kind){const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;}
   function solveMathQuestion(message){
-    let s=message.toLocaleLowerCase("es").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").trim();
-    const match=s.match(/^cuanto es\\s+(.+?)\\s*[?¿.!]*$/);
+    let s=normalizeText(message);
+    const match=s.match(/^cuanto es\\s+(.+)$/);
     if(!match)return null;
     s=match[1]
       .replace(/dividido entre|dividido por|dividida entre|dividida por/g,"/")
@@ -142,7 +143,7 @@
   $("commandForm").onsubmit=async e=>{e.preventDefault();if(!$("commandCategory").value){notice("Elegí una categoría primero.",true);return;}await save("qbit_commands","commandId",{name:$("commandName").value.trim(),trigger_text:$("commandTrigger").value.trim(),category_id:$("commandCategory").value},resetCommand);};
   $("responseForm").onsubmit=async e=>{e.preventDefault();if(!$("responseCommand").value){notice("Elegí un comando primero.",true);return;}await save("qbit_responses","responseId",{command_id:$("responseCommand").value,content:$("responseContent").value.trim(),priority:Number($("responsePriority").value)||0,is_active:$("responseActive").checked,updated_at:new Date().toISOString()},resetResponse);};
   $("cancelCategory").onclick=resetCategory;$("cancelCommand").onclick=resetCommand;$("cancelResponse").onclick=resetResponse;
-  $("sendForm").onsubmit=e=>{e.preventDefault();const q=$("chatInput").value.trim();if(!q)return;bubble("Vos",q,"user");$("chatInput").value="";const mathAnswer=solveMathQuestion(q);if(mathAnswer!==null){bubble("QBIT",mathAnswer,"bot");return;}const n=q.toLocaleLowerCase("es");const found=commands.filter(c=>n.includes(c.trigger_text.toLocaleLowerCase("es"))).sort((a,b)=>b.trigger_text.length-a.trigger_text.length)[0];if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");};
+  $("sendForm").onsubmit=e=>{e.preventDefault();const q=$("chatInput").value.trim();if(!q)return;bubble("Vos",q,"user");$("chatInput").value="";const mathAnswer=solveMathQuestion(q);if(mathAnswer!==null){bubble("QBIT",mathAnswer,"bot");return;}const n=normalizeText(q);const found=commands.filter(c=>{const trigger=normalizeText(c.trigger_text);return trigger && (" "+n+" ").includes(" "+trigger+" ");}).sort((a,b)=>normalizeText(b.trigger_text).length-normalizeText(a.trigger_text).length)[0];if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");};
   $("clearChat").onclick=()=>{$("chatbox").replaceChildren();bubble("QBIT","Chat limpio. ¿Qué probamos?","bot");};
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));$("chatView").classList.toggle("hidden",b.dataset.tab!=="chatView");$("adminView").classList.toggle("hidden",b.dataset.tab!=="adminView");});
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
