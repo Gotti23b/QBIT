@@ -24,6 +24,15 @@ function createWindow() {
     backgroundColor: "#07111f", title: "QBIT — Asistente personal",
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https://") || url.startsWith("http://")) {
+      shell.openExternal(url).catch(() => {});
+    }
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith("file://")) event.preventDefault();
+  });
   mainWindow.loadFile(path.join(__dirname, "..", "index.html"));
 }
 
