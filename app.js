@@ -16,20 +16,22 @@
     s=match[1]
       .replace(/dividido entre|dividido por|dividida entre|dividida por/g,"/")
       .replace(/multiplicado por|multiplicada por/g,"*")
-      .replace(/mas/g,"+").replace(/menos/g,"-")
-      .replace(/\\bpor\\b/g,"*")
-      .replace(/[×·]/g,"*").replace(/÷/g,"/")
-      .replace(/\\bpor\\b/g,"*").replace(/\\bx\\b/g,"*")
+      .replace(/\bpor\b/g,"*")
+      .replace(/\bx\b/g,"*")
+      .replace(/\bmas\b/g,"+")
+      .replace(/\bmenos\b/g,"-")
+      .replace(/[×·]/g,"*")
+      .replace(/÷/g,"/")
       .replace(/,/g,".");
-    if(!/^[\\d\\s.+*/()\\-]+$/.test(s)||!/[\\d]/.test(s))return null;
-    const tokens=s.match(/\\d+(?:\\.\\d+)?|[()+*/-]/g);
-    if(!tokens||tokens.join("")!==s.replace(/\\s/g,""))return null;
+    if(!/^[\d\s.+*/()\-]+$/.test(s)||!/\d/.test(s))return null;
+    const tokens=s.match(/\d+(?:\.\d+)?|[()+*/-]/g);
+    if(!tokens||tokens.join("")!==s.replace(/\s/g,""))return null;
     let i=0;
     function factor(){
       if(tokens[i]==="+"){i++;return factor();}
       if(tokens[i]==="-"){i++;return -factor();}
       if(tokens[i]==="("){i++;const v=expression();if(tokens[i]!==")")throw Error("paréntesis");i++;return v;}
-      const t=tokens[i++];if(!t||!/^\\d+(?:\\.\\d+)?$/.test(t))throw Error("número");
+      const t=tokens[i++];if(!t||!/^\d+(?:\.\d+)?$/.test(t))throw Error("número");
       return Number(t);
     }
     function term(){let v=factor();while(tokens[i]==="*"||tokens[i]==="/"){const op=tokens[i++],n=factor();v=op==="*"?v*n:v/n;}return v;}
