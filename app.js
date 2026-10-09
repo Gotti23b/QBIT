@@ -191,7 +191,7 @@
       return {type:"local",label:target};
     }
     let urlText=targetRaw.replace(/^https?:\/\//i,"").replace(/\/+$/,"");
-    if(/^[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?$/i.test(urlText)){
+    if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?$/i.test(urlText)){
       try{const parsed=new URL(/^https?:\/\//i.test(targetRaw)?targetRaw:"https://"+urlText);if(parsed.protocol==="https:"||parsed.protocol==="http:")return {type:"url",label:parsed.hostname,url:parsed.href};}catch{}
     }
     return {type:"unknown",label:targetRaw};
