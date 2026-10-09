@@ -1,0 +1,14 @@
+{
+  "name": "qbit-desktop",
+  "version": "1.0.0",
+  "description": "QBIT — Asistente personal para Windows",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0"
+  }
+}
