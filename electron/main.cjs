@@ -53,6 +53,15 @@ const knownFolders = {
   "videos": () => app.getPath("videos")
 };
 
+ipcMain.handle("qbit:open-url", async (_event, rawUrl) => {
+  if (typeof rawUrl !== "string") throw new Error("Dirección web inválida.");
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { throw new Error("La dirección web no es válida."); }
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Solo se pueden abrir direcciones HTTP o HTTPS.");
+  await shell.openExternal(parsed.href);
+  return { ok: true };
+});
+
 ipcMain.handle("qbit:status", async () => {
   const cpus = os.cpus();
   const batteryText = await runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_Battery | Select-Object -First 1 -ExpandProperty EstimatedChargeRemaining) -join ''"], 5000).catch(() => "");
