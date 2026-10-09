@@ -8,6 +8,32 @@
   const node = (tag, cls, text) => { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; };
   const btn = (text, cls, fn) => { const b=node("button",cls,text); b.type="button"; b.onclick=fn; return b; };
   function bubble(who,text,kind){const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;}
+  function solveMathQuestion(message){
+    let s=message.toLocaleLowerCase("es").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").trim();
+    const match=s.match(/^cuanto es\\s+(.+?)\\s*[?¿.!]*$/);
+    if(!match)return null;
+    s=match[1]
+      .replace(/multiplicado por|multiplicada por|por/g,"*")
+      .replace(/dividido entre|dividido por|dividida entre|dividida por/g,"/")
+      .replace(/mas/g,"+").replace(/menos/g,"-")
+      .replace(/[×·]/g,"*").replace(/÷/g,"/")
+      .replace(/\\bpor\\b/g,"*").replace(/\\bx\\b/g,"*")
+      .replace(/,/g,".");
+    if(!/^[\\d\\s.+*/()\\-]+$/.test(s)||!/[\\d]/.test(s))return null;
+    const tokens=s.match(/\\d+(?:\\.\\d+)?|[()+*/-]/g);
+    if(!tokens||tokens.join("")!==s.replace(/\\s/g,""))return null;
+    let i=0;
+    function factor(){
+      if(tokens[i]==="+"){i++;return factor();}
+      if(tokens[i]==="-"){i++;return -factor();}
+      if(tokens[i]==="("){i++;const v=expression();if(tokens[i]!==")")throw Error("paréntesis");i++;return v;}
+      const t=tokens[i++];if(!t||!/^\\d+(?:\\.\\d+)?$/.test(t))throw Error("número");
+      return Number(t);
+    }
+    function term(){let v=factor();while(tokens[i]==="*"||tokens[i]==="/"){const op=tokens[i++],n=factor();v=op==="*"?v*n:v/n;}return v;}
+    function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
+    try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
+  }
   function session(u){user=u;$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
@@ -115,7 +141,7 @@
   $("commandForm").onsubmit=async e=>{e.preventDefault();if(!$("commandCategory").value){notice("Elegí una categoría primero.",true);return;}await save("qbit_commands","commandId",{name:$("commandName").value.trim(),trigger_text:$("commandTrigger").value.trim(),category_id:$("commandCategory").value},resetCommand);};
   $("responseForm").onsubmit=async e=>{e.preventDefault();if(!$("responseCommand").value){notice("Elegí un comando primero.",true);return;}await save("qbit_responses","responseId",{command_id:$("responseCommand").value,content:$("responseContent").value.trim(),priority:Number($("responsePriority").value)||0,is_active:$("responseActive").checked,updated_at:new Date().toISOString()},resetResponse);};
   $("cancelCategory").onclick=resetCategory;$("cancelCommand").onclick=resetCommand;$("cancelResponse").onclick=resetResponse;
-  $("sendForm").onsubmit=e=>{e.preventDefault();const q=$("chatInput").value.trim();if(!q)return;bubble("Vos",q,"user");$("chatInput").value="";const n=q.toLocaleLowerCase("es");const found=commands.filter(c=>n.includes(c.trigger_text.toLocaleLowerCase("es"))).sort((a,b)=>b.trigger_text.length-a.trigger_text.length)[0];if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");};
+  $("sendForm").onsubmit=e=>{e.preventDefault();const q=$("chatInput").value.trim();if(!q)return;bubble("Vos",q,"user");$("chatInput").value="";const mathAnswer=solveMathQuestion(q);if(mathAnswer!==null){bubble("QBIT",mathAnswer,"bot");return;}const n=q.toLocaleLowerCase("es");const found=commands.filter(c=>n.includes(c.trigger_text.toLocaleLowerCase("es"))).sort((a,b)=>b.trigger_text.length-a.trigger_text.length)[0];if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");};
   $("clearChat").onclick=()=>{$("chatbox").replaceChildren();bubble("QBIT","Chat limpio. ¿Qué probamos?","bot");};
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));$("chatView").classList.toggle("hidden",b.dataset.tab!=="chatView");$("adminView").classList.toggle("hidden",b.dataset.tab!=="adminView");});
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
