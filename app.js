@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false;
+  let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   const say = (id, text, error=false) => { $(id).textContent=text; $(id).className=error?"error":"muted"; };
   const node = (tag, cls, text) => { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; };
   function normalizeText(value){ return String(value).toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?¡!.,;:]/g," ").replace(/\s+/g," ").trim(); }
@@ -27,6 +27,7 @@
   }
   function bubble(who,text,kind){
     const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    if(kind==="bot"&&petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
     if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){chat.messages.push({who,text:String(text),kind,at:new Date().toISOString()});if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
   }
   function showChat(id,switchToChat=true){
@@ -397,6 +398,7 @@
     const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;
     bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");
   };
+  window.qbitPC?.onPetMessage?.(message=>{const input=$("chatInput");if(!input)return;petMessagePending=true;input.value=String(message||"").slice(0,500);$("sendForm").requestSubmit();});
   $("clearChat").onclick=()=>newChat();
   $("newChatFromHistory").onclick=()=>newChat();
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
