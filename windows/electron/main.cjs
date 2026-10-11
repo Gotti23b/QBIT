@@ -300,6 +300,48 @@ async function openAnything(query) {
 }
 
 
+ipcMain.handle("qbit:pet-settings-get", event => {
+  if ((!mainWindow || event.sender !== mainWindow.webContents) && (!petWindow || event.sender !== petWindow.webContents)) throw new Error("Solicitud no autorizada.");
+  return { ...petSettings };
+});
+ipcMain.handle("qbit:pet-settings-set", (event, settings) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  if (!settings || typeof settings !== "object") throw new Error("Configuración inválida.");
+  petSettings = {
+    visible: settings.visible === true,
+    size: ["small", "normal", "large"].includes(settings.size) ? settings.size : "normal",
+    animations: settings.animations === true
+  };
+  savePetSettings();
+  if (petWindow && !petWindow.isDestroyed()) {
+    const [x, y] = petWindow.getPosition();
+    const base = petExpanded ? PET_LARGE : PET_SMALL;
+    const scale = petScale();
+    const width = Math.round(base.width * scale);
+    const height = Math.round(base.height * scale);
+    const pos = clampPetPosition(x, y, width, height);
+    petWindow.setBounds({ x: pos.x, y: pos.y, width, height }, false);
+    if (petSettings.visible) petWindow.show(); else petWindow.hide();
+    sendPetSettings();
+  } else if (petSettings.visible) createPetWindow();
+  return { ...petSettings };
+});
+ipcMain.handle("qbit:pet-position-reset", event => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  if (!petWindow || petWindow.isDestroyed()) createPetWindow();
+  if (petWindow && !petWindow.isDestroyed()) {
+    const area = screen.getPrimaryDisplay().workArea;
+    const [width, height] = petWindow.getSize();
+    const pos = clampPetPosition(area.x + area.width - width - 20, area.y + area.height - height - 24, width, height);
+    petWindow.setPosition(pos.x, pos.y, false);
+    petWindow.show();
+    petSettings.visible = true;
+    savePetSettings();
+    sendPetSettings();
+  }
+  return true;
+});
+
 ipcMain.handle("qbit:pet-position", event => {
   if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return null;
   const [x, y] = petWindow.getPosition();
@@ -405,6 +447,7 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 });
 
 app.whenReady().then(() => {
+  loadPetSettings();
   createTray();
   createWindow();
   createPetWindow();
