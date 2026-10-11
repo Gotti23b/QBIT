@@ -269,7 +269,7 @@
     }
     const urlText=targetRaw.replace(/^https?:\/\//i,"").replace(/\/+$/,"");
     const looksLikeFile=/\.(?:txt|pdf|docx?|xlsx?|pptx?|png|jpe?g|gif|webp|svg|mp3|mp4|zip|rar|7z|csv|json|js|html|css|py|md|log|xml|apk|exe|msi)$/i.test(urlText);
-    if(!looksLikeFile&&if(/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?$/i.test(urlText)){
+    if(!looksLikeFile&&/^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s]*)?$/i.test(urlText)){
       const directUrl=/^https?:\/\//i.test(targetRaw)?targetRaw:"https://"+urlText;
       return {type:"url",label:urlText.split("/")[0],url:directUrl};
     }
