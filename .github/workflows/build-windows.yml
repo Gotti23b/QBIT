@@ -37,7 +37,7 @@ jobs:
           $package = Get-Content -Path config/package.json -Raw | ConvertFrom-Json
           $package.main = "electron/main.cjs"
           $package.scripts.start = "electron ."
-          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js && node --check mascot.js"
+          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js && node --check mascot.js && node --check electron/mascot-window.js"
           $package.build.directories.output = "../dist"
           $package.build.win | Add-Member -NotePropertyName icon -NotePropertyValue "qbit-icon.ico" -Force
           $package.build.nsis | Add-Member -NotePropertyName installerIcon -NotePropertyValue "qbit-icon.ico" -Force
