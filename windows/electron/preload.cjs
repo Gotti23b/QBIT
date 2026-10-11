@@ -10,7 +10,10 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   volume: action => ipcRenderer.invoke("qbit:volume", action),
   runAutomation: name => ipcRenderer.invoke("qbit:automation", name),
   onPetMessage: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:pet-message", (_event, message) => callback(message)); },
-  sendPetReply: message => ipcRenderer.send("qbit:pet-reply", String(message).slice(0, 2000))
+  sendPetReply: message => ipcRenderer.send("qbit:pet-reply", String(message).slice(0, 2000)),
+  getPetSettings: () => ipcRenderer.invoke("qbit:pet-settings-get"),
+  setPetSettings: settings => ipcRenderer.invoke("qbit:pet-settings-set", settings),
+  resetPetPosition: () => ipcRenderer.invoke("qbit:pet-position-reset")
 }));
 contextBridge.exposeInMainWorld("qbitPet", Object.freeze({
   resizePet: expanded => ipcRenderer.invoke("qbit:pet-resize", Boolean(expanded)),
@@ -25,6 +28,13 @@ contextBridge.exposeInMainWorld("qbitPet", Object.freeze({
     const listener = () => callback();
     ipcRenderer.on("qbit:pet-toggle", listener);
     petListeners.set(callback, ["qbit:pet-toggle", listener]);
+  },
+  getSettings: () => ipcRenderer.invoke("qbit:pet-settings-get"),
+  onPetSettings: callback => {
+    if (typeof callback !== "function") return;
+    const listener = (_event, settings) => callback(settings);
+    ipcRenderer.on("qbit:pet-settings", listener);
+    petListeners.set(callback, ["qbit:pet-settings", listener]);
   },
   onPetState: callback => {
     if (typeof callback !== "function") return;
