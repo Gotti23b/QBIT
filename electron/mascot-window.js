@@ -10,6 +10,8 @@
   const stateNames = { idle: "tranqui", working: "trabajando", resting: "descansando" };
   let expanded = false;
   let busyTimer = null;
+  let dragStart = null;
+  let dragging = false;
 
   async function setExpanded(next) {
     expanded = Boolean(next);
@@ -34,10 +36,10 @@
     if (event.button !== 0 && event.pointerType === "mouse") return;
     window.__petWasDragged = false;
     dragging = false;
+    button.setPointerCapture?.(event.pointerId);
     const position = await api?.getPosition?.();
     if (!position) return;
     dragStart = { pointerX: event.screenX, pointerY: event.screenY, x: position.x, y: position.y };
-    button.setPointerCapture?.(event.pointerId);
   });
   button.addEventListener("pointermove", event => {
     if (!dragStart || !(event.buttons || event.pointerType === "touch")) return;
