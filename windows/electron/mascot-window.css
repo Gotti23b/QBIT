@@ -45,3 +45,5 @@ button,input,.no-drag{-webkit-app-region:no-drag}
 @keyframes float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-5px) rotate(-2deg)}}
 @keyframes work{from{transform:translateY(0) rotate(-5deg)}to{transform:translateY(-3px) rotate(5deg)}}
 @media(prefers-reduced-motion:reduce){.cube{animation:none!important}}
+
+html.no-animations .cube,html.no-animations .pet-button[data-state="working"] .cube{animation:none!important}
