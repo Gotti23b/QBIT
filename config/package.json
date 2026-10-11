@@ -28,6 +28,7 @@
       "styles.css",
       "mascot.css",
       "mascot.js",
+      "qbit-icon.ico",
       "qbit-icon.svg",
       "electron/**/*",
       "!README.md",
