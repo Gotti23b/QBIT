@@ -13,12 +13,19 @@ on:
       - "config/package.json"
       - ".github/workflows/build-windows.yml"
 
+# Keep only one Windows build queued/running at a time.
+concurrency:
+  group: qbit-windows-build
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   build:
+    name: build
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -27,6 +34,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: config/package.json
 
       - name: Prepare Windows app folder
         shell: pwsh
@@ -39,7 +48,8 @@ jobs:
           $package.scripts.start = "electron ."
           $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js"
           $package.build.directories.output = "../dist"
-          $package | ConvertTo-Json -Depth 100 | Set-Content desktop-build/package.json -Encoding utf8
+          $json = $package | ConvertTo-Json -Depth 100
+          [System.IO.File]::WriteAllText((Join-Path $PWD "desktop-build/package.json"), $json, (New-Object System.Text.UTF8Encoding($false)))
 
       - name: Install Windows build dependencies
         working-directory: desktop-build
