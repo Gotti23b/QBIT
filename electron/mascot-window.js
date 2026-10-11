@@ -89,6 +89,7 @@
     busyTimer = window.setTimeout(() => setState("idle"), 1600);
   });
 
+  if (api?.onPetReply) api.onPetReply(reply => { greeting.textContent = String(reply); setState("idle"); });
   if (api?.onPetToggle) api.onPetToggle(() => { void setExpanded(!expanded); });
   if (api?.onPetState) api.onPetState(state => setState(state));
   setState("idle");
