@@ -30,14 +30,14 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path desktop-build | Out-Null
-          Copy-Item -Path index.html, app.js, styles.css, qbit-icon.svg -Destination desktop-build
+          Copy-Item -Path index.html, app.js, styles.css, mascot.css, mascot.js, qbit-icon.svg -Destination desktop-build
           Copy-Item -Path electron -Destination desktop-build -Recurse
           Copy-Item -Path scripts -Destination desktop-build -Recurse
 
           $package = Get-Content -Path config/package.json -Raw | ConvertFrom-Json
           $package.main = "electron/main.cjs"
           $package.scripts.start = "electron ."
-          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js"
+          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js && node --check mascot.js"
           $package.build.directories.output = "../dist"
           $package.build.win | Add-Member -NotePropertyName icon -NotePropertyValue "qbit-icon.ico" -Force
           $package.build.nsis | Add-Member -NotePropertyName installerIcon -NotePropertyValue "qbit-icon.ico" -Force
