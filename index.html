@@ -27,7 +27,7 @@
   </form>
 </section>
 <section id="appView" class="hidden">
-  <div class="tabs"><button class="active" data-tab="chatView">💬 Asistente</button><button data-tab="historyView">🕘 Historial</button><button data-tab="adminView">⚙️ Administrar QBIT</button></div>
+  <div class="tabs"><button class="active" data-tab="chatView">💬 Asistente</button><button data-tab="historyView">🕘 Historial</button><button data-tab="mascotSettingsView">🤖 Mascota</button><button data-tab="adminView">⚙️ Administrar QBIT</button></div>
   <section id="chatView"><div class="layout">
     <div class="card"><div class="section-title"><h2>Chat</h2><button id="clearChat" class="small">Limpiar chat</button></div>
       <p class="muted">Probá escribir uno de los comandos que guardaste.</p>
@@ -37,6 +37,17 @@
     <aside class="card"><h3>Comandos disponibles</h3><p class="muted">Estos comandos salen de tu base de datos.</p><div id="quickCommands" class="list"><div class="empty">Todavía no hay comandos.</div></div></aside>
   </div></section>
   <section id="historyView" class="hidden"><div class="card"><div class="section-title"><div><h2>Historial de chats</h2><p class="muted">Tus conversaciones guardadas en este navegador.</p></div><button id="newChatFromHistory" class="primary">＋ Nuevo chat</button></div><div id="historyList" class="list"><div class="empty">Todavía no hay conversaciones guardadas.</div></div></div></section>
+  <section id="mascotSettingsView" class="hidden">
+    <div class="card"><h2>Configuración de la mascota 🤖</h2><p class="muted">Personalizá cómo se ve y se comporta la mascota de escritorio de QBIT en Windows.</p>
+      <p id="petSettingsNotice" class="notice" aria-live="polite">Cargando configuración…</p>
+      <form id="petSettingsForm" class="stack">
+        <label style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:15px"><input id="petVisible" type="checkbox" checked style="width:auto"> Mostrar mascota en el escritorio</label>
+        <div><label for="petSize">Tamaño de la mascota</label><select id="petSize"><option value="small">Pequeña</option><option value="normal" selected>Normal</option><option value="large">Grande</option></select></div>
+        <label style="display:flex;align-items:center;gap:10px;color:var(--text);font-size:15px"><input id="petAnimations" type="checkbox" checked style="width:auto"> Activar animaciones</label>
+        <div class="row"><button class="primary" type="submit">Guardar configuración</button><button id="petResetPosition" type="button">Volver a la esquina</button></div>
+      </form><p class="muted">Estos ajustes se aplican a la mascota de Windows. En la versión web no se puede controlar la mascota del escritorio.</p>
+    </div>
+  </section>
   <section id="adminView" class="hidden">
     <div class="card"><h2>Panel de administración</h2><p class="muted">Todo se guarda en Supabase y queda asociado a tu cuenta.</p><div id="adminMsg" aria-live="polite"></div></div>
     <div class="layout" style="margin-top:16px">
