@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
+const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 
 let mainWindow;
@@ -8,6 +9,11 @@ let petWindow;
 let tray;
 let isQuitting = false;
 let petExpanded = false;
+
+function getAppRoot() {
+  const candidates = [path.join(__dirname, ".."), path.join(__dirname, "..", "..")];
+  return candidates.find(candidate => fs.existsSync(path.join(candidate, "index.html"))) || candidates[0];
+}
 
 const PET_SMALL = { width: 116, height: 116 };
 const PET_LARGE = { width: 320, height: 430 };
@@ -50,7 +56,7 @@ function createWindow() {
     }
   });
   mainWindow.on("closed", () => { mainWindow = null; });
-  mainWindow.loadFile(path.join(__dirname, "..", "index.html"));
+  mainWindow.loadFile(path.join(getAppRoot(), "index.html"));
 }
 
 function workAreaForPoint(x, y) {
@@ -124,7 +130,7 @@ function createPetWindow() {
 
 function createTray() {
   if (tray) return;
-  const iconPath = path.join(__dirname, "..", "qbit-icon.ico");
+  const iconPath = path.join(getAppRoot(), "qbit-icon.ico");
   let icon = nativeImage.createFromPath(iconPath);
   if (icon.isEmpty()) {
     icon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABIUlEQVR4nO2WSwqDMBCGx1LortC1YAuewAt4GO/RVe/hYbyAJxCK4AV6gXaVEsNkXobaSv+NYB7fn8kkmexwOj9hRe3WhP8NfIWBPdch7/rFkKmuom1kBFLAuXmy2DH0B1Er0MCxedAISOHtOMy+mPzxWCTILdDApSZCsUkYAwMANEU5++/a/P+cxMfQB2CQmBlOogi04wDX+wMA6HA6E65/3vVsAosMNEX5TiAqzNJV+zLfhCGM2h5K6iT0wxya0IDNBnyY25bb5WiCAyR6jKzwZAaWaJsGNK+oOgmpy8XygooNuAnzrkdXaH2+1VuATe7gU12pawdTRYSBKDCVE6gBrogI+0nhWL9oScbBtYqZNFdEKeAATAQ+oW3ehD9l4AUUK4lPDW2PuAAAAABJRU5ErkJggg==");
