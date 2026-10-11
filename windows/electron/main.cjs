@@ -9,6 +9,23 @@ let petWindow;
 let tray;
 let isQuitting = false;
 let petExpanded = false;
+const DEFAULT_PET_SETTINGS = Object.freeze({ visible: true, size: "normal", animations: true });
+let petSettings = { ...DEFAULT_PET_SETTINGS };
+function petSettingsPath() { return path.join(app.getPath("userData"), "pet-settings.json"); }
+function loadPetSettings() {
+  try {
+    const s = JSON.parse(fs.readFileSync(petSettingsPath(), "utf8"));
+    petSettings = { visible: s.visible !== false, size: ["small", "normal", "large"].includes(s.size) ? s.size : "normal", animations: s.animations !== false };
+  } catch { petSettings = { ...DEFAULT_PET_SETTINGS }; }
+}
+function savePetSettings() {
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(petSettingsPath(), JSON.stringify(petSettings, null, 2), "utf8");
+}
+function petScale() { return petSettings.size === "small" ? 0.8 : petSettings.size === "large" ? 1.2 : 1; }
+function sendPetSettings() {
+  if (petWindow && !petWindow.isDestroyed() && !petWindow.webContents.isLoading()) petWindow.webContents.send("qbit:pet-settings", { ...petSettings });
+}
 
 function getAppRoot() {
   const candidates = [path.join(__dirname, ".."), path.join(__dirname, "..", "..")];
