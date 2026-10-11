@@ -1,0 +1,65 @@
+name: Build QBIT for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app.js"
+      - "index.html"
+      - "styles.css"
+      - "qbit-icon.svg"
+      - "electron/**"
+      - "config/package.json"
+      - ".github/workflows/build-windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: config/package.json
+
+      - name: Prepare Windows app folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path desktop-build | Out-Null
+          Copy-Item index.html, app.js, styles.css, qbit-icon.svg -Destination desktop-build
+          Copy-Item electron -Destination desktop-build -Recurse
+          $package = Get-Content config/package.json -Raw | ConvertFrom-Json
+          $package.main = "electron/main.cjs"
+          $package.scripts.start = "electron ."
+          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js"
+          $package.scripts.Remove("dist")
+          $package.build.directories.output = "../dist"
+          $package | ConvertTo-Json -Depth 100 | Set-Content desktop-build/package.json -Encoding utf8
+
+      - name: Install Windows build dependencies
+        working-directory: desktop-build
+        run: npm install
+
+      - name: Check JavaScript syntax
+        working-directory: desktop-build
+        run: npm run check
+
+      - name: Build Windows installer
+        working-directory: desktop-build
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: QBIT-Windows-Installer
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
