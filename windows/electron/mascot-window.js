@@ -12,6 +12,12 @@
   let busyTimer = null;
   let dragStart = null;
   let dragging = false;
+  function applySettings(settings) {
+    if (!settings || typeof settings !== "object") return;
+    const scale = settings.size === "small" ? 0.8 : settings.size === "large" ? 1.2 : 1;
+    document.body.style.zoom = String(scale);
+    document.documentElement.classList.toggle("no-animations", settings.animations === false);
+  }
 
   async function setExpanded(next) {
     expanded = Boolean(next);
@@ -95,6 +101,8 @@
     busyTimer = window.setTimeout(() => { if (button.dataset.state === "working") setState("idle"); }, 10000);
   });
 
+  if (api?.onPetSettings) api.onPetSettings(applySettings);
+  if (api?.getSettings) api.getSettings().then(applySettings).catch(() => {});
   if (api?.onPetReply) api.onPetReply(reply => { greeting.textContent = String(reply); setState("idle"); });
   if (api?.onPetToggle) api.onPetToggle(() => { void setExpanded(!expanded); });
   if (api?.onPetState) api.onPetState(state => setState(state));
