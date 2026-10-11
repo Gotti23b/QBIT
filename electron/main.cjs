@@ -162,7 +162,8 @@ ipcMain.handle("qbit:pet-position", event => {
   if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return null;
   const [x, y] = petWindow.getPosition();
   return { x, y };
-});\nipcMain.handle("qbit:pet-resize", (event, expanded) => {
+});
+ipcMain.handle("qbit:pet-resize", (event, expanded) => {
   if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return false;
   resizePet(Boolean(expanded));
   return true;
