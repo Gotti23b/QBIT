@@ -35,13 +35,16 @@ jobs:
         working-directory: config
         run: npx cap add android
 
-      - name: Generate Android app icons from QBIT logo
+      - name: Convert QBIT logo to Android icon source
         run: |
           sudo apt-get update
           sudo apt-get install -y librsvg2-bin
           mkdir -p config/resources
           rsvg-convert -w 1024 -h 1024 qbit-icon.svg -o config/resources/icon.png
-          npx --yes @capacitor/assets generate --android --assetPath config/resources
+
+      - name: Generate Android app icons from QBIT logo
+        working-directory: config
+        run: npx --yes @capacitor/assets generate --android --assetPath resources
 
       - name: Sync web app to Android
         working-directory: config
