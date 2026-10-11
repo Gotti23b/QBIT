@@ -2,16 +2,6 @@ name: Build QBIT for Windows
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "app.js"
-      - "index.html"
-      - "styles.css"
-      - "qbit-icon.svg"
-      - "electron/**"
-      - "config/package.json"
-      - ".github/workflows/build-windows.yml"
 
 permissions:
   contents: read
