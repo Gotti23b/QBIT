@@ -1,9 +1,16 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 let mainWindow;
+let petWindow;
+let tray;
+let isQuitting = false;
+let petExpanded = false;
+
+const PET_SMALL = { width: 116, height: 116 };
+const PET_LARGE = { width: 320, height: 430 };
 
 function runWindowsCommand(file, args, timeout = 8000) {
   return new Promise((resolve, reject) => {
@@ -19,21 +26,119 @@ function runWindowsCommand(file, args, timeout = 8000) {
 }
 
 function createWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
   mainWindow = new BrowserWindow({
     width: 1180, height: 820, minWidth: 760, minHeight: 560,
     backgroundColor: "#07111f", title: "QBIT — Asistente personal",
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https://") || url.startsWith("http://")) {
-      shell.openExternal(url).catch(() => {});
-    }
+    if (url.startsWith("https://") || url.startsWith("http://")) shell.openExternal(url).catch(() => {});
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith("file://")) event.preventDefault();
   });
+  mainWindow.on("close", event => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+  mainWindow.on("closed", () => { mainWindow = null; });
   mainWindow.loadFile(path.join(__dirname, "..", "index.html"));
+}
+
+function workAreaForPoint(x, y) {
+  return screen.getDisplayNearestPoint({ x: Math.round(x), y: Math.round(y) }).workArea;
+}
+
+function clampPetPosition(x, y, width, height) {
+  const area = workAreaForPoint(x + width / 2, y + height / 2);
+  return {
+    x: Math.max(area.x, Math.min(Math.round(x), area.x + area.width - width)),
+    y: Math.max(area.y, Math.min(Math.round(y), area.y + area.height - height))
+  };
+}
+
+function resizePet(expanded) {
+  if (!petWindow || petWindow.isDestroyed()) return;
+  const next = expanded ? PET_LARGE : PET_SMALL;
+  const [oldWidth, oldHeight] = petWindow.getSize();
+  const [oldX, oldY] = petWindow.getPosition();
+  const nextX = oldX + oldWidth - next.width;
+  const nextY = oldY + oldHeight - next.height;
+  const pos = clampPetPosition(nextX, nextY, next.width, next.height);
+  petExpanded = Boolean(expanded);
+  petWindow.setBounds({ x: pos.x, y: pos.y, width: next.width, height: next.height }, false);
+  petWindow.setAlwaysOnTop(true, "floating");
+  if (petExpanded) petWindow.show();
+}
+
+function createPetWindow() {
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.show();
+    petWindow.setAlwaysOnTop(true, "floating");
+    return;
+  }
+  const area = screen.getPrimaryDisplay().workArea;
+  petWindow = new BrowserWindow({
+    ...PET_SMALL,
+    x: area.x + area.width - PET_SMALL.width - 20,
+    y: area.y + area.height - PET_SMALL.height - 24,
+    title: "Mascota QBIT",
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    hasShadow: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  petWindow.setAlwaysOnTop(true, "floating");
+  petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  petWindow.on("close", event => {
+    if (!isQuitting) {
+      event.preventDefault();
+      petWindow.hide();
+    }
+  });
+  petWindow.on("closed", () => { petWindow = null; });
+  petWindow.loadFile(path.join(__dirname, "mascot.html"));
+  petWindow.once("ready-to-show", () => petWindow?.show());
+}
+
+function createTray() {
+  if (tray) return;
+  const iconPath = path.join(__dirname, "..", "qbit-icon.ico");
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABFElEQVQ4T6WTwQ3CMAxFf0sAGyAbwAawATYgG8AGsAGwAWwAG8AGsAGwAWwAGsAGsAGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwA7gB7oY5gJx4d9QAAAABJRU5ErkJggg==");
+  }
+  tray = new Tray(icon);
+  tray.setToolTip("QBIT");
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: "Abrir QBIT", click: () => createWindow() },
+    { label: "Mostrar mascota", click: () => createPetWindow() },
+    { label: "Ocultar mascota", click: () => petWindow?.hide() },
+    { type: "separator" },
+    { label: "Salir de QBIT", click: () => { isQuitting = true; app.quit(); } }
+  ]));
+  tray.on("double-click", () => createWindow());
 }
 
 const allowedApps = {
@@ -52,6 +157,30 @@ const knownFolders = {
   "musica": () => app.getPath("music"),
   "videos": () => app.getPath("videos")
 };
+
+ipcMain.handle("qbit:pet-resize", (event, expanded) => {
+  if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return false;
+  resizePet(Boolean(expanded));
+  return true;
+});
+ipcMain.handle("qbit:pet-move", (event, x, y) => {
+  if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return false;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+  const [width, height] = petWindow.getSize();
+  const pos = clampPetPosition(x, y, width, height);
+  petWindow.setPosition(pos.x, pos.y, false);
+  return true;
+});
+ipcMain.handle("qbit:pet-show-main", event => {
+  if (!petWindow || event.sender !== petWindow.webContents) return false;
+  createWindow();
+  return true;
+});
+ipcMain.handle("qbit:pet-hide", event => {
+  if (!petWindow || event.sender !== petWindow.webContents) return false;
+  petWindow.hide();
+  return true;
+});
 
 ipcMain.handle("qbit:open-url", async (_event, rawUrl) => {
   if (typeof rawUrl !== "string") throw new Error("Dirección web inválida.");
@@ -92,7 +221,7 @@ ipcMain.handle("qbit:open-folder", async (_event, folderName) => {
 ipcMain.handle("qbit:volume", async (_event, action) => {
   if (!["up", "down", "mute"].includes(action)) throw new Error("Acción de volumen no permitida.");
   const virtualKey = action === "up" ? 0xAF : action === "down" ? 0xAE : 0xAD;
-  const script = "$src = 'using System; using System.Runtime.InteropServices; public static class QbitNativeKeys { [DllImport(\"user32.dll\")] public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo); }'; Add-Type -TypeDefinition $src; [QbitNativeKeys]::keybd_event(" + virtualKey + ",0,0,0); [QbitNativeKeys]::keybd_event(" + virtualKey + ",0,2,0)";
+  const script = "$src = 'using System; using System.Runtime.InteropServices; public static class QbitNativeKeys { [DllImport(\\"user32.dll\\")] public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo); }'; Add-Type -TypeDefinition $src; [QbitNativeKeys]::keybd_event(" + virtualKey + ",0,0,0); [QbitNativeKeys]::keybd_event(" + virtualKey + ",0,2,0)";
   await runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]);
   return { ok: true, message: action === "up" ? "Subiendo el volumen." : action === "down" ? "Bajando el volumen." : "Alternando silencio." };
 });
@@ -105,6 +234,20 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
   return { ok: true, message: "Preparé el entorno de estudio: calculadora, Bloc de notas y Documentos." };
 });
 
-app.whenReady().then(createWindow);
-app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
-app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+app.whenReady().then(() => {
+  createTray();
+  createWindow();
+  createPetWindow();
+});
+app.on("before-quit", () => { isQuitting = true; });
+app.on("window-all-closed", () => {
+  if (isQuitting) app.quit();
+});
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+    createPetWindow();
+  } else if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+  }
+});
