@@ -1,6 +1,7 @@
 /* Prototipo independiente de la mascota QBIT; todavía no es el chat real. */
 (() => {
-  if (window.qbitPC?.isDesktop) return;\n  const root = document.createElement("div");
+  if (window.qbitPC?.isDesktop) return;
+  const root = document.createElement("div");
   root.id = "qbit-pet";
   root.innerHTML = `
     <section class="pet-panel" id="qbitPetPanel" aria-label="Panel de la mascota QBIT" hidden>
