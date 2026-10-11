@@ -89,7 +89,7 @@
     api?.sendMessage?.(text).then(ok => {
       if (!ok) { greeting.textContent = "No pude enviar el mensaje al chat de QBIT."; setState("idle"); }
     }).catch(() => {
-      greeting.textContent = "No pude conectar con el chat de QBIT. Abrí la ventana principal e intentá de nuevo.";
+      greeting.textContent = "No pude conectar con el chat de QBIT. Intentá de nuevo.";
       setState("idle");
     });
     busyTimer = window.setTimeout(() => { if (button.dataset.state === "working") setState("idle"); }, 10000);
