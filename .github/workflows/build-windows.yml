@@ -27,8 +27,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: config/package.json
 
       - name: Prepare Windows app folder
         shell: pwsh
@@ -40,7 +38,6 @@ jobs:
           $package.main = "electron/main.cjs"
           $package.scripts.start = "electron ."
           $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js"
-          $package.scripts.Remove("dist")
           $package.build.directories.output = "../dist"
           $package | ConvertTo-Json -Depth 100 | Set-Content desktop-build/package.json -Encoding utf8
 
