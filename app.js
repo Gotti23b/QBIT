@@ -60,8 +60,8 @@
     const current=chatHistory.find(c=>c.id===activeChatId);
     if(current&&!current.messages.some(m=>m.kind==="user")&&current.messages.length===0){showChat(current.id,false);return;}
     const chat={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2)),title:"Nuevo chat",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),messages:[]};
-    chatHistory.unshift(chat);activeChatId=chat.id;saveHistory();showChat(chat.id,false);
-    const b=node("div","bubble bot");b.append(node("small","","QBIT"),document.createTextNode("Chat nuevo. ¿Qué probamos? ✨"));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    chatHistory.unshift(chat);activeChatId=chat.id;saveHistory();$("chatbox").replaceChildren();
+    bubble("QBIT","Chat nuevo. ¿Qué probamos? ✨","bot");
     renderHistory();activateTab("chatView");
   }
   function activateTab(id){
