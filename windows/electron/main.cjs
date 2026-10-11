@@ -164,6 +164,120 @@ const knownFolders = {
   "videos": () => app.getPath("videos")
 };
 
+function normalizeLocalName(value) {
+  return String(value || "").toLocaleLowerCase("es")
+    .normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ").trim().replace(/\\s+/g, " ");
+}
+
+function localMatchScore(query, candidate) {
+  const q = normalizeLocalName(query);
+  const c = normalizeLocalName(candidate);
+  if (!q || !c) return 0;
+  if (q === c) return 1000;
+  if (c.startsWith(q)) return 850;
+  if (c.includes(q)) return 700;
+  const tokens = q.split(" ").filter(Boolean);
+  if (tokens.length && tokens.every(token => c.split(" ").some(part => part.startsWith(token)))) return 550;
+  return 0;
+}
+
+async function collectFiles(root, onFile, state, depth = 0) {
+  if (depth > 4 || state.count >= 4000) return;
+  let entries;
+  try { entries = await fs.promises.readdir(root, { withFileTypes: true }); } catch { return; }
+  for (const entry of entries) {
+    if (state.count >= 4000) return;
+    if (entry.name.startsWith("$") || entry.name.startsWith(".")) continue;
+    const fullPath = path.join(root, entry.name);
+    if (entry.isFile()) {
+      state.count++;
+      await onFile(fullPath, entry.name);
+    } else if (entry.isDirectory() && !["AppData", "Windows", "Program Files", "Program Files (x86)", "ProgramData", "node_modules", ".git", "$Recycle.Bin", "System Volume Information"].includes(entry.name)) {
+      await collectFiles(fullPath, onFile, state, depth + 1);
+    }
+  }
+}
+
+async function findLocalMatches(query) {
+  const normalized = normalizeLocalName(query);
+  if (normalized.length < 2) throw new Error("Decime al menos dos letras del nombre del archivo o la aplicación.");
+  const matches = [];
+  const seen = new Set();
+  const add = (item) => {
+    if (seen.has(item.path)) return;
+    seen.add(item.path);
+    matches.push(item);
+  };
+
+  for (const [name, spec] of Object.entries(allowedApps)) {
+    const score = localMatchScore(normalized, name);
+    if (score) add({ kind: "builtin", name, path: spec.file, score });
+  }
+
+  const home = app.getPath("home");
+  const roots = [
+    ...Object.values(knownFolders).filter((getPath) => getPath !== knownFolders.inicio).map(getPath => getPath()),
+    process.env.OneDrive,
+    process.env.OneDriveConsumer,
+    process.env.OneDriveCommercial
+  ].filter(Boolean);
+  const uniqueRoots = [...new Set(roots.map(p => path.resolve(p)))];
+  const startMenuRoots = [
+    path.join(process.env.APPDATA || path.join(home, "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs"),
+    path.join(process.env.ProgramData || "C:\\ProgramData", "Microsoft", "Windows", "Start Menu", "Programs")
+  ];
+
+  for (const root of startMenuRoots) {
+    await collectFiles(root, async (fullPath, name) => {
+      if (path.extname(name).toLowerCase() !== ".lnk") return;
+      const label = path.basename(name, path.extname(name));
+      const score = localMatchScore(normalized, label);
+      if (score) add({ kind: "shortcut", name: label, path: fullPath, score });
+    }, { count: 0 });
+  }
+
+  const state = { count: 0 };
+  const excludedExtensions = new Set([".exe", ".msi", ".msp", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".jse", ".scr", ".com", ".lnk", ".url"]);
+  for (const root of uniqueRoots) {
+    await collectFiles(root, async (fullPath, name) => {
+      if (excludedExtensions.has(path.extname(name).toLowerCase())) return;
+      const label = path.basename(name, path.extname(name));
+      const score = Math.max(localMatchScore(normalized, label), localMatchScore(normalized, name));
+      if (score) add({ kind: "file", name, path: fullPath, score });
+    }, state);
+    if (state.count >= 4000) break;
+  }
+
+  matches.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "es"));
+  return matches.slice(0, 20);
+}
+
+async function openAnything(query) {
+  const matches = await findLocalMatches(query);
+  if (!matches.length) {
+    throw new Error('No encontré archivos ni aplicaciones que coincidan con "' + String(query).trim() + '". Probá con más letras o con el nombre completo.');
+  }
+  const bestScore = matches[0].score;
+  const best = matches.filter(item => item.score === bestScore);
+  if (best.length > 1) {
+    const options = best.slice(0, 5).map(item => item.name + (item.kind === "file" ? " · " + path.basename(path.dirname(item.path)) : "")).join(", ");
+    throw new Error("Encontré varias coincidencias: " + options + ". Escribí un nombre más específico para elegir una.");
+  }
+  const item = best[0];
+  if (item.kind === "builtin") {
+    const spec = allowedApps[item.name];
+    const child = spawn(spec.file, spec.args, { detached: true, stdio: "ignore", shell: false, windowsHide: false });
+    child.on("error", () => {});
+    child.unref();
+  } else {
+    const error = await shell.openPath(item.path);
+    if (error) throw new Error(error);
+  }
+  return { ok: true, message: (item.kind === "file" ? "Abriendo el archivo " : "Abriendo la aplicación ") + item.name + "." };
+}
+
+
 ipcMain.handle("qbit:pet-position", event => {
   if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return null;
   const [x, y] = petWindow.getPosition();
@@ -234,6 +348,12 @@ ipcMain.handle("qbit:open-app", async (_event, appName) => {
   const child = spawn(appSpec.file, appSpec.args, { detached: true, stdio: "ignore", shell: false, windowsHide: false });
   child.on("error", () => {}); child.unref();
   return { ok: true, message: "Abriendo " + key + "." };
+});
+
+ipcMain.handle("qbit:open-anything", async (event, query) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  if (typeof query !== "string" || !query.trim() || query.length > 180) throw new Error("Nombre de archivo o aplicación inválido.");
+  return openAnything(query.trim());
 });
 
 ipcMain.handle("qbit:open-folder", async (_event, folderName) => {
