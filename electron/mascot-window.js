@@ -30,8 +30,31 @@
     if (busyTimer) { window.clearTimeout(busyTimer); busyTimer = null; }
   }
 
-  button.addEventListener("click", () => { if (!window.__petWasDragged) void setExpanded(!expanded); });
-  button.addEventListener("pointerdown", () => { window.__petWasDragged = false; });
+  button.addEventListener("pointerdown", async event => {
+    if (event.button !== 0 && event.pointerType === "mouse") return;
+    window.__petWasDragged = false;
+    dragging = false;
+    const position = await api?.getPosition?.();
+    if (!position) return;
+    dragStart = { pointerX: event.screenX, pointerY: event.screenY, x: position.x, y: position.y };
+    button.setPointerCapture?.(event.pointerId);
+  });
+  button.addEventListener("pointermove", event => {
+    if (!dragStart || !(event.buttons || event.pointerType === "touch")) return;
+    const dx = event.screenX - dragStart.pointerX;
+    const dy = event.screenY - dragStart.pointerY;
+    if (Math.abs(dx) + Math.abs(dy) > 6) dragging = true;
+    if (!dragging) return;
+    window.__petWasDragged = true;
+    void api?.moveTo?.(dragStart.x + dx, dragStart.y + dy);
+  });
+  const stopDragging = () => { dragStart = null; dragging = false; };
+  button.addEventListener("pointerup", stopDragging);
+  button.addEventListener("pointercancel", stopDragging);
+  button.addEventListener("click", () => {
+    if (window.__petWasDragged) { window.__petWasDragged = false; return; }
+    void setExpanded(!expanded);
+  });
   close.addEventListener("click", () => void setExpanded(false));
 
   document.querySelectorAll("[data-state]").forEach(item => item.addEventListener("click", () => {
