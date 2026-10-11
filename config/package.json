@@ -1,0 +1,51 @@
+{
+  "name": "qbit-desktop",
+  "version": "1.0.0",
+  "description": "QBIT — Asistente personal para Windows",
+  "private": true,
+  "main": "../electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check ../electron/main.cjs && node --check ../electron/preload.cjs && node --check ../app.js",
+    "dist": "electron-builder --projectDir .. --config package.json --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/android": "^7.4.3"
+  },
+  "build": {
+    "appId": "com.gotti23b.qbit",
+    "productName": "QBIT",
+    "directories": {
+      "output": "../dist"
+    },
+    "files": [
+      "index.html",
+      "app.js",
+      "styles.css",
+      "qbit-icon.svg",
+      "electron/**/*",
+      "!README.md",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
