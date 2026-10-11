@@ -84,9 +84,15 @@
     const text = input.value.trim();
     if (!text) return;
     input.value = "";
-    greeting.textContent = "Te leí: “" + text + "”\n\nTodavía estoy conectando mi chat real, pero ya estoy instalada en el escritorio. 💠";
+    greeting.textContent = "Te escucho… 💠";
     setState("working");
-    busyTimer = window.setTimeout(() => setState("idle"), 1600);
+    api?.sendMessage?.(text).then(ok => {
+      if (!ok) { greeting.textContent = "No pude enviar el mensaje al chat de QBIT."; setState("idle"); }
+    }).catch(() => {
+      greeting.textContent = "No pude conectar con el chat de QBIT. Abrí la ventana principal e intentá de nuevo.";
+      setState("idle");
+    });
+    busyTimer = window.setTimeout(() => { if (button.dataset.state === "working") setState("idle"); }, 10000);
   });
 
   if (api?.onPetReply) api.onPetReply(reply => { greeting.textContent = String(reply); setState("idle"); });
