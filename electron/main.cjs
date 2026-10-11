@@ -158,7 +158,11 @@ const knownFolders = {
   "videos": () => app.getPath("videos")
 };
 
-ipcMain.handle("qbit:pet-position", event => {\n  if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return null;\n  const [x, y] = petWindow.getPosition();\n  return { x, y };\n});\nipcMain.handle("qbit:pet-resize", (event, expanded) => {
+ipcMain.handle("qbit:pet-position", event => {
+  if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return null;
+  const [x, y] = petWindow.getPosition();
+  return { x, y };
+});\nipcMain.handle("qbit:pet-resize", (event, expanded) => {
   if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) return false;
   resizePet(Boolean(expanded));
   return true;
@@ -170,6 +174,22 @@ ipcMain.handle("qbit:pet-move", (event, x, y) => {
   const pos = clampPetPosition(x, y, width, height);
   petWindow.setPosition(pos.x, pos.y, false);
   return true;
+});
+ipcMain.handle("qbit:pet-send-message", (event, rawText) => {
+  if (!petWindow || event.sender !== petWindow.webContents) return false;
+  if (typeof rawText !== "string" || !rawText.trim() || rawText.length > 500) throw new Error("El mensaje no es válido.");
+  const message = rawText.trim();
+  createWindow();
+  const deliver = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:pet-message", message);
+  };
+  if (mainWindow.webContents.isLoading()) mainWindow.webContents.once("did-finish-load", deliver);
+  else deliver();
+  return true;
+});
+ipcMain.on("qbit:pet-reply", (event, rawText) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || !petWindow || petWindow.isDestroyed()) return;
+  if (typeof rawText === "string") petWindow.webContents.send("qbit:pet-reply", rawText.slice(0, 2000));
 });
 ipcMain.handle("qbit:pet-show-main", event => {
   if (!petWindow || event.sender !== petWindow.webContents) return false;
