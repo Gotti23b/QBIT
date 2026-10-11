@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "QBIT — Asistente personal para Windows",
   "private": true,
-  "main": "../electron/main.cjs",
+  "main": "../windows/electron/main.cjs",
   "scripts": {
     "start": "electron .",
-    "check": "node --check ../electron/main.cjs && node --check ../electron/preload.cjs && node --check ../app.js && node --check ../mascot.js && node --check ../electron/mascot-window.js",
+    "check": "node --check ../windows/electron/main.cjs && node --check ../windows/electron/preload.cjs && node --check ../app.js && node --check ../mascot.js && node --check ../windows/electron/mascot-window.js",
     "dist": "electron-builder --projectDir .. --config package.json --win nsis --publish never"
   },
   "devDependencies": {
@@ -30,7 +30,7 @@
       "mascot.js",
       "qbit-icon.ico",
       "qbit-icon.svg",
-      "electron/**/*",
+      "windows/electron/**/*",
       "!README.md",
       "!node_modules/**/*"
     ],
