@@ -127,7 +127,7 @@ function createTray() {
   const iconPath = path.join(__dirname, "..", "qbit-icon.ico");
   let icon = nativeImage.createFromPath(iconPath);
   if (icon.isEmpty()) {
-    icon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAABFElEQVQ4T6WTwQ3CMAxFf0sAGyAbwAawATYgG8AGsAGwAWwAG8AGsAGwAWwAGsAGsAGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwAGsAGsAG8AGsAGwAWwA7gB7oY5gJx4d9QAAAABJRU5ErkJggg==");
+    icon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABIUlEQVR4nO2WSwqDMBCGx1LortC1YAuewAt4GO/RVe/hYbyAJxCK4AV6gXaVEsNkXobaSv+NYB7fn8kkmexwOj9hRe3WhP8NfIWBPdch7/rFkKmuom1kBFLAuXmy2DH0B1Er0MCxedAISOHtOMy+mPzxWCTILdDApSZCsUkYAwMANEU5++/a/P+cxMfQB2CQmBlOogi04wDX+wMA6HA6E65/3vVsAosMNEX5TiAqzNJV+zLfhCGM2h5K6iT0wxya0IDNBnyY25bb5WiCAyR6jKzwZAaWaJsGNK+oOgmpy8XygooNuAnzrkdXaH2+1VuATe7gU12pawdTRYSBKDCVE6gBrogI+0nhWL9oScbBtYqZNFdEKeAATAQ+oW3ehD9l4AUUK4lPDW2PuAAAAABJRU5ErkJggg==");
   }
   tray = new Tray(icon);
   tray.setToolTip("QBIT");
