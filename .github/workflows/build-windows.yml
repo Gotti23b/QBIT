@@ -32,7 +32,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path desktop-build | Out-Null
           Copy-Item -Path index.html, app.js, styles.css, mascot.css, mascot.js, qbit-icon.svg -Destination desktop-build
           Copy-Item -Path windows/electron -Destination desktop-build -Recurse
-          Copy-Item -Path windows/scripts -Destination desktop-build/scripts -Recurse
+          Copy-Item -Path windows/scripts -Destination desktop-build -Recurse
 
           $package = Get-Content -Path config/package.json -Raw | ConvertFrom-Json
           $package.main = "electron/main.cjs"
