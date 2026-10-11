@@ -180,7 +180,8 @@ ipcMain.handle("qbit:pet-send-message", (event, rawText) => {
   if (!petWindow || event.sender !== petWindow.webContents) return false;
   if (typeof rawText !== "string" || !rawText.trim() || rawText.length > 500) throw new Error("El mensaje no es válido.");
   const message = rawText.trim();
-  createWindow();
+  // La mascota usa el renderer principal en segundo plano; no mostrar ni enfocar la ventana.
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
   const deliver = () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:pet-message", message);
   };
