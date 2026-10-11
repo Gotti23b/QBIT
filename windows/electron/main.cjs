@@ -232,6 +232,7 @@ async function findLocalMatches(query) {
     await collectFiles(root, async (fullPath, name) => {
       if (path.extname(name).toLowerCase() !== ".lnk") return;
       const label = path.basename(name, path.extname(name));
+      if (Object.keys(allowedApps).some(appName => normalizeLocalName(appName) === normalizeLocalName(label))) return;
       const score = localMatchScore(normalized, label);
       if (score) add({ kind: "shortcut", name: label, path: fullPath, score });
     }, { count: 0 });
