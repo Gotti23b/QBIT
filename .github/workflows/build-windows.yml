@@ -13,7 +13,6 @@ on:
       - "config/package.json"
       - ".github/workflows/build-windows.yml"
 
-# Keep only one Windows build queued/running at a time.
 concurrency:
   group: qbit-windows-build
   cancel-in-progress: true
@@ -24,8 +23,8 @@ permissions:
 jobs:
   build:
     name: build
-    runs-on: windows-latest
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -37,19 +36,19 @@ jobs:
           cache: npm
           cache-dependency-path: config/package.json
 
-      - name: Prepare Windows app folder
-        shell: pwsh
+      - name: Install Wine for Windows packaging
         run: |
-          New-Item -ItemType Directory -Force -Path desktop-build | Out-Null
-          Copy-Item index.html, app.js, styles.css, qbit-icon.svg -Destination desktop-build
-          Copy-Item electron -Destination desktop-build -Recurse
-          $package = Get-Content config/package.json -Raw | ConvertFrom-Json
-          $package.main = "electron/main.cjs"
-          $package.scripts.start = "electron ."
-          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js"
-          $package.build.directories.output = "../dist"
-          $json = $package | ConvertTo-Json -Depth 100
-          [System.IO.File]::WriteAllText((Join-Path $PWD "desktop-build/package.json"), $json, (New-Object System.Text.UTF8Encoding($false)))
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y wine64 wine32
+
+      - name: Prepare Windows app folder
+        shell: bash
+        run: |
+          mkdir -p desktop-build
+          cp index.html app.js styles.css qbit-icon.svg desktop-build/
+          cp -R electron desktop-build/
+          node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('config/package.json','utf8')); p.main='electron/main.cjs'; p.scripts.start='electron .'; p.scripts.check='node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js'; p.build.directories.output='../dist'; fs.writeFileSync('desktop-build/package.json', JSON.stringify(p,null,2)+'\\n')"
 
       - name: Install Windows build dependencies
         working-directory: desktop-build
