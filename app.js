@@ -3,12 +3,71 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  let user = null, categories = [], commands = [], responses = [];
+  let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false;
   const say = (id, text, error=false) => { $(id).textContent=text; $(id).className=error?"error":"muted"; };
   const node = (tag, cls, text) => { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; };
   function normalizeText(value){ return String(value).toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?¡!.,;:]/g," ").replace(/\s+/g," ").trim(); }
   const btn = (text, cls, fn) => { const b=node("button",cls,text); b.type="button"; b.onclick=fn; return b; };
-  function bubble(who,text,kind){const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;}
+  const historyKey=()=> "qbit-chat-history-"+(user?.id||"guest");
+  function saveHistory(){if(!user)return;try{localStorage.setItem(historyKey(),JSON.stringify(chatHistory));}catch(e){console.warn("No se pudo guardar el historial",e);}}
+  function ensureActiveChat(){
+    if(activeChatId&&chatHistory.some(c=>c.id===activeChatId))return;
+    const chat={id: (crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2)),title:"Nuevo chat",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),messages:[]};
+    chatHistory.unshift(chat);activeChatId=chat.id;saveHistory();
+  }
+  function loadHistory(){
+    chatHistory=[];activeChatId=null;
+    if(!user)return;
+    try{const saved=JSON.parse(localStorage.getItem(historyKey())||"[]");chatHistory=Array.isArray(saved)?saved.filter(c=>c&&Array.isArray(c.messages)):[];}catch{chatHistory=[];}
+    if(chatHistory.length){activeChatId=chatHistory[0].id;showChat(activeChatId,false);}else{
+      ensureActiveChat();$("chatbox").replaceChildren();
+      bubble("QBIT","¡Hola! Soy QBIT. Agregá comandos y respuestas en el panel de administración para empezar. ✨","bot");
+    }
+    renderHistory();
+  }
+  function bubble(who,text,kind){
+    const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){chat.messages.push({who,text:String(text),kind,at:new Date().toISOString()});if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
+  }
+  function showChat(id,switchToChat=true){
+    const chat=chatHistory.find(c=>c.id===id);if(!chat)return;
+    activeChatId=id;restoringChat=true;$("chatbox").replaceChildren();
+    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind);b.append(node("small","",m.who),document.createTextNode(m.text));$("chatbox").append(b);});
+    if(!chat.messages.length){const b=node("div","bubble bot");b.append(node("small","","QBIT"),document.createTextNode("Chat vacío. Escribí un mensaje para empezar. ✨"));$("chatbox").append(b);}
+    restoringChat=false;$("chatbox").scrollTop=$("chatbox").scrollHeight;renderHistory();
+    if(switchToChat)activateTab("chatView");
+  }
+  function renderHistory(){
+    const list=$("historyList");if(!list)return;list.replaceChildren();
+    if(!chatHistory.length){list.append(node("div","empty","Todavía no hay conversaciones guardadas."));return;}
+    [...chatHistory].sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt)).forEach(chat=>{
+      const preview=[...chat.messages].reverse().find(m=>m.kind==="user")?.text||"Conversación vacía";
+      const date=new Date(chat.updatedAt||chat.createdAt);
+      const detail=(Number.isNaN(date.getTime())?"":new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(date))+" · "+chat.messages.length+" mensajes\n"+preview;
+      list.append(card(chat.title||"Nuevo chat",detail,[
+        btn("Abrir","small",()=>showChat(chat.id,true)),
+        btn("Borrar","small danger",()=>deleteChat(chat.id))
+      ]));
+    });
+  }
+  function deleteChat(id){
+    if(!confirm("¿Borrar esta conversación del historial?"))return;
+    chatHistory=chatHistory.filter(c=>c.id!==id);
+    if(activeChatId===id){activeChatId=null;ensureActiveChat();$("chatbox").replaceChildren();bubble("QBIT","Chat nuevo. ¿Qué probamos? ✨","bot");}
+    saveHistory();renderHistory();
+  }
+  function newChat(){
+    const current=chatHistory.find(c=>c.id===activeChatId);
+    if(current&&!current.messages.some(m=>m.kind==="user")&&current.messages.length===0){showChat(current.id,false);return;}
+    const chat={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+"-"+Math.random().toString(36).slice(2)),title:"Nuevo chat",createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),messages:[]};
+    chatHistory.unshift(chat);activeChatId=chat.id;saveHistory();showChat(chat.id,false);
+    const b=node("div","bubble bot");b.append(node("small","","QBIT"),document.createTextNode("Chat nuevo. ¿Qué probamos? ✨"));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    renderHistory();activateTab("chatView");
+  }
+  function activateTab(id){
+    document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
+    ["chatView","historyView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+  }
   function solveMathQuestion(message){
     let s=normalizeText(message);
     const match=s.match(/^cuanto es\s+(.+)$/);
@@ -38,7 +97,7 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){user=u;$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";}
+  function session(u){const changed=user?.id!==u?.id;user=u;$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -338,8 +397,9 @@
     const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;
     bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");
   };
-  $("clearChat").onclick=()=>{$("chatbox").replaceChildren();bubble("QBIT","Chat limpio. ¿Qué probamos?","bot");};
-  document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));$("chatView").classList.toggle("hidden",b.dataset.tab!=="chatView");$("adminView").classList.toggle("hidden",b.dataset.tab!=="adminView");});
+  $("clearChat").onclick=()=>newChat();
+  $("newChatFromHistory").onclick=()=>newChat();
+  document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
   async function addStarterCommands(){
     if(!user)return;
