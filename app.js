@@ -67,7 +67,8 @@
   }
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","historyView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    ["chatView","historyView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    if(id==="mascotSettingsView")void loadPetSettings();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
@@ -412,6 +413,23 @@
   $("clearChat").onclick=()=>newChat();
   $("newChatFromHistory").onclick=()=>newChat();
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
+  function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
+  async function loadPetSettings(){
+    if(!window.qbitPC?.isDesktop){$("petSettingsForm").classList.add("hidden");petSettingsMessage("Esta configuración está disponible en QBIT Desktop para Windows.",true);return;}
+    $("petSettingsForm").classList.remove("hidden");
+    try{const s=await window.qbitPC.getPetSettings();$("petVisible").checked=s.visible!==false;$("petSize").value=["small","normal","large"].includes(s.size)?s.size:"normal";$("petAnimations").checked=s.animations!==false;petSettingsMessage("Configuración cargada. Guardá los cambios para aplicarlos.");}
+    catch(e){petSettingsMessage("No pude cargar la configuración: "+(e?.message||"error desconocido"),true);}
+  }
+  $("petSettingsForm").addEventListener("submit",async e=>{
+    e.preventDefault();if(!window.qbitPC?.isDesktop){petSettingsMessage("Necesitás QBIT Desktop para aplicar estos ajustes.",true);return;}
+    try{const s=await window.qbitPC.setPetSettings({visible:$("petVisible").checked,size:$("petSize").value,animations:$("petAnimations").checked});$("petVisible").checked=s.visible;$("petSize").value=s.size;$("petAnimations").checked=s.animations;petSettingsMessage("¡Listo! La configuración de la mascota se guardó y se aplicó. 💠");}
+    catch(err){petSettingsMessage("No pude guardar los cambios: "+(err?.message||"error desconocido"),true);}
+  });
+  $("petResetPosition").addEventListener("click",async()=>{
+    if(!window.qbitPC?.isDesktop){petSettingsMessage("Necesitás QBIT Desktop para mover la mascota.",true);return;}
+    try{await window.qbitPC.resetPetPosition();$("petVisible").checked=true;petSettingsMessage("¡Mascota devuelta a la esquina inferior derecha!");}
+    catch(e){petSettingsMessage("No pude restablecer la posición: "+(e?.message||"error desconocido"),true);}
+  });
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
   async function addStarterCommands(){
     if(!user)return;
