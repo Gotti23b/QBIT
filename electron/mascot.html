@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
+<title>Mascota QBIT</title>
+<link rel="stylesheet" href="mascot-window.css">
+<script src="mascot-window.js" defer></script>
+</head>
+<body>
+<main id="petApp" class="pet-app">
+  <section id="petPanel" class="panel" hidden aria-label="Panel de QBIT">
+    <header class="panel-head drag-region">
+      <div><strong>QBIT <span>✦</span></strong><small id="petStateLabel">En línea · tranqui</small></div>
+      <button id="closePanel" class="icon-button no-drag" type="button" aria-label="Minimizar panel" title="Minimizar">−</button>
+    </header>
+    <div class="greeting" id="petGreeting">¡Buenas! Soy QBIT, tu compañero digital. 💠</div>
+    <div class="state-actions" aria-label="Estado de la mascota">
+      <button type="button" data-state="idle" aria-pressed="true">Tranqui</button>
+      <button type="button" data-state="working" aria-pressed="false">Trabajando</button>
+      <button type="button" data-state="resting" aria-pressed="false">Descansando</button>
+    </div>
+    <div class="quick-actions">
+      <button type="button" data-action="open-main">Abrir QBIT</button>
+      <button type="button" data-action="hello">Saludame</button>
+    </div>
+    <form id="petForm" class="pet-form">
+      <input id="petInput" maxlength="500" autocomplete="off" placeholder="Escribile a QBIT…" aria-label="Mensaje para QBIT">
+      <button type="submit" aria-label="Enviar mensaje">➤</button>
+    </form>
+    <p class="footnote" id="petFootnote">Mascota de escritorio · prototipo conectado a acciones básicas</p>
+  </section>
+  <button id="petButton" class="pet-button drag-region" type="button" aria-label="Abrir panel de QBIT" aria-expanded="false" title="Arrastrame para moverme">
+    <span class="halo"></span>
+    <span class="cube">
+      <span class="antenna"></span>
+      <span class="eyes"><i></i><i></i></span>
+      <span class="smile"></span>
+      <span class="cheek left"></span><span class="cheek right"></span>
+    </span>
+    <span class="status-dot" aria-hidden="true"></span>
+  </button>
+</main>
+</body>
+</html>
