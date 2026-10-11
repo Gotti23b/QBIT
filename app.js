@@ -368,10 +368,19 @@
           if(opened)opened.opener=null;
           bubble("QBIT",opened===null?"El navegador bloqueó la pestaña. Permití las ventanas emergentes para QBIT y volvé a intentarlo.":"Abriendo "+openRequest.label+" 🌐","bot");
         }
-      }else if(openRequest.type==="local"){
-        bubble("QBIT","Puedo abrir páginas web, pero esta versión de QBIT funciona dentro del navegador y no tiene permiso para ejecutar programas o abrir archivos locales de Windows. Para eso haría falta una aplicación auxiliar instalada en la PC. 💻","bot");
-      }else{
-        bubble("QBIT","No reconocí ese sitio. Probá con un nombre conocido (por ejemplo, YouTube o GitHub) o escribí el dominio, como ejemplo.com. 🌐","bot");
+      }else if(openRequest.type==="local" || openRequest.type==="unknown"){
+        if(window.qbitPC?.isDesktop){
+          try{
+            const result=await window.qbitPC.openAnything(openRequest.label);
+            bubble("QBIT",result.message+" ✨","bot");
+          }catch(error){
+            bubble("QBIT","No pude abrirlo: "+(error?.message||"error desconocido")+" 🔎","bot");
+          }
+        }else if(openRequest.type==="local"){
+          bubble("QBIT","Para abrir archivos y aplicaciones de Windows necesitás usar QBIT Desktop; la versión web no puede acceder a tus archivos locales. 💻","bot");
+        }else{
+          bubble("QBIT","No reconocí ese sitio. Probá con un nombre conocido (por ejemplo, YouTube o GitHub) o escribí el dominio, como ejemplo.com. 🌐","bot");
+        }
       }
       return;
     }
