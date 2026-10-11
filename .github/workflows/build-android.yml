@@ -35,16 +35,24 @@ jobs:
         working-directory: config
         run: npx cap add android
 
-      - name: Convert QBIT logo to Android icon source
+      - name: Prepare explicit QBIT Android icon layers
         run: |
+          set -e
           sudo apt-get update
           sudo apt-get install -y librsvg2-bin
           mkdir -p config/resources
-          rsvg-convert -w 1024 -h 1024 qbit-icon.svg -o config/resources/icon.png
+          # Full square icon for older Android launchers.
+          rsvg-convert -w 1024 -h 1024 qbit-icon.svg -o config/resources/icon-only.png
+          # Adaptive icon foreground: keep the cyan QBIT cube transparent around it.
+          sed '/<rect width="64" height="64" rx="15" fill="#07111f"\/>/d' qbit-icon.svg > /tmp/qbit-foreground.svg
+          rsvg-convert -w 1024 -h 1024 /tmp/qbit-foreground.svg -o config/resources/icon-foreground.png
+          # Adaptive icon background layer.
+          printf '%s\n' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#07111f"/></svg>' > /tmp/qbit-background.svg
+          rsvg-convert -w 1024 -h 1024 /tmp/qbit-background.svg -o config/resources/icon-background.png
 
       - name: Generate Android app icons from QBIT logo
         working-directory: config
-        run: npx --yes @capacitor/assets generate --android --assetPath resources
+        run: npx --yes @capacitor/assets generate --android --assetPath resources --androidProject android
 
       - name: Sync web app to Android
         working-directory: config
