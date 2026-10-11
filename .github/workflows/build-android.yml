@@ -1,16 +1,6 @@
 name: Build QBIT Android APK
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "app.js"
-      - "index.html"
-      - "styles.css"
-      - "qbit-icon.svg"
-      - "config/package.json"
-      - "config/capacitor.config.json"
-      - ".github/workflows/build-android.yml"
 
 permissions:
   contents: read
