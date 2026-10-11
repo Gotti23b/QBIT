@@ -90,7 +90,9 @@ function clampPetPosition(x, y, width, height) {
 
 function resizePet(expanded) {
   if (!petWindow || petWindow.isDestroyed()) return;
-  const next = expanded ? PET_LARGE : PET_SMALL;
+  const scale = petScale();
+  const base = expanded ? PET_LARGE : PET_SMALL;
+  const next = { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
   const [oldWidth, oldHeight] = petWindow.getSize();
   const [oldX, oldY] = petWindow.getPosition();
   const nextX = oldX + oldWidth - next.width;
@@ -109,8 +111,9 @@ function createPetWindow() {
     return;
   }
   const area = screen.getPrimaryDisplay().workArea;
+  const initialScale = petScale();
   petWindow = new BrowserWindow({
-    ...PET_SMALL,
+    width: Math.round(PET_SMALL.width * initialScale), height: Math.round(PET_SMALL.height * initialScale),
     x: area.x + area.width - PET_SMALL.width - 20,
     y: area.y + area.height - PET_SMALL.height - 24,
     title: "Mascota QBIT",
@@ -142,7 +145,8 @@ function createPetWindow() {
   });
   petWindow.on("closed", () => { petWindow = null; });
   petWindow.loadFile(path.join(__dirname, "mascot.html"));
-  petWindow.once("ready-to-show", () => petWindow?.show());
+  petWindow.webContents.on("did-finish-load", () => sendPetSettings());
+  petWindow.once("ready-to-show", () => { if (petSettings.visible) petWindow?.show(); });
 }
 
 function createTray() {
