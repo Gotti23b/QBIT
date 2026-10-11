@@ -1,0 +1,113 @@
+/* Mascota flotante QBIT: prototipo visual */
+#qbit-pet {
+  --pet-cyan: #22d3ee;
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 9999;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  font: 14px/1.45 system-ui, sans-serif;
+  color: #e7f7ff;
+  touch-action: none;
+}
+#qbit-pet * { box-sizing: border-box; }
+#qbit-pet .pet-toggle {
+  width: 76px;
+  height: 76px;
+  border: 1px solid #278da3;
+  border-radius: 25px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 32% 20%, #164c64, #0b1a2b 72%);
+  box-shadow: 0 9px 30px #0008, 0 0 22px #22d3ee20;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#qbit-pet .pet-toggle:active { cursor: grabbing; }
+#qbit-pet .pet-face {
+  position: relative;
+  width: 48px;
+  height: 44px;
+  border: 2px solid var(--pet-cyan);
+  border-radius: 13px 13px 17px 17px;
+  background: linear-gradient(145deg, #12384b, #081725);
+  box-shadow: inset 0 0 13px #22d3ee20, 0 0 13px #22d3ee25;
+}
+#qbit-pet .pet-face::before {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 8px;
+  top: -9px;
+  left: 19px;
+  border-radius: 5px;
+  background: var(--pet-cyan);
+  box-shadow: 0 -4px 0 -1px #a5f3fc;
+}
+#qbit-pet .pet-eyes {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+#qbit-pet .pet-eyes i {
+  width: 6px;
+  height: 8px;
+  border-radius: 5px;
+  background: #a5f3fc;
+  box-shadow: 0 0 8px #22d3ee;
+}
+#qbit-pet .pet-mouth {
+  width: 14px;
+  height: 5px;
+  margin: 6px auto 0;
+  border-bottom: 2px solid var(--pet-cyan);
+  border-radius: 0 0 10px 10px;
+}
+#qbit-pet .pet-toggle[data-state="idle"] .pet-face { animation: qbit-pet-float 2.8s ease-in-out infinite; }
+#qbit-pet .pet-toggle[data-state="working"] .pet-face { animation: qbit-pet-work .42s ease-in-out infinite alternate; }
+#qbit-pet .pet-toggle[data-state="resting"] .pet-eyes i { height: 2px; margin-top: 3px; }
+#qbit-pet .pet-toggle[data-state="resting"] .pet-mouth { width: 9px; border-radius: 0; }
+#qbit-pet .pet-toggle[data-state="working"] { box-shadow: 0 9px 30px #0008, 0 0 25px #22d3ee55; }
+#qbit-pet .pet-panel {
+  width: min(310px, calc(100vw - 28px));
+  padding: 15px;
+  border: 1px solid #24536a;
+  border-radius: 18px;
+  background: #081522f5;
+  box-shadow: 0 16px 50px #0009;
+  backdrop-filter: blur(12px);
+  touch-action: auto;
+}
+#qbit-pet .pet-panel[hidden] { display: none; }
+#qbit-pet .pet-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+#qbit-pet .pet-title { font-weight: 800; letter-spacing: .7px; color: var(--pet-cyan); }
+#qbit-pet .pet-state-label { color: #8ba7b9; font-size: 11px; }
+#qbit-pet .pet-close, #qbit-pet .pet-modes button, #qbit-pet .pet-send {
+  border: 1px solid #20384e;
+  border-radius: 9px;
+  background: #102338;
+  color: #e7f7ff;
+  padding: 6px 9px;
+  font: inherit;
+  cursor: pointer;
+}
+#qbit-pet .pet-message { margin: 8px 0 12px; color: #d6eaf4; }
+#qbit-pet .pet-modes { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+#qbit-pet .pet-modes button[aria-pressed="true"] { border-color: var(--pet-cyan); color: var(--pet-cyan); }
+#qbit-pet .pet-form { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+#qbit-pet .pet-input { min-width: 0; width: 100%; border: 1px solid #20384e; border-radius: 9px; padding: 9px; background: #07111f; color: #e7f7ff; font: inherit; }
+#qbit-pet .pet-note { margin: 8px 0 0; font-size: 11px; color: #8ba7b9; }
+@keyframes qbit-pet-float { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-5px) rotate(-2deg); } }
+@keyframes qbit-pet-work { from { transform: translateY(0) rotate(-4deg); } to { transform: translateY(-3px) rotate(4deg); } }
+@media (max-width: 480px) {
+  #qbit-pet { right: 13px; bottom: 13px; }
+  #qbit-pet .pet-toggle { width: 66px; height: 66px; border-radius: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #qbit-pet .pet-face { animation: none !important; }
+}
