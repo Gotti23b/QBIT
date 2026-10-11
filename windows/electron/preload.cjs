@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   getStatus: () => ipcRenderer.invoke("qbit:status"),
   openApp: name => ipcRenderer.invoke("qbit:open-app", name),
   openFolder: name => ipcRenderer.invoke("qbit:open-folder", name),
+  openAnything: query => ipcRenderer.invoke("qbit:open-anything", String(query).slice(0, 180)),
   volume: action => ipcRenderer.invoke("qbit:volume", action),
   runAutomation: name => ipcRenderer.invoke("qbit:automation", name),
   onPetMessage: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:pet-message", (_event, message) => callback(message)); },
