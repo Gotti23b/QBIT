@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07111f">
+<title>QBIT — IA local</title>
+<link rel="icon" type="image/svg+xml" href="qbit-icon.svg">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="local-ai.js"></script>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <a class="tab-link" href="./">← Volver a QBIT</a>
+  <div class="brand"><img class="logo" src="qbit-icon.svg" alt=""><div><h1>QBIT</h1><p>IA local experimental</p></div></div>
+</header>
+<main class="card">
+  <h2>🧠 IA local</h2>
+  <p class="muted">Este modelo se ejecuta en tu navegador. No usa créditos ni una API de IA. La primera vez descarga el modelo (aprox. 100–200 MB, según los archivos disponibles) y puede tardar. Los archivos se sirven desde Hugging Face; no se guardan en este repositorio.</p>
+  <div class="notice" id="modelStatus" role="status">Preparando el motor de IA…</div>
+  <div class="row" style="margin:12px 0">
+    <button class="primary" id="loadModel" type="button">Descargar y cargar modelo</button>
+    <button id="clearLocalChat" type="button">Limpiar conversación</button>
+  </div>
+  <div id="localChat" class="chatbox" style="height:48vh" aria-live="polite">
+    <div class="bubble bot"><small>QBIT · IA local</small>¡Hola! Soy el modelo local experimental. Mis respuestas pueden ser bastante limitadas.</div>
+  </div>
+  <form id="localForm" class="send">
+    <input id="localInput" placeholder="Escribí algo…" autocomplete="off" maxlength="1200" required>
+    <button class="primary" id="sendLocal" type="submit" disabled>Enviar</button>
+  </form>
+  <p class="muted" style="font-size:12px">Necesitás Internet para la primera descarga. Después puede reutilizar la caché del navegador; el funcionamiento totalmente sin conexión depende de que el navegador conserve todos los archivos. El modelo puede consumir bastante RAM y batería. No es Abacus.AI: es un modelo pequeño de código abierto ejecutado localmente.</p>
+</main>
+</div>
+</body>
+</html>
