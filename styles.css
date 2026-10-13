@@ -5,3 +5,6 @@
 #historyList .item{padding:14px}#historyList .item p{line-height:1.45;overflow-wrap:anywhere}#historyList .item-actions{flex-shrink:0}.tabs{flex-wrap:wrap}@media(max-width:480px){.tabs button{flex:1;padding:9px 10px;font-size:13px}.section-title{align-items:flex-start;flex-wrap:wrap}}
 
 #petSettingsForm{max-width:560px;margin-top:18px}#petSettingsForm input[type="checkbox"]{flex:0 0 auto;width:18px;height:18px;accent-color:var(--cyan)}#petSettingsForm .row>*{flex:0 1 auto}#petSettingsNotice{margin:12px 0}
+
+/* Link to the standalone browser-local AI page */
+.tab-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;cursor:pointer;border:1px solid var(--line);border-radius:11px;padding:10px 14px;background:var(--panel2);color:var(--text);font:inherit}.tab-link:hover{border-color:var(--cyan);color:var(--cyan)}
