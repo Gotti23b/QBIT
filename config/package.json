@@ -6,7 +6,7 @@
   "main": "../windows/electron/main.cjs",
   "scripts": {
     "start": "electron .",
-    "check": "node --check ../windows/electron/main.cjs && node --check ../windows/electron/preload.cjs && node --check ../app.js && node --check ../mascot.js && node --check ../windows/electron/mascot-window.js",
+    "check": "node --check ../windows/electron/main.cjs && node --check ../windows/electron/preload.cjs && node --check ../app.js && node --check ../desktop-agent.js && node --check ../mascot.js && node --check ../windows/electron/mascot-window.js",
     "dist": "electron-builder --projectDir .. --config package.json --win nsis --publish never"
   },
   "devDependencies": {
@@ -25,6 +25,7 @@
     "files": [
       "index.html",
       "app.js",
+      "desktop-agent.js",
       "styles.css",
       "mascot.css",
       "mascot.js",
