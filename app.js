@@ -244,22 +244,65 @@
     }
     renderHistory();
   }
+  function renderMessageContent(container, rawText){
+    const source=String(rawText??"");
+    const fence=/```([^\n`]*)(?:\n|\r\n)([\s\S]*?)```/g;
+    let cursor=0,match;
+    const appendText=value=>{
+      if(!value)return;
+      const fragment=document.createDocumentFragment();
+      const inline=/`([^`\n]+)`/g;
+      let at=0,part;
+      while((part=inline.exec(value))){
+        if(part.index>at)fragment.append(document.createTextNode(value.slice(at,part.index)));
+        const code=node("code","inline-code",part[1]);
+        fragment.append(code);at=inline.lastIndex;
+      }
+      if(at<value.length)fragment.append(document.createTextNode(value.slice(at)));
+      container.append(fragment);
+    };
+    while((match=fence.exec(source))){
+      appendText(source.slice(cursor,match.index));
+      const language=(match[1]||"").trim().toLowerCase()||"código";
+      const codeText=match[2].replace(/\n$/, "");
+      const panel=node("section","code-block");
+      const header=node("div","code-block-header");
+      header.append(node("span","code-language",language));
+      const copy=btn("Copiar","code-copy",async()=>{
+        try{
+          if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(codeText);
+          else{
+            const temp=node("textarea","",codeText);temp.style.position="fixed";temp.style.opacity="0";document.body.append(temp);temp.select();
+            const copied=document.execCommand("copy");temp.remove();if(!copied)throw new Error("No se pudo copiar");
+          }
+          copy.textContent="Copiado";
+          setTimeout(()=>{copy.textContent="Copiar";},1400);
+        }catch{copy.textContent="Error";setTimeout(()=>{copy.textContent="Copiar";},1400);}
+      });
+      header.append(copy);
+      const pre=node("pre","code-pre"),code=node("code","code-content",codeText);
+      pre.append(code);panel.append(header,pre);container.append(panel);
+      cursor=fence.lastIndex;
+    }
+    appendText(source.slice(cursor));
+  }
   function bubble(who,text,kind,options={}){
-    const b=node("div","bubble "+kind);const label=node("small","",who);const textNode=document.createTextNode(String(text));b.append(label,textNode);$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    const b=node("div","bubble "+kind);const label=node("small","",who);const content=node("div","message-content");
+    renderMessageContent(content,text);b.append(label,content);$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
     if(kind==="bot"&&petMessagePending&&!options.deferPetReply){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
     if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){const entry={who,text:String(text),kind,at:new Date().toISOString()};chat.messages.push(entry);b._qbitHistoryEntry=entry;if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
-    b._qbitLabel=label;b._qbitText=textNode;return b;
+    b._qbitLabel=label;b._qbitText=content;return b;
   }
   function updateBubble(element,who,text,options={}){
     if(!element)return;
-    element._qbitLabel.textContent=who;element._qbitText.textContent=String(text);
+    element._qbitLabel.textContent=who;element._qbitText.replaceChildren();renderMessageContent(element._qbitText,text);
     if(element._qbitHistoryEntry){element._qbitHistoryEntry.who=who;element._qbitHistoryEntry.text=String(text);element._qbitHistoryEntry.at=new Date().toISOString();saveHistory();renderHistory();}
     if(petMessagePending&&!options.deferPetReply){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
   }
   function showChat(id,switchToChat=true){
     const chat=chatHistory.find(c=>c.id===id);if(!chat)return;
     activeChatId=id;restoringChat=true;$("chatbox").replaceChildren();
-    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind);b.append(node("small","",m.who),document.createTextNode(m.text));$("chatbox").append(b);});
+    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind),label=node("small","",m.who),content=node("div","message-content");renderMessageContent(content,m.text);b.append(label,content);$("chatbox").append(b);});
     if(!chat.messages.length){const b=node("div","bubble bot");b.append(node("small","","QBIT"),document.createTextNode("Chat vacío. Escribí un mensaje para empezar. ✨"));$("chatbox").append(b);}
     restoringChat=false;$("chatbox").scrollTop=$("chatbox").scrollHeight;renderHistory();
     if(switchToChat)activateTab("chatView");
