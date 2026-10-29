@@ -51,17 +51,18 @@
     const render=settings=>{
       const models=Array.isArray(settings.models)?settings.models:[];
       const selectedBefore=select.value;
+      const optionLabel=model=>model.name+" · "+(model.recommendedTotalRamGB||"—")+" GB RAM total"+(model.installed?" · instalado":"");
       if(select.options.length!==models.length||models.some(model=>![...select.options].some(option=>option.value===model.id))){
         select.replaceChildren(...models.map(model=>{
           const option=document.createElement("option");
           option.value=model.id;
-          option.textContent=model.name+(model.installed?" · instalado":"");
+          option.textContent=optionLabel(model);
           return option;
         }));
       }else{
         models.forEach(model=>{
           const option=[...select.options].find(item=>item.value===model.id);
-          if(option)option.textContent=model.name+(model.installed?" · instalado":"");
+          if(option)option.textContent=optionLabel(model);
         });
       }
       select.value=models.some(model=>model.id===settings.selectedModelId)?settings.selectedModelId:selectedBefore;
@@ -69,9 +70,11 @@
       if(!profile){info.textContent="No se pudo leer el modelo seleccionado.";return;}
       const size=profile.installed&&profile.modelBytes?"Archivo ONNX local: "+(profile.modelBytes/1e9).toFixed(2)+" GB.":"Descarga aproximada: "+profile.downloadLabel+".";
       const requiredRam=Number(profile.minimumFreeRamBytes)/(1024**3);
-      const ramWarning=freeRamGB!==null&&Number.isFinite(requiredRam)&&freeRamGB<requiredRam?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB; mínimo orientativo para este modelo: "+requiredRam.toFixed(1)+" GB. Cerrá aplicaciones o elegí uno más pequeño.":"";
+      const totalRam=Number(profile.recommendedTotalRamGB);
+      const ramLabel="RAM recomendada: "+(Number.isFinite(totalRam)?totalRam+" GB totales":"sin estimación")+"; procurar al menos "+(Number.isFinite(requiredRam)?requiredRam.toFixed(1)+" GB libres":"memoria libre suficiente")+".";
+      const ramWarning=freeRamGB!==null&&Number.isFinite(requiredRam)&&freeRamGB<requiredRam?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB; por debajo del mínimo orientativo de "+requiredRam.toFixed(1)+" GB libres. Cerrá aplicaciones o elegí un modelo menor.":"";
       const loaded=settings.loadedModelId===profile.id?"Este modelo está cargado.":settings.loadedModelId?"Modelo cargado actualmente: "+(models.find(model=>model.id===settings.loadedModelId)?.name||settings.loadedModelId)+". Al cargar otro, QBIT liberará el anterior primero.":"No hay un modelo cargado todavía.";
-      info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,loaded].filter(Boolean).join(" ");
+      info.textContent=[size,ramLabel,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,loaded].filter(Boolean).join(" ");
     };
     try{
       render(await bridge.getAgentModelSettings());
