@@ -454,6 +454,16 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 });
 
 app.whenReady().then(() => {
+  const appRoot = path.resolve(getAppRoot());
+  protocol.handle("qbit", request => {
+    const url = new URL(request.url);
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\\/+/, "") || "index.html";
+    const filePath = path.resolve(appRoot, relativePath);
+    if (filePath !== appRoot && !filePath.startsWith(appRoot + path.sep)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return net.fetch(pathToFileURL(filePath).href);
+  });
   loadPetSettings();
   createTray();
   createWindow();
