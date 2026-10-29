@@ -56,6 +56,36 @@ const MODEL_FILES = [
 ];
 let modelDownloadPromise = null;
 
+let nativeTextGenerator = null;
+let nativeTextGeneratorPromise = null;
+
+async function loadNativeTextGenerator() {
+  if (nativeTextGenerator) return nativeTextGenerator;
+  if (nativeTextGeneratorPromise) return nativeTextGeneratorPromise;
+  nativeTextGeneratorPromise = (async () => {
+    const { pipeline, env } = await import("@huggingface/transformers");
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    env.localModelPath = localModelStorageRoot() + path.sep;
+    env.useFS = true;
+    env.useBrowserCache = false;
+    const modelPath = path.join(localModelRepoPath(), "onnx", "model_q4.onnx");
+    const stat = await fs.promises.stat(modelPath);
+    if (!stat.isFile() || stat.size < 1_700_000_000) {
+      throw new Error("El modelo ONNX local no está completo. No se borró ni se volvió a descargar.");
+    }
+    console.info("[QBIT Agent] Inicializando Transformers.js en Node.js con ONNX Runtime nativo; modelo local:", stat.size, "bytes");
+    nativeTextGenerator = await pipeline("text-generation", MODEL_REPO, { dtype: "q4" });
+    console.info("[QBIT Agent] Modelo local inicializado con el backend nativo.");
+    return nativeTextGenerator;
+  })().catch(error => {
+    nativeTextGeneratorPromise = null;
+    nativeTextGenerator = null;
+    throw error;
+  });
+  return nativeTextGeneratorPromise;
+}
+
 function localModelStorageRoot() {
   return path.join(app.getPath("userData"), "models");
 }
@@ -491,6 +521,43 @@ ipcMain.handle("qbit:pet-hide", event => {
   if (!petWindow || event.sender !== petWindow.webContents) return false;
   petWindow.hide();
   return true;
+});
+
+
+ipcMain.handle("qbit:agent-load", async event => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  const localFiles = await ensureLocalModelFiles(event.sender);
+  await loadNativeTextGenerator();
+  return { ready: true, model: MODEL_REPO, modelBytes: localFiles.modelBytes, backend: "onnxruntime-node" };
+});
+
+ipcMain.handle("qbit:agent-generate", async (event, messages, options = {}) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  if (!Array.isArray(messages) || messages.length > 12) throw new Error("Conversación inválida.");
+  const generator = await loadNativeTextGenerator();
+  const safeMessages = messages.map(item => ({
+    role: ["system", "user", "assistant"].includes(item?.role) ? item.role : "user",
+    content: String(item?.content || "").slice(0, 8000)
+  }));
+  const maxNewTokens = Math.max(16, Math.min(256, Number(options.max_new_tokens) || 128));
+  const output = await generator(safeMessages, {
+    max_new_tokens: maxNewTokens,
+    do_sample: options.do_sample !== false,
+    temperature: Math.max(0.1, Math.min(1.5, Number(options.temperature) || 0.7)),
+    top_p: Math.max(0.1, Math.min(1, Number(options.top_p) || 0.9)),
+    repetition_penalty: Math.max(1, Math.min(2, Number(options.repetition_penalty) || 1.18)),
+    no_repeat_ngram_size: 3
+  });
+  const generated = output?.[0]?.generated_text;
+  if (Array.isArray(generated)) {
+    const lastAssistant = [...generated].reverse().find(item => item?.role === "assistant");
+    return String(lastAssistant?.content || "").trim();
+  }
+  if (typeof generated === "string") {
+    const lastUser = safeMessages.filter(item => item.role === "user").at(-1)?.content || "";
+    return generated.slice(generated.lastIndexOf(lastUser) + lastUser.length).trim();
+  }
+  return "";
 });
 
 ipcMain.handle("qbit:model-ensure", async event => {
