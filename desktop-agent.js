@@ -1,7 +1,9 @@
 import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
 
-env.allowLocalModels = false;
-env.useBrowserCache = true;
+env.allowLocalModels = true;
+env.allowRemoteModels = false;
+env.localModelPath = "qbit-model://local/";
+env.useBrowserCache = false;
 
 const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_search", "time_date", "automation"]);
 const QUICK_REPLIES = [
@@ -87,20 +89,36 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
     if (generator) return generator;
     if (loadingPromise) return loadingPromise;
     loadingPromise = (async () => {
-      onStatus("Agent está descargando y preparando SmolLM2-135M-Instruct. La primera vez puede tardar y necesita Internet…");
+      const bridge = window.qbitPC;
+      if (!bridge || typeof bridge.ensureModelFiles !== "function") {
+        throw new Error("No está disponible el administrador de modelos locales de QBIT.");
+      }
+      onStatus("Agent está comprobando los archivos locales del modelo…");
+      const stopListening = typeof bridge.onModelProgress === "function"
+        ? bridge.onModelProgress(progress => {
+            if (progress.stage === "file-start") {
+              onStatus("Agent está descargando " + progress.file + "…");
+            } else if (progress.stage === "download") {
+              const percent = Number.isFinite(progress.percent) ? " (" + progress.percent + "%)" : "";
+              onStatus("Guardando " + progress.file + percent + " en la PC…");
+            } else if (progress.stage === "file-done") {
+              onStatus("Archivo guardado: " + progress.file + ".");
+            }
+          })
+        : () => {};
+      try {
+        const localFiles = await bridge.ensureModelFiles();
+        onStatus(localFiles.downloaded
+          ? "Archivos guardados. Preparando el modelo local…"
+          : "Modelo encontrado en el disco. Preparándolo sin descargarlo…");
+      } finally {
+        stopListening();
+      }
       generator = await pipeline("text-generation", "onnx-community/SmolLM2-135M-Instruct-ONNX", {
         dtype: "q4",
-        device: "wasm",
-        progress_callback: (progress) => {
-          if (progress.status === "progress" && progress.file) {
-            const percent = Number.isFinite(progress.progress) ? " (" + Math.round(progress.progress) + "%)" : "";
-            onStatus("Agent está descargando " + progress.file + percent + "…");
-          } else if (progress.status === "initiate" && progress.file) {
-            onStatus("Agent está preparando " + progress.file + "…");
-          }
-        }
+        device: "wasm"
       });
-      onStatus("Agent está listo. El modelo funciona localmente en esta PC.");
+      onStatus("Agent está listo. El modelo se carga desde los archivos de esta PC.");
       return generator;
     })();
     try {
