@@ -4,6 +4,15 @@ env.allowLocalModels = false;
 env.useBrowserCache = true;
 
 const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_search", "time_date", "automation"]);
+const QUICK_REPLIES = [
+  { test: /^(?:que sos|quien sos|que eres|quien eres|como te llamas|cual es tu nombre)$/, reply: "Soy Agent, el asistente local de QBIT. Puedo responder preguntas y usar Artifacts para realizar algunas acciones en Windows." },
+  { test: /^(?:que podes hacer|que puedes hacer|que sabes hacer|para que servis|para que sirves)$/, reply: "Puedo conversar y, cuando corresponde, usar Artifacts para abrir aplicaciones o archivos, consultar información del equipo, cambiar el volumen, buscar en la web y consultar la fecha y hora." },
+  { test: /^(?:hola|buenas|buen dia|buenas tardes|buenas noches)$/, reply: "¡Hola! Soy Agent, el asistente local de QBIT. ¿En qué te ayudo?" }
+];
+function quickReply(message) {
+  const n = normalize(message);
+  return QUICK_REPLIES.find(item => item.test.test(n))?.reply || null;
+}
 const normalize = (value) => String(value || "").toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim();
 
 function detectArtifact(message) {
@@ -110,7 +119,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
         role: "system",
         content: "Sos Agent, el asistente local de QBIT. Respondé en español rioplatense, de forma clara y breve. No afirmes que hiciste acciones en Windows: las acciones se ejecutan únicamente mediante Artifacts controlados. Si no sabés algo, decilo."
       },
-      ...history.slice(-10),
+      ...history.slice(-4),
       { role: "user", content: message }
     ];
     const output = await model(conversation, {
