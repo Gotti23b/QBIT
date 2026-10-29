@@ -8,7 +8,57 @@ const QUICK_REPLIES = [
 ];
 function quickReply(message) {
   const n = normalize(message);
+  const mathMatch = n.match(/^(?:cuanto(?: me)? (?:da|es)|calcula|resuelve)\\s+(.+)$/);
+  if (mathMatch) {
+    const answer = evaluateArithmetic(mathMatch[1]);
+    if (answer !== null) return "Da " + answer + ".";
+  }
+  if (/^(?:gracias|muchas gracias|te agradezco)$/.test(n)) return "¡De nada! ¿En qué más te ayudo?";
   return QUICK_REPLIES.find(item => item.test.test(n))?.reply || null;
+}
+
+function evaluateArithmetic(expression) {
+  const source = String(expression || "").replace(/\\s+/g, "");
+  if (!source || source.length > 80) return null;
+  const tokens = source.match(/(?:\\d+(?:\\.\\d+)?|\\.\\d+|[()+*/-])/g) || [];
+  if (tokens.join("") !== source) return null;
+  let position = 0;
+  const primary = () => {
+    const token = tokens[position++];
+    if (token === "+") return primary();
+    if (token === "-") return -primary();
+    if (token === "(") {
+      const value = sum();
+      if (tokens[position++] !== ")") throw new Error("paréntesis");
+      return value;
+    }
+    const value = Number(token);
+    if (!token || !Number.isFinite(value)) throw new Error("número");
+    return value;
+  };
+  const product = () => {
+    let value = primary();
+    while (tokens[position] === "*" || tokens[position] === "/") {
+      const operator = tokens[position++];
+      const right = primary();
+      value = operator === "*" ? value * right : value / right;
+    }
+    return value;
+  };
+  const sum = () => {
+    let value = product();
+    while (tokens[position] === "+" || tokens[position] === "-") {
+      const operator = tokens[position++];
+      const right = product();
+      value = operator === "+" ? value + right : value - right;
+    }
+    return value;
+  };
+  try {
+    const value = sum();
+    if (position !== tokens.length || !Number.isFinite(value)) return null;
+    return String(Number(value.toPrecision(12)));
+  } catch { return null; }
 }
 const normalize = (value) => String(value || "").toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim();
 

@@ -45,8 +45,8 @@
     }
   }
   async function initializeAgentModelPicker(){
-    const select=$("agentModelSelect"),info=$("agentModelInfo"),bridge=window.qbitPC;
-    if(!select||!info||!bridge?.getAgentModelSettings)return;
+    const select=$("agentModelSelect"),info=$("agentModelInfo"),loadButton=$("agentModelLoad"),bridge=window.qbitPC;
+    if(!select||!info||!loadButton||!bridge?.getAgentModelSettings)return;
     const render=settings=>{
       select.value=settings.selectedModelId;
       const profile=settings.models?.find(model=>model.id===settings.selectedModelId);
@@ -57,10 +57,36 @@
     try{
       render(await bridge.getAgentModelSettings());
       select.addEventListener("change",async()=>{
-        select.disabled=true;info.textContent="Guardando la selección…";
+        select.disabled=true;loadButton.disabled=true;info.textContent="Guardando la selección…";
         try{render(await bridge.setAgentModel(select.value));}
         catch(error){info.textContent="No se pudo guardar el modelo: "+(error?.message||"error desconocido");}
-        finally{select.disabled=desktopAgentBusy;}
+        finally{select.disabled=desktopAgentBusy;loadButton.disabled=desktopAgentBusy;}
+      });
+      loadButton.addEventListener("click",async()=>{
+        if(desktopAgentBusy)return;
+        desktopAgentBusy=true;select.disabled=true;loadButton.disabled=true;
+        const sendButton=document.querySelector('#sendForm button[type="submit"]'),input=$("chatInput");
+        if(sendButton)sendButton.disabled=true;if(input)input.disabled=true;
+        const status=$("agentStatus"),stopListening=typeof bridge.onModelProgress==="function"?bridge.onModelProgress(progress=>{
+          if(progress.stage==="file-start")info.textContent="Preparando "+progress.file+"…";
+          else if(progress.stage==="download")info.textContent="Descargando "+progress.file+(Number.isFinite(progress.percent)?" ("+progress.percent+"%)":"")+"…";
+          else if(progress.stage==="file-done")info.textContent="Guardado: "+progress.file+". Cargando el modelo…";
+        }):()=>{};
+        if(status)status.textContent="Cargando el modelo seleccionado en la PC…";
+        info.textContent="Comprobando archivos locales…";
+        try{
+          const loaded=await bridge.loadAgentModel(select.value);
+          const settings=await bridge.getAgentModelSettings();render(settings);
+          info.textContent="Modelo cargado y listo para usar ("+(Number(loaded.modelBytes||0)/1e9).toFixed(2)+" GB locales). "+(settings.models?.find(item=>item.id===select.value)?.artifactsNote||"");
+          if(status)status.textContent="Modelo listo.";
+        }catch(error){
+          const detail=String(error?.message||error||"error desconocido");
+          info.textContent="No se pudo cargar el modelo: "+detail;
+          if(status)status.textContent="QBIT no pudo cargar el modelo.";
+        }finally{
+          stopListening();desktopAgentBusy=false;select.disabled=false;loadButton.disabled=false;
+          if(sendButton)sendButton.disabled=false;if(input){input.disabled=false;input.focus();}
+        }
       });
     }catch(error){info.textContent="No se pudo leer la configuración de modelos: "+(error?.message||"error desconocido");}
   }
@@ -76,31 +102,64 @@
     const responseBubble=bubble("Agent","Recibí tu mensaje. Estoy procesándolo…","bot",{deferPetReply:true});
     const sendButton=document.querySelector('#sendForm button[type="submit"]');
     const input=$("chatInput");
+    let requestTimedOut=false;
     if(sendButton)sendButton.disabled=true;
     if(input)input.disabled=true;
     try{
       if(!desktopAgent){
         setStatus("Agent está preparando la IA local. La primera descarga puede tardar; después debería reutilizar la caché…");
-        const factory=await desktopAgentFactoryPromise;
-        if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent. Revisá la conexión y reiniciá QBIT.");
+        const factory=await Promise.race([desktopAgentFactoryPromise,new Promise(resolve=>setTimeout(()=>resolve(null),30000))]);
+        if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent en 30 segundos. Reiniciá QBIT y volvé a intentarlo.");
         desktopAgent=await factory({onStatus:setStatus});
       }
-      await desktopAgent.handle(message,{
+      const operation=desktopAgent.handle(message,{
         selectedArtifacts,
         onStatus:setStatus,
         onPlan:plan=>bubble("Agent · Plan",plan,"bot",{deferPetReply:true}),
         onResult:result=>updateBubble(responseBubble,"Agent",result),
         executeArtifact:executeDesktopArtifact
       });
+      let timeoutId;
+      const outcome=await Promise.race([
+        operation.then(()=>({done:true}),error=>({error})),
+        new Promise(resolve=>{timeoutId=setTimeout(()=>resolve({timedOut:true}),180000);})
+      ]);
+      clearTimeout(timeoutId);
+      if(outcome.timedOut){
+        requestTimedOut=true;
+        updateBubble(responseBubble,"Agent","La solicitud está tardando más de 3 minutos. QBIT sigue trabajando; si no cambia, probá cargar el modelo liviano.",{deferPetReply:true});
+        setStatus("La solicitud sigue en proceso. Podés escribir otro mensaje; QBIT avisará que sigue ocupado.");
+        const release=()=>{
+          desktopAgentBusy=false;
+          if(sendButton)sendButton.disabled=false;
+          if(input)input.disabled=false;
+        };
+        operation.then(release,error=>{
+          console.error("[QBIT Agent] La solicitud terminó con error después del aviso de demora:",error);
+          updateBubble(responseBubble,"Agent","No pude completar la petición. "+String(error?.message||"Error local del modelo.").slice(0,500));
+          release();
+        });
+        if(sendButton)sendButton.disabled=false;
+        if(input){input.disabled=false;input.focus();}
+        return;
+      }
+      if(outcome.error)throw outcome.error;
     }catch(error){
-      const detail=String(error?.stack||error?.message||error||"error desconocido");
+      const detail=String(error?.message||error||"error desconocido");
       console.error("[QBIT Agent] Error técnico:",error);
-      updateBubble(responseBubble,"Agent","No pude completar la petición. Error técnico: "+detail.slice(0,1800));
-      setStatus("Agent no pudo completar la petición.");
+      const memoryFailure=/memory|memoria|allocation|heap|3587406432/i.test(detail);
+      const friendly=memoryFailure
+        ?"No me alcanzó la memoria para cargar este modelo. Elegí el modelo liviano en el selector y tocá “Cargar modelo”; el Qwen descargado se conserva."
+        :"No pude completar la petición. "+detail.slice(0,500)+" Si sigue ocurriendo, probá el modelo liviano desde el selector.";
+      updateBubble(responseBubble,"Agent",friendly);
+      setStatus(memoryFailure?"Falta memoria para este modelo; probá el modelo liviano.":"Agent no pudo completar la petición.");
     }finally{
-      desktopAgentBusy=false;
-      if(sendButton)sendButton.disabled=false;
-      if(input){input.disabled=false;input.focus();}
+      if(!requestTimedOut){
+        desktopAgentBusy=false;
+        const modelLoadButton=$("agentModelLoad");if(modelLoadButton)modelLoadButton.disabled=false;
+        if(sendButton)sendButton.disabled=false;
+        if(input){input.disabled=false;input.focus();}
+      }
     }
   }
   async function executeDesktopArtifact(name,args={}){
@@ -167,11 +226,11 @@
     if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){const entry={who,text:String(text),kind,at:new Date().toISOString()};chat.messages.push(entry);b._qbitHistoryEntry=entry;if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
     b._qbitLabel=label;b._qbitText=textNode;return b;
   }
-  function updateBubble(element,who,text){
+  function updateBubble(element,who,text,options={}){
     if(!element)return;
     element._qbitLabel.textContent=who;element._qbitText.textContent=String(text);
     if(element._qbitHistoryEntry){element._qbitHistoryEntry.who=who;element._qbitHistoryEntry.text=String(text);element._qbitHistoryEntry.at=new Date().toISOString();saveHistory();renderHistory();}
-    if(petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
+    if(petMessagePending&&!options.deferPetReply){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
   }
   function showChat(id,switchToChat=true){
     const chat=chatHistory.find(c=>c.id===id);if(!chat)return;

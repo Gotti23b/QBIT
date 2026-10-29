@@ -30,3 +30,6 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .agent-model-picker label{margin:0 0 5px;color:var(--text);font-weight:650}
 .agent-model-picker select{padding:8px 10px}
 .agent-model-picker p{font-size:12px;line-height:1.4;margin:7px 0 0}
+
+.agent-model-picker button{margin-top:8px}
+.agent-model-picker button:disabled,.agent-model-picker select:disabled{opacity:.55;cursor:wait}
