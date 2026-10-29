@@ -30,14 +30,19 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path desktop-build | Out-Null
-          Copy-Item -Path index.html, app.js, styles.css, mascot.css, mascot.js, qbit-icon.svg -Destination desktop-build
+          Copy-Item -Path index.html, app.js, desktop-agent.js, styles.css, mascot.css, mascot.js, qbit-icon.svg -Destination desktop-build
           Copy-Item -Path windows/electron -Destination desktop-build -Recurse
           Copy-Item -Path windows/scripts -Destination desktop-build -Recurse
+          $desktopHtmlPath = Join-Path (Resolve-Path desktop-build) "index.html"
+          $desktopHtml = Get-Content -Path $desktopHtmlPath -Raw
+          $desktopHtml = $desktopHtml.Replace('<script src="app.js" defer></script>', '<script src="app.js" defer></script>' + "`n" + '<script type="module" src="desktop-agent.js"></script>')
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [System.IO.File]::WriteAllText($desktopHtmlPath, $desktopHtml, $utf8NoBom)
 
           $package = Get-Content -Path config/package.json -Raw | ConvertFrom-Json
           $package.main = "electron/main.cjs"
           $package.scripts.start = "electron ."
-          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js && node --check mascot.js && node --check electron/mascot-window.js"
+          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js && node --check desktop-agent.js && node --check mascot.js && node --check electron/mascot-window.js"
           $package.build.directories.output = "../dist"
           $package.build.win | Add-Member -NotePropertyName icon -NotePropertyValue "qbit-icon.ico" -Force
           $package.build.nsis | Add-Member -NotePropertyName installerIcon -NotePropertyValue "qbit-icon.ico" -Force
