@@ -15,7 +15,10 @@
     if(quickHelp)quickHelp.textContent="Agent puede elegir herramientas automáticamente o podés seleccionarlas con el botón +.";
     desktopAgentFactoryPromise=new Promise(resolve=>{
       if(typeof window.qbitDesktopAgentFactory==="function")resolve(window.qbitDesktopAgentFactory);
-      else window.addEventListener("qbit-agent-ready",()=>resolve(window.qbitDesktopAgentFactory),{once:true});
+      else{
+        window.addEventListener("qbit-agent-ready",()=>resolve(window.qbitDesktopAgentFactory),{once:true});
+        window.addEventListener("qbit-agent-load-error",()=>resolve(null),{once:true});
+      }
     });
     const plus=$("agentPlus"),menu=$("artifactMenu"),apply=$("applyArtifacts");
     if(plus&&menu){
@@ -47,7 +50,7 @@
       if(!desktopAgent){
         setStatus("Agent está preparando la IA local. La primera descarga puede tardar…");
         const factory=await desktopAgentFactoryPromise;
-        if(typeof factory!=="function")throw new Error("No se pudo iniciar el motor local de Agent.");
+        if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent. Revisá la conexión y reiniciá QBIT.");
         desktopAgent=await factory({onStatus:setStatus});
       }
       await desktopAgent.handle(message,{
@@ -68,6 +71,11 @@
     if(name==="open_anything"){
       const query=String(args.query||"").trim();
       if(!query)throw new Error("Necesito el nombre de la aplicación o archivo.");
+      const folderNames={"inicio":"inicio","documentos":"documentos","descargas":"descargas","escritorio":"escritorio","imagenes":"imagenes","imágenes":"imagenes","musica":"musica","música":"musica","videos":"videos"};
+      if(folderNames[query.toLocaleLowerCase("es")])return await pc.openFolder(folderNames[query.toLocaleLowerCase("es")]);
+      const sites={"youtube":"https://www.youtube.com/","google":"https://www.google.com/","github":"https://github.com/","roblox":"https://www.roblox.com/","minecraft":"https://www.minecraft.net/","spotify":"https://open.spotify.com/","gmail":"https://mail.google.com/","reddit":"https://www.reddit.com/"};
+      const site=sites[query.toLocaleLowerCase("es")];
+      if(site){await pc.openUrl(site);return {ok:true,message:"Abriendo "+query+" en el navegador."};}
       return await pc.openAnything(query);
     }
     if(name==="system_info"){
