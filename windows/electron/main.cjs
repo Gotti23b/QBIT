@@ -555,7 +555,7 @@ app.whenReady().then(() => {
   protocol.handle("qbit-model", request => {
     const url = new URL(request.url);
     let relativePath;
-    try { relativePath = decodeURIComponent(url.pathname).replace(/^\\/+/, ""); }
+    try { relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, ""); }
     catch { return new Response("Bad Request", { status: 400 }); }
     if (!relativePath) return new Response("Not Found", { status: 404 });
     const modelRoot = path.resolve(localModelStorageRoot());
@@ -570,7 +570,7 @@ app.whenReady().then(() => {
   });
   protocol.handle("qbit", request => {
     const url = new URL(request.url);
-    const relativePath = decodeURIComponent(url.pathname).replace(/^\\/+/, "") || "index.html";
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html";
     const filePath = path.resolve(appRoot, relativePath);
     if (filePath !== appRoot && !filePath.startsWith(appRoot + path.sep)) {
       return new Response("Forbidden", { status: 403 });
