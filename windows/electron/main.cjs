@@ -120,6 +120,9 @@ async function ensureLocalModelFiles(sender) {
         if (!stat.isFile() || stat.size < (file.endsWith(".onnx") ? 1_000_000 : 1)) {
           throw new Error("El archivo descargado está incompleto: " + file);
         }
+        if (total > 0 && stat.size !== total) {
+          throw new Error("El tamaño descargado no coincide para " + file + ": se esperaban " + total + " bytes y llegaron " + stat.size + ".");
+        }
         await fs.promises.rename(temporary, target);
       } catch (error) {
         await fs.promises.rm(temporary, { force: true }).catch(() => {});
