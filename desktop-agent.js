@@ -1,0 +1,167 @@
+import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
+
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_search", "time_date", "automation"]);
+const normalize = (value) => String(value || "").toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[¿?¡!.,;:]/g, " ").replace(/\s+/g, " ").trim();
+
+function detectArtifact(message) {
+  const raw = String(message || "").trim();
+  const n = normalize(raw);
+  let match;
+
+  match = raw.match(/^(?:qbit[, :]+)?(?:abre|abri|abrí|abrir|abrime|ejecuta|ejecutá|inicia|iniciá|open)\s+(.+)$/i);
+  if (match) {
+    const target = match[1].trim().replace(/^(?:la pagina de|la web de|el sitio de|la carpeta|el archivo|la aplicacion|la aplicación)\s+/i, "");
+    if (/^(?:documentos|descargas|escritorio|imagenes|imágenes|musica|música|videos|inicio)$/i.test(target)) {
+      return { name: "open_anything", args: { query: target }, plan: "Me pediste abrir " + target + ". Voy a buscarlo entre las aplicaciones y archivos disponibles." };
+    }
+    return { name: "open_anything", args: { query: target }, plan: "Me pediste abrir " + target + ". Voy a usar el Artifact para localizarlo y abrirlo." };
+  }
+
+  if (/(?:bateria|batería|nivel de carga|estado del sistema|informacion de mi pc|información de mi pc|datos de mi pc|informacion del sistema|información del sistema|estado de mi pc|como esta mi pc|cómo está mi pc|cuanta ram|cuánta ram|memoria ram)/i.test(raw) || ["estado","sistema"].includes(n)) {
+    return { name: "system_info", args: {}, plan: "Me pediste información del equipo. Voy a consultar el estado real de Windows, incluida la batería si está disponible." };
+  }
+
+  if (/(?:subi|subí|sube|aumenta|subir|baja|bajá|disminui|disminuí|disminuye|bajar).{0,12}volumen/.test(n)) {
+    const action = /(?:baja|bajá|disminui|disminuí|disminuye|bajar)/.test(n) ? "down" : "up";
+    return { name: "volume", args: { action }, plan: "Me pediste cambiar el volumen. Voy a usar el Artifact de control de audio." };
+  }
+  if (/(?:silencia|silenciar|mutea|mute|quita el sonido)/.test(n)) {
+    return { name: "volume", args: { action: "mute" }, plan: "Me pediste silenciar el equipo. Voy a usar el Artifact de control de audio." };
+  }
+
+  if (/(?:prepara|preparar|inicia|iniciar).{0,25}(?:entorno de estudio|modo estudio)/.test(n)) {
+    return { name: "automation", args: {}, plan: "Me pediste preparar el entorno de estudio. Voy a solicitar confirmación antes de abrir las aplicaciones." };
+  }
+
+  if (/^(?:que hora es|hora actual|que fecha es|fecha de hoy|que dia es hoy|que dia estamos|decime la hora|dime la hora)$/.test(n)) {
+    return { name: "time_date", args: {}, plan: "Me pediste la fecha o la hora. Voy a consultar el reloj local del equipo." };
+  }
+
+  match = raw.match(/^(?:(?:busca|buscar|buscame|buscame|buscá|investiga|investigá)(?:\s+en)?(?:\s+la)?\s+(?:web|internet)|busca(?:r)?(?:me)?(?:\s+en)?\s+(?:google|la web|internet))\s*[:,-]?\s+(.+)$/i);
+  if (match) {
+    return { name: "web_search", args: { query: match[1].trim() }, plan: "Me pediste buscar información en Internet. Voy a abrir una búsqueda con tu consulta." };
+  }
+  return null;
+}
+
+function resultText(result) {
+  if (typeof result === "string") return result;
+  return result?.message || JSON.stringify(result);
+}
+
+export async function createDesktopAgent({ onStatus = () => {} } = {}) {
+  let generator = null;
+  let loadingPromise = null;
+  const history = [];
+
+  async function loadModel() {
+    if (generator) return generator;
+    if (loadingPromise) return loadingPromise;
+    loadingPromise = (async () => {
+      onStatus("Agent está descargando y preparando SmolLM2-135M-Instruct. La primera vez puede tardar y necesita Internet…");
+      generator = await pipeline("text-generation", "onnx-community/SmolLM2-135M-Instruct", {
+        dtype: "q4",
+        device: "wasm",
+        progress_callback: (progress) => {
+          if (progress.status === "progress" && progress.file) {
+            const percent = Number.isFinite(progress.progress) ? " (" + Math.round(progress.progress) + "%)" : "";
+            onStatus("Agent está descargando " + progress.file + percent + "…");
+          } else if (progress.status === "initiate" && progress.file) {
+            onStatus("Agent está preparando " + progress.file + "…");
+          }
+        }
+      });
+      onStatus("Agent está listo. El modelo funciona localmente en esta PC.");
+      return generator;
+    })();
+    try {
+      return await loadingPromise;
+    } catch (error) {
+      loadingPromise = null;
+      generator = null;
+      throw error;
+    }
+  }
+
+  async function generateReply(message) {
+    const model = await loadModel();
+    const conversation = [
+      {
+        role: "system",
+        content: "Sos Agent, el asistente local de QBIT. Respondé en español rioplatense, de forma clara y breve. No afirmes que hiciste acciones en Windows: las acciones se ejecutan únicamente mediante Artifacts controlados. Si no sabés algo, decilo."
+      },
+      ...history.slice(-10),
+      { role: "user", content: message }
+    ];
+    const output = await model(conversation, {
+      max_new_tokens: 180,
+      do_sample: true,
+      temperature: 0.65,
+      top_p: 0.9,
+      repetition_penalty: 1.1
+    });
+    const generated = output?.[0]?.generated_text;
+    let answer = "";
+    if (Array.isArray(generated)) {
+      const lastAssistant = [...generated].reverse().find((entry) => entry.role === "assistant");
+      answer = lastAssistant?.content || "";
+    } else if (typeof generated === "string") {
+      answer = generated.slice(generated.lastIndexOf(message) + message.length).trim();
+    }
+    answer = String(answer).trim() || "No pude generar una respuesta esta vez. Probá de nuevo.";
+    history.push({ role: "user", content: message }, { role: "assistant", content: answer });
+    if (history.length > 20) history.splice(0, history.length - 20);
+    return answer;
+  }
+
+  async function handle(message, { selectedArtifacts = [], onPlan = () => {}, onResult = () => {}, executeArtifact, onStatus: updateStatus = onStatus } = {}) {
+    const selected = Array.isArray(selectedArtifacts) ? selectedArtifacts.filter((name) => TOOL_NAMES.has(name)) : [];
+    const detected = detectArtifact(message);
+    let artifact = detected;
+
+    if (selected.length) {
+      if (detected && !selected.includes(detected.name)) {
+        artifact = null;
+      } else if (!detected && selected.length === 1) {
+        const only = selected[0];
+        const n = normalize(message);
+        if (only === "system_info" && /bateria|batería|ram|sistema|equipo|pc|computadora/.test(n)) artifact = { name: only, args: {}, plan: "Elegiste el Artifact de información del sistema. Voy a consultar el dato que pediste." };
+        if (only === "time_date" && /hora|fecha|dia|día/.test(n)) artifact = { name: only, args: {}, plan: "Elegiste el Artifact de fecha y hora. Voy a consultar el reloj local." };
+        if (only === "web_search") artifact = { name: only, args: { query: message }, plan: "Elegiste el Artifact de búsqueda web. Voy a abrir una búsqueda para tu consulta." };
+        if (only === "open_anything") artifact = { name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\s+/i, "").trim() }, plan: "Elegiste el Artifact para abrir aplicaciones y archivos. Voy a buscar lo que pediste." };
+      }
+    }
+
+    if (artifact) {
+      if (typeof executeArtifact !== "function") throw new Error("No está disponible el ejecutor de Artifacts.");
+      if (!selected.length || selected.includes(artifact.name)) {
+        onPlan(artifact.plan);
+        updateStatus("Agent está ejecutando el Artifact: " + artifact.name + "…");
+        const result = await executeArtifact(artifact.name, artifact.args);
+        const text = resultText(result);
+        onResult(text);
+        updateStatus("Agent terminó la tarea.");
+        return;
+      }
+      onResult("No ejecuté ninguna herramienta porque la que detecté no está entre los Artifacts que elegiste. Cambiá la selección o dejá que Agent elija automáticamente.");
+      return;
+    }
+
+    if (selected.length) {
+      onPlan("Me pediste usar Artifacts específicos, pero no encontré una acción compatible con esa selección. Voy a responder sin ejecutar herramientas.");
+    } else {
+      onStatus("Agent está pensando…");
+    }
+    const answer = await generateReply(message);
+    onResult(answer);
+    updateStatus("Agent está listo.");
+  }
+
+  return { handle, loadModel };
+}
+
+window.qbitDesktopAgentFactory = createDesktopAgent;
+window.dispatchEvent(new Event("qbit-agent-ready"));
