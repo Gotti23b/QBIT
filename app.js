@@ -6,6 +6,7 @@
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopAgent = null;
   let desktopAgentFactoryPromise = null;
+  let desktopAgentBusy = false;
   function prepareDesktopAgentUI(){
     if(!window.qbitPC?.isDesktop)return;
     document.body.classList.add("qbit-desktop");
@@ -46,9 +47,18 @@
   async function runDesktopAgent(message, selectedArtifacts){
     const status=$("agentStatus");
     const setStatus=text=>{if(status)status.textContent=text;};
+    if(desktopAgentBusy){
+      bubble("Agent","Estoy terminando la solicitud anterior. Esperá un momento antes de enviar otra.","bot");
+      return;
+    }
+    desktopAgentBusy=true;
+    const sendButton=document.querySelector('#sendForm button[type="submit"]');
+    const input=$("chatInput");
+    if(sendButton)sendButton.disabled=true;
+    if(input)input.disabled=true;
     try{
       if(!desktopAgent){
-        setStatus("Agent está preparando la IA local. La primera descarga puede tardar…");
+        setStatus("Agent está preparando la IA local. La primera descarga puede tardar; después debería reutilizar la caché…");
         const factory=await desktopAgentFactoryPromise;
         if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent. Revisá la conexión y reiniciá QBIT.");
         desktopAgent=await factory({onStatus:setStatus});
@@ -61,8 +71,12 @@
         executeArtifact:executeDesktopArtifact
       });
     }catch(error){
-      bubble("Agent","No pude completar la petición: "+(error?.message||"error desconocido")+". Revisá la conexión para descargar el modelo y volvé a intentar.","bot");
+      bubble("Agent","No pude completar la petición: "+(error?.message||"error desconocido")+". Revisá la conexión y volvé a intentar.","bot");
       setStatus("Agent no pudo completar la petición.");
+    }finally{
+      desktopAgentBusy=false;
+      if(sendButton)sendButton.disabled=false;
+      if(input){input.disabled=false;input.focus();}
     }
   }
   async function executeDesktopArtifact(name,args={}){
