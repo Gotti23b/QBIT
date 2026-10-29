@@ -35,7 +35,7 @@ jobs:
           Copy-Item -Path windows/scripts -Destination desktop-build -Recurse
           $desktopHtmlPath = Join-Path (Resolve-Path desktop-build) "index.html"
           $desktopHtml = Get-Content -Path $desktopHtmlPath -Raw
-          $desktopHtml = $desktopHtml.Replace('<script src="app.js" defer></script>', '<script src="app.js" defer></script>' + "`n" + '<script type="module" src="desktop-agent.js" onerror="window.dispatchEvent(new Event(\'qbit-agent-load-error\'))"></script>')
+          $desktopHtml = $desktopHtml.Replace('<script src="app.js" defer></script>', '<script src="app.js" defer></script>' + "`n" + '<script type="module" src="desktop-agent.js" onerror="window.dispatchEvent(new Event(''qbit-agent-load-error''))"></script>')
           $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
           [System.IO.File]::WriteAllText($desktopHtmlPath, $desktopHtml, $utf8NoBom)
 
