@@ -79,7 +79,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
     if (loadingPromise) return loadingPromise;
     loadingPromise = (async () => {
       onStatus("Agent está descargando y preparando SmolLM2-135M-Instruct. La primera vez puede tardar y necesita Internet…");
-      generator = await pipeline("text-generation", "onnx-community/SmolLM2-135M-Instruct", {
+      generator = await pipeline("text-generation", "onnx-community/SmolLM2-135M-Instruct-ONNX", {
         dtype: "q4",
         device: "wasm",
         progress_callback: (progress) => {
@@ -135,7 +135,6 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
   }
 
   async function handle(message, { selectedArtifacts = [], onPlan = () => {}, onResult = () => {}, executeArtifact, onStatus: updateStatus = onStatus } = {}) {
-    await loadModel();
     const selected = Array.isArray(selectedArtifacts) ? selectedArtifacts.filter((name) => TOOL_NAMES.has(name)) : [];
     let artifacts = detectArtifactChain(message);
 
