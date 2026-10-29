@@ -9,7 +9,8 @@ const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_searc
 const QUICK_REPLIES = [
   { test: /^(?:que sos|quien sos|que eres|quien eres|como te llamas|cual es tu nombre)$/, reply: "Soy Agent, el asistente local de QBIT. Puedo responder preguntas y usar Artifacts para realizar algunas acciones en Windows." },
   { test: /^(?:que podes hacer|que puedes hacer|que sabes hacer|para que servis|para que sirves)$/, reply: "Puedo conversar y, cuando corresponde, usar Artifacts para abrir aplicaciones o archivos, consultar información del equipo, cambiar el volumen, buscar en la web y consultar la fecha y hora." },
-  { test: /^(?:hola|buenas|buen dia|buenas tardes|buenas noches)$/, reply: "¡Hola! Soy Agent, el asistente local de QBIT. ¿En qué te ayudo?" }
+  { test: /^(?:hola|buenas|buen dia|buenas tardes|buenas noches)$/, reply: "¡Hola! Soy Agent, el asistente local de QBIT. ¿En qué te ayudo?" },
+  { test: /^(?:como estas|que tal|como andas|todo bien)$/, reply: "¡Todo bien por acá! Soy Agent, listo para ayudarte. ¿Qué necesitás?" }
 ];
 function quickReply(message) {
   const n = normalize(message);
@@ -141,9 +142,12 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       { role: "user", content: message }
     ];
     const output = await model(conversation, {
-      max_new_tokens: 72,
-      do_sample: false,
-      repetition_penalty: 1.08
+      max_new_tokens: 80,
+      do_sample: true,
+      temperature: 0.7,
+      top_p: 0.9,
+      repetition_penalty: 1.18,
+      no_repeat_ngram_size: 3
     });
     const generated = output?.[0]?.generated_text;
     let answer = "";
@@ -161,6 +165,12 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
 
   async function handle(message, { selectedArtifacts = [], onPlan = () => {}, onResult = () => {}, executeArtifact, onStatus: updateStatus = onStatus } = {}) {
     const selected = Array.isArray(selectedArtifacts) ? selectedArtifacts.filter((name) => TOOL_NAMES.has(name)) : [];
+    const canned = quickReply(message);
+    if (canned && !selected.length) {
+      onResult(canned);
+      updateStatus("Agent está listo.");
+      return;
+    }
     let artifacts = detectArtifactChain(message);
 
     if (selected.length) {
