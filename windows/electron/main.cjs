@@ -1,4 +1,11 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, protocol, net } = require("electron");
+const { pathToFileURL } = require("node:url");
+
+// A secure, persistent origin is required for browser Cache Storage to reuse model files between launches.
+protocol.registerSchemesAsPrivileged([{
+  scheme: "qbit",
+  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
+}]);
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -64,7 +71,7 @@ function createWindow() {
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("file://")) event.preventDefault();
+    if (!url.startsWith("qbit://app/")) event.preventDefault();
   });
   mainWindow.on("close", event => {
     if (!isQuitting) {
@@ -73,7 +80,7 @@ function createWindow() {
     }
   });
   mainWindow.on("closed", () => { mainWindow = null; });
-  mainWindow.loadFile(path.join(getAppRoot(), "index.html"));
+  mainWindow.loadURL("qbit://app/index.html");
 }
 
 function workAreaForPoint(x, y) {
