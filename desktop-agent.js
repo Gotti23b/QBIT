@@ -5,10 +5,8 @@ env.allowRemoteModels = false;
 env.localModelPath = "qbit-model://local/";
 env.useBrowserCache = false;
 
-// Qwen Q4 ocupa casi 1.8 GB. En equipos con RAM limitada, usar un solo
-// hilo WASM y desactivar el proxy evita workers adicionales durante el inicio.
-// Esto conserva el modelo local existente y no cambia la variante descargada.
-env.backends.onnx.wasm.numThreads = 1;
+// Evitar el proxy: ONNX Runtime no puede transferir por ese canal algunos
+// ArrayBuffer grandes respaldados por WebAssembly.Memory.
 env.backends.onnx.wasm.proxy = false;
 
 // Transformers.js v3 usa niveles numéricos: DEBUG = 10.
@@ -98,6 +96,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
   async function loadModel() {
     if (generator) return generator;
     if (loadingPromise) return loadingPromise;
+    let modelDiagnostics = "Diagnóstico del modelo no disponible.";
     loadingPromise = (async () => {
       const bridge = window.qbitPC;
       if (!bridge || typeof bridge.ensureModelFiles !== "function") {
@@ -118,6 +117,20 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
         : () => {};
       try {
         const localFiles = await bridge.ensureModelFiles();
+        const bytes = Number(localFiles?.modelBytes);
+        const gib = Number.isFinite(bytes) && bytes > 0 ? (bytes / (1024 ** 3)).toFixed(2) + " GiB" : "tamaño no informado";
+        const memory = typeof navigator.deviceMemory === "number" ? navigator.deviceMemory + " GiB aproximados" : "RAM del dispositivo no expuesta por el navegador";
+        modelDiagnostics = [
+          "Modelo: " + String(localFiles?.model || "desconocido"),
+          "Archivo ONNX local: " + gib + (Number.isFinite(bytes) && bytes > 0 ? " (" + bytes + " bytes)" : ""),
+          "Transformers.js: " + String(env.version || "versión no informada"),
+          "Backend: WASM/CPU",
+          "Hilos lógicos: " + String(navigator.hardwareConcurrency || "no informado"),
+          "Memoria del dispositivo: " + memory,
+          "crossOriginIsolated: " + String(window.crossOriginIsolated),
+          "Proxy WASM: desactivado"
+        ].join("; ");
+        console.info("[QBIT Agent] " + modelDiagnostics);
         onStatus(localFiles.downloaded
           ? "Archivos guardados. Preparando el modelo local…"
           : "Modelo encontrado en el disco. Preparándolo sin descargarlo…");
@@ -134,12 +147,13 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
         console.error("[QBIT Agent] Falló la inicialización de Transformers.js/ONNX Runtime:", error);
         let detail;
         if (error instanceof Error) {
-          detail = error.name + ": " + error.message + (error.stack ? "\\n" + error.stack : "");
+          detail = error.name + ": " + error.message + (error.stack ? "\n" + error.stack : "");
         } else {
           detail = "El runtime devolvió un valor no estándar (" + typeof error + "): " + String(error);
           if (typeof error === "number" && Number.isFinite(error)) detail += " (0x" + (error >>> 0).toString(16).toUpperCase() + ")";
         }
-        throw new Error("Falló la inicialización del modelo local (Transformers.js/ONNX Runtime). " + detail.slice(0, 1200));
+        console.error("[QBIT Agent] Diagnóstico del fallo:", modelDiagnostics);
+        throw new Error("Falló la inicialización del modelo local (Transformers.js/ONNX Runtime). " + detail + "\n" + modelDiagnostics);
       }
       onStatus("Agent está listo. El modelo se carga desde los archivos de esta PC.");
       return generator;
