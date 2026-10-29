@@ -85,7 +85,8 @@ async function ensureLocalModelFiles(sender) {
     }
 
     if (missing.length === 0) {
-      return { ready: true, downloaded: false, model: MODEL_REPO };
+      const modelStat = await fs.promises.stat(path.join(repoRoot, "onnx", "model_q4.onnx"));
+      return { ready: true, downloaded: false, model: MODEL_REPO, modelBytes: modelStat.size };
     }
 
     for (const file of missing) {
@@ -127,7 +128,8 @@ async function ensureLocalModelFiles(sender) {
       sender.send("qbit:model-progress", { stage: "file-done", file, loaded, total, percent: 100 });
     }
 
-    return { ready: true, downloaded: true, model: MODEL_REPO };
+    const modelStat = await fs.promises.stat(path.join(repoRoot, "onnx", "model_q4.onnx"));
+    return { ready: true, downloaded: true, model: MODEL_REPO, modelBytes: modelStat.size };
   })().finally(() => { modelDownloadPromise = null; });
   return modelDownloadPromise;
 }
