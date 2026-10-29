@@ -42,8 +42,9 @@ function getAppRoot() {
 }
 
 
-const MODEL_REPO = "onnx-community/SmolLM2-135M-Instruct-ONNX";
+const MODEL_REPO = "onnx-community/Qwen2.5-1.5B-Instruct";
 const MODEL_FILES = [
+  "added_tokens.json",
   "config.json",
   "generation_config.json",
   "merges.txt",
