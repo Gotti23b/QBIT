@@ -110,12 +110,11 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
         modelDiagnostics = [
           "Modelo: " + String(localFiles?.model || "desconocido"),
           "Archivo ONNX local: " + gib + (Number.isFinite(bytes) && bytes > 0 ? " (" + bytes + " bytes)" : ""),
-          "Transformers.js: " + String(env.version || "versión no informada"),
-          "Backend: WASM/CPU",
+          "Transformers.js: 3.7.2",
+          "Backend: ONNX Runtime nativo/CPU",
           "Hilos lógicos: " + String(navigator.hardwareConcurrency || "no informado"),
           "Memoria del dispositivo: " + memory,
-          "crossOriginIsolated: " + String(window.crossOriginIsolated),
-          "Proxy WASM: desactivado"
+          "Modelo cargado desde el disco por el proceso principal de Electron"
         ].join("; ");
         console.info("[QBIT Agent] " + modelDiagnostics);
         // El archivo oficial ocupa aproximadamente 1,79 GB. Detectar truncados
