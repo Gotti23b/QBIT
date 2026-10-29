@@ -156,7 +156,12 @@ async function loadNativeTextGenerator(modelId = readSelectedModelId()) {
     if (!stat.isFile() || stat.size < profile.minimumModelBytes) {
       throw new Error("El archivo local de " + profile.name + " está incompleto. Se conservó sin borrarlo ni volverlo a descargar.");
     }
-    console.info("[QBIT Agent] Inicializando", profile.repo, "con ONNX Runtime nativo; modelo local:", stat.size, "bytes");
+    const freeMemoryBytes = os.freemem();
+    if (profile.id === "qwen2.5-1.5b" && freeMemoryBytes < 2_400_000_000) {
+      const freeMemoryGB = (freeMemoryBytes / (1024 ** 3)).toFixed(2);
+      throw new Error("Hay " + freeMemoryGB + " GiB de RAM libre. Para evitar que QBIT se quede sin memoria, Qwen 1.5B requiere al menos 2.4 GB libres. El archivo descargado se conservó. Elegí SmolLM2 135M en el selector y tocá Cargar modelo.");
+    }
+    console.info("[QBIT Agent] Inicializando", profile.repo, "con ONNX Runtime nativo; modelo local:", stat.size, "bytes; RAM libre:", freeMemoryBytes, "bytes");
     nativeTextGenerator = await pipeline("text-generation", profile.repo, { dtype: "q4" });
     nativeTextGeneratorModelId = profile.id;
     console.info("[QBIT Agent] Modelo local inicializado con ONNX Runtime nativo:", profile.repo);

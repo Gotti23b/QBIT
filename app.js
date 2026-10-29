@@ -47,15 +47,18 @@
   async function initializeAgentModelPicker(){
     const select=$("agentModelSelect"),info=$("agentModelInfo"),loadButton=$("agentModelLoad"),bridge=window.qbitPC;
     if(!select||!info||!loadButton||!bridge?.getAgentModelSettings)return;
+    let freeRamGB=null;
     const render=settings=>{
       select.value=settings.selectedModelId;
       const profile=settings.models?.find(model=>model.id===settings.selectedModelId);
       if(!profile){info.textContent="No se pudo leer el modelo seleccionado.";return;}
       const size=profile.installed&&profile.modelBytes?"Archivo ONNX local: "+(profile.modelBytes/1e9).toFixed(2)+" GB.":"Descarga aproximada: "+profile.downloadLabel+".";
-      info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,settings.loadedModelId&&settings.loadedModelId!==settings.selectedModelId?"Reiniciá QBIT para aplicar el cambio sin cargar dos modelos.":""].filter(Boolean).join(" ");
+      const ramWarning=freeRamGB!==null&&freeRamGB<2.4&&profile.id==="qwen2.5-1.5b"?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB. Para evitar un fallo, elegí SmolLM2 135M.":"";
+      info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,settings.loadedModelId&&settings.loadedModelId!==settings.selectedModelId?"Reiniciá QBIT para aplicar el cambio sin cargar dos modelos.":""].filter(Boolean).join(" ");
     };
     try{
       render(await bridge.getAgentModelSettings());
+      try{const status=await bridge.getStatus();if(Number.isFinite(Number(status?.ramFreeGB)))freeRamGB=Number(status.ramFreeGB);render(await bridge.getAgentModelSettings());}catch{}
       select.addEventListener("change",async()=>{
         select.disabled=true;loadButton.disabled=true;info.textContent="Guardando la selección…";
         try{render(await bridge.setAgentModel(select.value));}
@@ -81,8 +84,9 @@
           if(status)status.textContent="Modelo listo.";
         }catch(error){
           const detail=String(error?.message||error||"error desconocido");
-          info.textContent="No se pudo cargar el modelo: "+detail;
-          if(status)status.textContent="QBIT no pudo cargar el modelo.";
+          const lowMemory=/ram libre|memoria libre|insuficiente/i.test(detail);
+          info.textContent=lowMemory?detail:"No se pudo cargar el modelo: "+detail;
+          if(status)status.textContent=lowMemory?"Elegí el modelo liviano para esta cantidad de RAM.":"QBIT no pudo cargar el modelo.";
         }finally{
           stopListening();desktopAgentBusy=false;select.disabled=false;loadButton.disabled=false;
           if(sendButton)sendButton.disabled=false;if(input){input.disabled=false;input.focus();}
