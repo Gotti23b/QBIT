@@ -73,7 +73,7 @@
     }catch(error){
       const detail=String(error?.stack||error?.message||error||"error desconocido");
       console.error("[QBIT Agent] Error técnico:",error);
-      bubble("Agent","No pude completar la petición. Error técnico: "+detail.slice(0,900),"bot");
+      bubble("Agent","No pude completar la petición. Error técnico: "+detail.slice(0,1800),"bot");
       setStatus("Agent no pudo completar la petición.");
     }finally{
       desktopAgentBusy=false;
