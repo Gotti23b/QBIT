@@ -5,6 +5,16 @@ env.allowRemoteModels = false;
 env.localModelPath = "qbit-model://local/";
 env.useBrowserCache = false;
 
+// Qwen Q4 ocupa casi 1.8 GB. En equipos con RAM limitada, usar un solo
+// hilo WASM y desactivar el proxy evita workers adicionales durante el inicio.
+// Esto conserva el modelo local existente y no cambia la variante descargada.
+env.backends.onnx.wasm.numThreads = 1;
+env.backends.onnx.wasm.proxy = false;
+
+// Activar diagnósticos detallados para que el próximo error conserve
+// información útil del cargador/ONNX Runtime en vez de quedar opaco.
+env.logLevel = 10;
+
 const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_search", "time_date", "automation"]);
 const QUICK_REPLIES = [
   { test: /^(?:que sos|quien sos|que eres|quien eres|como te llamas|cual es tu nombre)$/, reply: "Soy Agent, el asistente local de QBIT. Puedo responder preguntas y usar Artifacts para realizar algunas acciones en Windows." },
