@@ -1,4 +1,8 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, protocol, net } = require("electron");
+const { pathToFileURL } = require("node:url");
+
+// Use a persistent, secure app origin so the browser Cache API can keep model files between launches.
+protocol.registerSchemesAsPrivileged([{ scheme: "qbit", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -64,7 +68,7 @@ function createWindow() {
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("file://")) event.preventDefault();
+    if (!url.startsWith("qbit://app/")) event.preventDefault();
   });
   mainWindow.on("close", event => {
     if (!isQuitting) {
@@ -73,7 +77,7 @@ function createWindow() {
     }
   });
   mainWindow.on("closed", () => { mainWindow = null; });
-  mainWindow.loadFile(path.join(getAppRoot(), "index.html"));
+  mainWindow.loadURL("qbit://app/index.html");
 }
 
 function workAreaForPoint(x, y) {
@@ -446,7 +450,17 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
   return { ok: true, message: "Preparé el entorno de estudio: calculadora, Bloc de notas y Documentos." };
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const appRoot = path.resolve(getAppRoot());
+  protocol.handle("qbit", (request) => {
+    const url = new URL(request.url);
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\\/+/, "") || "index.html";
+    const filePath = path.resolve(appRoot, relativePath);
+    if (filePath !== appRoot && !filePath.startsWith(appRoot + path.sep)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return net.fetch(pathToFileURL(filePath).href);
+  });
   loadPetSettings();
   createTray();
   createWindow();
