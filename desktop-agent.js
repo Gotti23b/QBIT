@@ -123,11 +123,9 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       { role: "user", content: message }
     ];
     const output = await model(conversation, {
-      max_new_tokens: 180,
-      do_sample: true,
-      temperature: 0.65,
-      top_p: 0.9,
-      repetition_penalty: 1.1
+      max_new_tokens: 72,
+      do_sample: false,
+      repetition_penalty: 1.08
     });
     const generated = output?.[0]?.generated_text;
     let answer = "";
