@@ -68,7 +68,8 @@
       const profile=models.find(model=>model.id===settings.selectedModelId);
       if(!profile){info.textContent="No se pudo leer el modelo seleccionado.";return;}
       const size=profile.installed&&profile.modelBytes?"Archivo ONNX local: "+(profile.modelBytes/1e9).toFixed(2)+" GB.":"Descarga aproximada: "+profile.downloadLabel+".";
-      const ramWarning=freeRamGB!==null&&freeRamGB<2.4&&profile.id==="qwen2.5-1.5b"?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB. Para evitar un fallo, probá un modelo más pequeño.":"";
+      const requiredRam=Number(profile.minimumFreeRamBytes)/(1024**3);
+      const ramWarning=freeRamGB!==null&&Number.isFinite(requiredRam)&&freeRamGB<requiredRam?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB; mínimo orientativo para este modelo: "+requiredRam.toFixed(1)+" GB. Cerrá aplicaciones o elegí uno más pequeño.":"";
       const loaded=settings.loadedModelId===profile.id?"Este modelo está cargado.":settings.loadedModelId?"Modelo cargado actualmente: "+(models.find(model=>model.id===settings.loadedModelId)?.name||settings.loadedModelId)+". Al cargar otro, QBIT liberará el anterior primero.":"No hay un modelo cargado todavía.";
       info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,loaded].filter(Boolean).join(" ");
     };
