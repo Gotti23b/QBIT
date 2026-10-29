@@ -49,12 +49,28 @@
     if(!select||!info||!loadButton||!bridge?.getAgentModelSettings)return;
     let freeRamGB=null;
     const render=settings=>{
-      select.value=settings.selectedModelId;
-      const profile=settings.models?.find(model=>model.id===settings.selectedModelId);
+      const models=Array.isArray(settings.models)?settings.models:[];
+      const selectedBefore=select.value;
+      if(select.options.length!==models.length||models.some(model=>![...select.options].some(option=>option.value===model.id))){
+        select.replaceChildren(...models.map(model=>{
+          const option=document.createElement("option");
+          option.value=model.id;
+          option.textContent=model.name+(model.installed?" · instalado":"");
+          return option;
+        }));
+      }else{
+        models.forEach(model=>{
+          const option=[...select.options].find(item=>item.value===model.id);
+          if(option)option.textContent=model.name+(model.installed?" · instalado":"");
+        });
+      }
+      select.value=models.some(model=>model.id===settings.selectedModelId)?settings.selectedModelId:selectedBefore;
+      const profile=models.find(model=>model.id===settings.selectedModelId);
       if(!profile){info.textContent="No se pudo leer el modelo seleccionado.";return;}
       const size=profile.installed&&profile.modelBytes?"Archivo ONNX local: "+(profile.modelBytes/1e9).toFixed(2)+" GB.":"Descarga aproximada: "+profile.downloadLabel+".";
-      const ramWarning=freeRamGB!==null&&freeRamGB<2.4&&profile.id==="qwen2.5-1.5b"?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB. Para evitar un fallo, elegí SmolLM2 135M.":"";
-      info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,settings.loadedModelId&&settings.loadedModelId!==settings.selectedModelId?"Reiniciá QBIT para aplicar el cambio sin cargar dos modelos.":""].filter(Boolean).join(" ");
+      const ramWarning=freeRamGB!==null&&freeRamGB<2.4&&profile.id==="qwen2.5-1.5b"?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB. Para evitar un fallo, probá un modelo más pequeño.":"";
+      const loaded=settings.loadedModelId===profile.id?"Este modelo está cargado.":settings.loadedModelId?"Modelo cargado actualmente: "+(models.find(model=>model.id===settings.loadedModelId)?.name||settings.loadedModelId)+". Al cargar otro, QBIT liberará el anterior primero.":"No hay un modelo cargado todavía.";
+      info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,loaded].filter(Boolean).join(" ");
     };
     try{
       render(await bridge.getAgentModelSettings());
@@ -84,7 +100,7 @@
           if(status)status.textContent="Modelo listo.";
         }catch(error){
           const detail=String(error?.message||error||"error desconocido");
-          const lowMemory=/ram libre|memoria libre|insuficiente/i.test(detail);
+          const lowMemory=/ram libre|memoria libre|insuficiente|not enough memory/i.test(detail);
           info.textContent=lowMemory?detail:"No se pudo cargar el modelo: "+detail;
           if(status)status.textContent=lowMemory?"Elegí el modelo liviano para esta cantidad de RAM.":"QBIT no pudo cargar el modelo.";
         }finally{
