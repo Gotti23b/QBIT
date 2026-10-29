@@ -27,12 +27,30 @@
   </form>
 </section>
 <section id="appView" class="hidden">
-  <div class="tabs"><button class="active" data-tab="chatView">💬 Asistente</button><a class="tab-link" href="local-ai.html">🧠 IA local</a><button data-tab="historyView">🕘 Historial</button><button data-tab="mascotSettingsView">🤖 Mascota</button><button data-tab="adminView">⚙️ Administrar QBIT</button></div>
+  <div class="tabs"><button class="active" data-tab="chatView">💬 Asistente</button><a class="tab-link local-ai-link" href="local-ai.html">🧠 IA local</a><button data-tab="historyView">🕘 Historial</button><button data-tab="mascotSettingsView">🤖 Mascota</button><button data-tab="adminView">⚙️ Administrar QBIT</button></div>
   <section id="chatView"><div class="layout">
     <div class="card"><div class="section-title"><h2>Chat</h2><button id="clearChat" class="small">Limpiar chat</button></div>
       <p class="muted">Probá escribir uno de los comandos que guardaste.</p>
       <div id="chatbox" class="chatbox" aria-live="polite"><div class="bubble bot"><small>QBIT</small>¡Hola! Soy QBIT. Agregá comandos y respuestas en el panel de administración para empezar. ✨</div></div>
-      <form id="sendForm" class="send"><input id="chatInput" placeholder="Escribí un mensaje…" autocomplete="off" required><button class="primary">Enviar</button></form>
+      <p id="agentStatus" class="agent-status desktop-only muted" aria-live="polite">Agent está listo para iniciar la IA local.</p>
+      <form id="sendForm" class="send">
+        <div class="agent-tools desktop-only">
+          <button id="agentPlus" class="agent-plus" type="button" aria-label="Elegir Artifacts" aria-expanded="false" title="Elegir Artifacts">＋</button>
+          <div id="artifactMenu" class="artifact-menu hidden" role="group" aria-label="Artifacts para este mensaje">
+            <strong>Artifacts</strong>
+            <p class="muted">Elegí herramientas para este mensaje. Si no seleccionás ninguna, Agent decide automáticamente.</p>
+            <label><input type="checkbox" value="open_anything"> Abrir aplicaciones y archivos</label>
+            <label><input type="checkbox" value="system_info"> Información del sistema y batería</label>
+            <label><input type="checkbox" value="volume"> Controlar volumen</label>
+            <label><input type="checkbox" value="web_search"> Buscar en la web</label>
+            <label><input type="checkbox" value="time_date"> Fecha y hora</label>
+            <label><input type="checkbox" value="automation"> Automatizar tareas</label>
+            <button id="applyArtifacts" class="small primary" type="button">Listo</button>
+          </div>
+        </div>
+        <input id="chatInput" placeholder="Escribí un mensaje…" autocomplete="off" required>
+        <button class="primary">Enviar</button>
+      </form>
     </div>
     <aside class="card"><h3>Comandos disponibles</h3><p class="muted">Estos comandos salen de tu base de datos.</p><div id="quickCommands" class="list"><div class="empty">Todavía no hay comandos.</div></div></aside>
   </div></section>
