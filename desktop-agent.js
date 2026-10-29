@@ -131,6 +131,11 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
           "Proxy WASM: desactivado"
         ].join("; ");
         console.info("[QBIT Agent] " + modelDiagnostics);
+        // El archivo oficial ocupa aproximadamente 1,79 GB. Detectar truncados
+        // antes de pasarlos a WASM; nunca borrar ni descargar automáticamente el modelo.
+        if (!Number.isFinite(bytes) || bytes < 1_700_000_000) {
+          throw new Error("El archivo local del modelo parece incompleto (tamaño: " + gib + "). No lo borré ni lo volví a descargar. Revisá el archivo local antes de intentar inicializar ONNX Runtime.");
+        }
         onStatus(localFiles.downloaded
           ? "Archivos guardados. Preparando el modelo local…"
           : "Modelo encontrado en el disco. Preparándolo sin descargarlo…");
