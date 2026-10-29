@@ -55,6 +55,42 @@ const MODEL_CATALOG = Object.freeze({
     qualityNote: "Opción de mayor capacidad esperada; calidad sin medir.",
     artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
   }),
+  "qwen2.5-0.5b": Object.freeze({
+    id: "qwen2.5-0.5b",
+    name: "Qwen2.5 0.5B Instruct",
+    repo: "onnx-community/Qwen2.5-0.5B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumModelBytes: 700_000_000,
+    downloadLabel: "≈786 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Consumo de RAM por medir; candidato intermedio para equipos con poca memoria.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Capacidad esperada superior a SmolLM2 135M; sin medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  }),
+  "qwen2.5-coder-0.5b": Object.freeze({
+    id: "qwen2.5-coder-0.5b",
+    name: "Qwen2.5-Coder 0.5B Instruct",
+    repo: "onnx-community/Qwen2.5-Coder-0.5B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumModelBytes: 700_000_000,
+    downloadLabel: "≈786 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Consumo de RAM por medir.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Candidato especializado en programación; calidad por medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT; no ejecuta herramientas por sí solo."
+  }),
+  "smollm2-360m": Object.freeze({
+    id: "smollm2-360m",
+    name: "SmolLM2 360M Instruct",
+    repo: "onnx-community/SmolLM2-360M-Instruct-ONNX",
+    files: ["config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumModelBytes: 350_000_000,
+    downloadLabel: "≈386 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Consumo de RAM por medir; candidato liviano con más capacidad que 135M.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Modelo pequeño; calidad real en español debe probarse.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  }),
   "smollm2-135m": Object.freeze({
     id: "smollm2-135m",
     name: "SmolLM2 135M Instruct (liviano)",
@@ -129,13 +165,21 @@ function getAgentModelSettings() {
   return { selectedModelId, loadedModelId: nativeTextGeneratorModelId, models };
 }
 
+async function disposeNativeTextGenerator() {
+  const previous = nativeTextGenerator;
+  nativeTextGenerator = null;
+  nativeTextGeneratorModelId = null;
+  if (previous && typeof previous.dispose === "function") {
+    await previous.dispose();
+  }
+}
+
 async function loadNativeTextGenerator(modelId = readSelectedModelId()) {
   const profile = getModelProfile(modelId);
-  if (nativeTextGenerator) {
-    if (nativeTextGeneratorModelId !== profile.id) {
-      throw new Error("El modelo ya cargado es " + nativeTextGeneratorModelId + ". Reiniciá QBIT para aplicar el modelo seleccionado.");
-    }
-    return nativeTextGenerator;
+  if (nativeTextGenerator && nativeTextGeneratorModelId === profile.id) return nativeTextGenerator;
+  if (nativeTextGenerator && nativeTextGeneratorModelId !== profile.id) {
+    console.info("[QBIT Agent] Liberando el modelo anterior para cambiar a", profile.repo);
+    await disposeNativeTextGenerator();
   }
   if (nativeTextGeneratorPromise) {
     if (nativeTextGeneratorLoadingId !== profile.id) {
@@ -664,7 +708,7 @@ ipcMain.handle("qbit:agent-model-select", (event, modelId) => {
   writeSelectedModelId(modelId);
   return {
     ...getAgentModelSettings(),
-    restartRequired: Boolean(nativeTextGeneratorModelId && nativeTextGeneratorModelId !== modelId)
+    restartRequired: false
   };
 });
 
