@@ -4,6 +4,96 @@
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
+  let desktopAgent = null;
+  let desktopAgentFactoryPromise = null;
+  function prepareDesktopAgentUI(){
+    if(!window.qbitPC?.isDesktop)return;
+    document.body.classList.add("qbit-desktop");
+    const help=document.querySelector("#chatView .layout > .card > p.muted");
+    if(help)help.textContent="Hablá con Agent. Puede responderte y utilizar Artifacts para realizar acciones en Windows.";
+    const quickHelp=document.querySelector("#chatView aside > p.muted");
+    if(quickHelp)quickHelp.textContent="Agent puede elegir herramientas automáticamente o podés seleccionarlas con el botón +.";
+    desktopAgentFactoryPromise=new Promise(resolve=>{
+      if(typeof window.qbitDesktopAgentFactory==="function")resolve(window.qbitDesktopAgentFactory);
+      else window.addEventListener("qbit-agent-ready",()=>resolve(window.qbitDesktopAgentFactory),{once:true});
+    });
+    const plus=$("agentPlus"),menu=$("artifactMenu"),apply=$("applyArtifacts");
+    if(plus&&menu){
+      plus.addEventListener("click",()=>{
+        const opening=menu.classList.contains("hidden");
+        menu.classList.toggle("hidden",!opening);
+        plus.setAttribute("aria-expanded",String(opening));
+      });
+      apply?.addEventListener("click",()=>{
+        menu.classList.add("hidden");
+        plus.setAttribute("aria-expanded","false");
+        const count=menu.querySelectorAll('input[type="checkbox"]:checked').length;
+        plus.title=count?count+" Artifact(s) seleccionados":"Agent elegirá los Artifacts automáticamente";
+        plus.setAttribute("aria-label",plus.title);
+      });
+      document.addEventListener("click",event=>{
+        if(!menu.contains(event.target)&&!plus.contains(event.target)){
+          menu.classList.add("hidden");
+          plus.setAttribute("aria-expanded","false");
+        }
+      });
+    }
+  }
+  prepareDesktopAgentUI();
+  async function runDesktopAgent(message, selectedArtifacts){
+    const status=$("agentStatus");
+    const setStatus=text=>{if(status)status.textContent=text;};
+    try{
+      if(!desktopAgent){
+        setStatus("Agent está preparando la IA local. La primera descarga puede tardar…");
+        const factory=await desktopAgentFactoryPromise;
+        if(typeof factory!=="function")throw new Error("No se pudo iniciar el motor local de Agent.");
+        desktopAgent=await factory({onStatus:setStatus});
+      }
+      await desktopAgent.handle(message,{
+        selectedArtifacts,
+        onStatus:setStatus,
+        onPlan:plan=>bubble("Agent · Plan",plan,"bot"),
+        onResult:result=>bubble("Agent",result,"bot"),
+        executeArtifact:executeDesktopArtifact
+      });
+    }catch(error){
+      bubble("Agent","No pude completar la petición: "+(error?.message||"error desconocido")+". Revisá la conexión para descargar el modelo y volvé a intentar.","bot");
+      setStatus("Agent no pudo completar la petición.");
+    }
+  }
+  async function executeDesktopArtifact(name,args={}){
+    const pc=window.qbitPC;
+    if(!pc?.isDesktop)throw new Error("Este Artifact solo está disponible en QBIT Desktop para Windows.");
+    if(name==="open_anything"){
+      const query=String(args.query||"").trim();
+      if(!query)throw new Error("Necesito el nombre de la aplicación o archivo.");
+      return await pc.openAnything(query);
+    }
+    if(name==="system_info"){
+      const s=await pc.getStatus();
+      return {ok:true,message:"Información del equipo:\n• Sistema: "+s.os+"\n• Equipo: "+s.computer+"\n• Procesador: "+s.cpu+"\n• Procesadores lógicos: "+s.logicalProcessors+"\n• RAM total: "+s.ramTotalGB+" GB\n• RAM libre: "+s.ramFreeGB+" GB\n• Tiempo encendida: "+s.uptimeHours+" horas"+(s.batteryPercent===null?"":"\n• Batería: "+s.batteryPercent+" %")};
+    }
+    if(name==="volume"){
+      if(!["up","down","mute"].includes(args.action))throw new Error("Acción de volumen no permitida.");
+      return await pc.volume(args.action);
+    }
+    if(name==="web_search"){
+      const query=String(args.query||"").trim();
+      if(!query)throw new Error("Necesito qué querés buscar.");
+      await pc.openUrl("https://www.google.com/search?q="+encodeURIComponent(query));
+      return {ok:true,message:"Abrí una búsqueda de Google para: "+query+". La búsqueda se abrió en el navegador; QBIT no lee automáticamente los resultados de esa página."};
+    }
+    if(name==="time_date"){
+      const now=new Date();
+      return {ok:true,message:"Son las "+new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now)+". Hoy es "+new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now)+"."};
+    }
+    if(name==="automation"){
+      if(!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:true,message:"Cancelaste la automatización. No se realizaron cambios."};
+      return await pc.runAutomation("study");
+    }
+    throw new Error("Artifact desconocido o no habilitado: "+name);
+  }
   const say = (id, text, error=false) => { $(id).textContent=text; $(id).className=error?"error":"muted"; };
   const node = (tag, cls, text) => { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; };
   function normalizeText(value){ return String(value).toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?¡!.,;:]/g," ").replace(/\s+/g," ").trim(); }
@@ -327,6 +417,17 @@
     e.preventDefault();
     const q=$("chatInput").value.trim();if(!q)return;
     bubble("Vos",q,"user");$("chatInput").value="";
+    if(window.qbitPC?.isDesktop){
+      const artifactMenu=$("artifactMenu");
+      const selectedArtifacts=artifactMenu?[...artifactMenu.querySelectorAll('input[type="checkbox"]:checked')].map(input=>input.value):[];
+      if(artifactMenu)artifactMenu.querySelectorAll('input[type="checkbox"]').forEach(input=>{input.checked=false;});
+      const plus=$("agentPlus");
+      if(plus){plus.title="Agent elegirá los Artifacts automáticamente";plus.setAttribute("aria-label",plus.title);}
+      artifactMenu?.classList.add("hidden");
+      plus?.setAttribute("aria-expanded","false");
+      await runDesktopAgent(q,selectedArtifacts);
+      return;
+    }
     const desktopRequest=getDesktopRequest(q);
     if(desktopRequest){
       if(!window.qbitPC?.isDesktop){
