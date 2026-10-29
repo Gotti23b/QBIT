@@ -8,3 +8,20 @@
 
 /* Link to the standalone browser-local AI page */
 .tab-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;cursor:pointer;border:1px solid var(--line);border-radius:11px;padding:10px 14px;background:var(--panel2);color:var(--text);font:inherit}.tab-link:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* Agent + Artifacts: activated only in the Windows desktop build */
+.desktop-only{display:none!important}
+body.qbit-desktop .desktop-only{display:block!important}
+body.qbit-desktop .local-ai-link{display:none!important}
+body.qbit-desktop .send{grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+body.qbit-desktop .agent-tools{display:block!important;position:relative}
+.agent-plus{width:44px;height:44px;padding:0;border-radius:50%;font-size:25px;line-height:1;color:var(--cyan);background:var(--panel2);border:1px solid var(--line)}
+.agent-plus[aria-expanded="true"]{border-color:var(--cyan);background:#103747}
+.agent-status{font-size:12px;margin:8px 0}
+.artifact-menu{position:absolute;z-index:20;bottom:calc(100% + 9px);left:0;width:min(310px,80vw);padding:14px;background:#0b1929;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 35px #0008}
+.artifact-menu strong{display:block;margin-bottom:5px}
+.artifact-menu p{font-size:12px;line-height:1.4;margin:0 0 9px}
+.artifact-menu label{display:flex;align-items:center;gap:9px;margin:8px 0;color:var(--text);font-size:13px}
+.artifact-menu input[type=checkbox]{width:16px;height:16px;flex:0 0 16px;accent-color:var(--cyan)}
+.artifact-menu #applyArtifacts{width:100%;margin-top:8px}
+@media(max-width:480px){body.qbit-desktop .send{grid-template-columns:auto minmax(0,1fr) auto}body.qbit-desktop .agent-plus{width:40px;height:40px}}
