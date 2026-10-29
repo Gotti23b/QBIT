@@ -47,6 +47,23 @@ function detectArtifact(message) {
   return null;
 }
 
+function detectArtifactChain(message) {
+  const raw = String(message || "").trim();
+  const open = raw.match(/^(?:qbit[, :]+)?(?:abre|abri|abrí|abrir|abrime|ejecuta|ejecutá|inicia|iniciá|open)\\s+(.+)$/i);
+  if (open) {
+    const combined = open[1].match(/^(.+?)\\s+y\\s+(?:decime|dime|consulta|consultá|consultar|mostrame|muestra|revisa|revisá|fijate|averigua|averiguá)\\b(.+)$/i);
+    if (combined && /bateria|batería|ram|sistema|equipo|pc|computadora|estado/i.test(combined[2])) {
+      const target = combined[1].trim();
+      return [
+        { name: "open_anything", args: { query: target }, plan: "Me pediste abrir " + target + ". Voy a localizarlo y abrirlo." },
+        { name: "system_info", args: {}, plan: "Después voy a consultar la información real del equipo, incluida la batería si está disponible." }
+      ];
+    }
+  }
+  const single = detectArtifact(message);
+  return single ? [single] : [];
+}
+
 function resultText(result) {
   if (typeof result === "string") return result;
   return result?.message || JSON.stringify(result);
@@ -118,42 +135,40 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
   }
 
   async function handle(message, { selectedArtifacts = [], onPlan = () => {}, onResult = () => {}, executeArtifact, onStatus: updateStatus = onStatus } = {}) {
+    await loadModel();
     const selected = Array.isArray(selectedArtifacts) ? selectedArtifacts.filter((name) => TOOL_NAMES.has(name)) : [];
-    const detected = detectArtifact(message);
-    let artifact = detected;
+    let artifacts = detectArtifactChain(message);
 
     if (selected.length) {
-      if (detected && !selected.includes(detected.name)) {
-        artifact = null;
-      } else if (!detected && selected.length === 1) {
+      artifacts = artifacts.filter((artifact) => selected.includes(artifact.name));
+      if (!artifacts.length && selected.length === 1) {
         const only = selected[0];
         const n = normalize(message);
-        if (only === "system_info" && /bateria|batería|ram|sistema|equipo|pc|computadora/.test(n)) artifact = { name: only, args: {}, plan: "Elegiste el Artifact de información del sistema. Voy a consultar el dato que pediste." };
-        if (only === "time_date" && /hora|fecha|dia|día/.test(n)) artifact = { name: only, args: {}, plan: "Elegiste el Artifact de fecha y hora. Voy a consultar el reloj local." };
-        if (only === "web_search") artifact = { name: only, args: { query: message }, plan: "Elegiste el Artifact de búsqueda web. Voy a abrir una búsqueda para tu consulta." };
-        if (only === "open_anything") artifact = { name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\s+/i, "").trim() }, plan: "Elegiste el Artifact para abrir aplicaciones y archivos. Voy a buscar lo que pediste." };
+        if (only === "system_info" && /bateria|ram|sistema|equipo|pc|computadora/.test(n)) artifacts = [{ name: only, args: {}, plan: "Elegiste el Artifact de información del sistema. Voy a consultar el dato que pediste." }];
+        if (only === "time_date" && /hora|fecha|dia/.test(n)) artifacts = [{ name: only, args: {}, plan: "Elegiste el Artifact de fecha y hora. Voy a consultar el reloj local." }];
+        if (only === "web_search") artifacts = [{ name: only, args: { query: message }, plan: "Elegiste el Artifact de búsqueda web. Voy a abrir una búsqueda para tu consulta." }];
+        if (only === "open_anything") artifacts = [{ name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\\s+/i, "").trim() }, plan: "Elegiste el Artifact para abrir aplicaciones y archivos. Voy a buscar lo que pediste." }];
       }
     }
 
-    if (artifact) {
+    if (artifacts.length) {
       if (typeof executeArtifact !== "function") throw new Error("No está disponible el ejecutor de Artifacts.");
-      if (!selected.length || selected.includes(artifact.name)) {
-        onPlan(artifact.plan);
+      onPlan(artifacts.map((artifact) => artifact.plan).join("\\n"));
+      const results = [];
+      for (const artifact of artifacts) {
         updateStatus("Agent está ejecutando el Artifact: " + artifact.name + "…");
         const result = await executeArtifact(artifact.name, artifact.args);
-        const text = resultText(result);
-        onResult(text);
-        updateStatus("Agent terminó la tarea.");
-        return;
+        results.push(resultText(result));
       }
-      onResult("No ejecuté ninguna herramienta porque la que detecté no está entre los Artifacts que elegiste. Cambiá la selección o dejá que Agent elija automáticamente.");
+      onResult(results.join("\\n\\n"));
+      updateStatus("Agent terminó la tarea.");
       return;
     }
 
     if (selected.length) {
       onPlan("Me pediste usar Artifacts específicos, pero no encontré una acción compatible con esa selección. Voy a responder sin ejecutar herramientas.");
     } else {
-      onStatus("Agent está pensando…");
+      updateStatus("Agent está pensando…");
     }
     const answer = await generateReply(message);
     onResult(answer);
