@@ -326,6 +326,33 @@ function normalizeLocalName(value) {
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+// Convierte pedidos coloquiales en el nombre más útil para buscar.
+// No cambia los permisos: solo normaliza la consulta antes de buscar coincidencias.
+function normalizeOpenQuery(value) {
+  let query = normalizeLocalName(value)
+    .replace(/^(?:(?:por favor|porfa) )+/, "")
+    .replace(/^(?:(?:abrime|abrir|abre|abri|ejecuta|ejecutar|inicia|iniciar|open) )+/, "")
+    .replace(/^(?:(?:la|el|los|las|un|una|mi|mis) )+/, "")
+    .replace(/^(?:(?:aplicacion|programa|app|herramienta|cosa) )+/, "")
+    .trim();
+
+  const calculatorWords = /\b(?:calculadora|calculador|calculator|calculater|claculator|calclator|calc|matematica|matematicas|hacer cuentas|hacer calculos|hacer calculas)\b/;
+  const vagueCalculatorRequest = /\b(?:cosa|herramienta|programa|app)\b.*\b(?:matematica|matematicas|calcular|cuentas|calculos)\b/;
+  if (calculatorWords.test(query) || vagueCalculatorRequest.test(query)) return "calculadora";
+
+  const aliases = [
+    [/\b(?:notepad|bloc de notas|notas)\b/, "bloc de notas"],
+    [/\b(?:task manager|administrador de tareas)\b/, "administrador de tareas"],
+    [/\b(?:file explorer|explorador de archivos|explorador)\b/, "explorador"],
+    [/\b(?:paint|mspaint)\b/, "paint"]
+  ];
+  for (const [pattern, canonical] of aliases) {
+    if (pattern.test(query)) return canonical;
+  }
+
+  return query;
+}
+
 function localMatchScore(query, candidate) {
   const q = normalizeLocalName(query);
   const c = normalizeLocalName(candidate);
@@ -356,7 +383,7 @@ async function collectFiles(root, onFile, state, depth = 0) {
 }
 
 async function findLocalMatches(query) {
-  const normalized = normalizeLocalName(query);
+  const normalized = normalizeOpenQuery(query);
   if (normalized.length < 2) throw new Error("Decime al menos dos letras del nombre del archivo o la aplicación.");
   const matches = [];
   const seen = new Set();
