@@ -10,6 +10,7 @@
   function prepareDesktopAgentUI(){
     if(!window.qbitPC?.isDesktop)return;
     document.body.classList.add("qbit-desktop");
+    initializeAgentModelPicker();
     const help=document.querySelector("#chatView .layout > .card > p.muted");
     if(help)help.textContent="Hablá con Agent. Puede responderte y utilizar Artifacts para realizar acciones en Windows.";
     const quickHelp=document.querySelector("#chatView aside > p.muted");
@@ -43,6 +44,26 @@
       });
     }
   }
+  async function initializeAgentModelPicker(){
+    const select=$("agentModelSelect"),info=$("agentModelInfo"),bridge=window.qbitPC;
+    if(!select||!info||!bridge?.getAgentModelSettings)return;
+    const render=settings=>{
+      select.value=settings.selectedModelId;
+      const profile=settings.models?.find(model=>model.id===settings.selectedModelId);
+      if(!profile){info.textContent="No se pudo leer el modelo seleccionado.";return;}
+      const size=profile.installed&&profile.modelBytes?"Archivo ONNX local: "+(profile.modelBytes/1e9).toFixed(2)+" GB.":"Descarga aproximada: "+profile.downloadLabel+".";
+      info.textContent=[size,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,settings.loadedModelId&&settings.loadedModelId!==settings.selectedModelId?"Reiniciá QBIT para aplicar el cambio sin cargar dos modelos.":""].filter(Boolean).join(" ");
+    };
+    try{
+      render(await bridge.getAgentModelSettings());
+      select.addEventListener("change",async()=>{
+        select.disabled=true;info.textContent="Guardando la selección…";
+        try{render(await bridge.setAgentModel(select.value));}
+        catch(error){info.textContent="No se pudo guardar el modelo: "+(error?.message||"error desconocido");}
+        finally{select.disabled=desktopAgentBusy;}
+      });
+    }catch(error){info.textContent="No se pudo leer la configuración de modelos: "+(error?.message||"error desconocido");}
+  }
   prepareDesktopAgentUI();
   async function runDesktopAgent(message, selectedArtifacts){
     const status=$("agentStatus");
@@ -52,6 +73,7 @@
       return;
     }
     desktopAgentBusy=true;
+    const responseBubble=bubble("Agent","Recibí tu mensaje. Estoy procesándolo…","bot",{deferPetReply:true});
     const sendButton=document.querySelector('#sendForm button[type="submit"]');
     const input=$("chatInput");
     if(sendButton)sendButton.disabled=true;
@@ -66,14 +88,14 @@
       await desktopAgent.handle(message,{
         selectedArtifacts,
         onStatus:setStatus,
-        onPlan:plan=>bubble("Agent · Plan",plan,"bot"),
-        onResult:result=>bubble("Agent",result,"bot"),
+        onPlan:plan=>bubble("Agent · Plan",plan,"bot",{deferPetReply:true}),
+        onResult:result=>updateBubble(responseBubble,"Agent",result),
         executeArtifact:executeDesktopArtifact
       });
     }catch(error){
       const detail=String(error?.stack||error?.message||error||"error desconocido");
       console.error("[QBIT Agent] Error técnico:",error);
-      bubble("Agent","No pude completar la petición. Error técnico: "+detail.slice(0,1800),"bot");
+      updateBubble(responseBubble,"Agent","No pude completar la petición. Error técnico: "+detail.slice(0,1800));
       setStatus("Agent no pudo completar la petición.");
     }finally{
       desktopAgentBusy=false;
@@ -139,10 +161,17 @@
     }
     renderHistory();
   }
-  function bubble(who,text,kind){
-    const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
-    if(kind==="bot"&&petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
-    if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){chat.messages.push({who,text:String(text),kind,at:new Date().toISOString()});if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
+  function bubble(who,text,kind,options={}){
+    const b=node("div","bubble "+kind);const label=node("small","",who);const textNode=document.createTextNode(String(text));b.append(label,textNode);$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    if(kind==="bot"&&petMessagePending&&!options.deferPetReply){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
+    if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){const entry={who,text:String(text),kind,at:new Date().toISOString()};chat.messages.push(entry);b._qbitHistoryEntry=entry;if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
+    b._qbitLabel=label;b._qbitText=textNode;return b;
+  }
+  function updateBubble(element,who,text){
+    if(!element)return;
+    element._qbitLabel.textContent=who;element._qbitText.textContent=String(text);
+    if(element._qbitHistoryEntry){element._qbitHistoryEntry.who=who;element._qbitHistoryEntry.text=String(text);element._qbitHistoryEntry.at=new Date().toISOString();saveHistory();renderHistory();}
+    if(petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
   }
   function showChat(id,switchToChat=true){
     const chat=chatHistory.find(c=>c.id===id);if(!chat)return;

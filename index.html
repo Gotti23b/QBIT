@@ -33,6 +33,14 @@
       <p class="muted">Probá escribir uno de los comandos que guardaste.</p>
       <div id="chatbox" class="chatbox" aria-live="polite"><div class="bubble bot"><small>QBIT</small>¡Hola! Soy QBIT. Agregá comandos y respuestas en el panel de administración para empezar. ✨</div></div>
       <p id="agentStatus" class="agent-status desktop-only muted" aria-live="polite">Agent está listo para iniciar la IA local.</p>
+      <div class="agent-model-picker desktop-only">
+        <label for="agentModelSelect">Modelo local de Agent</label>
+        <select id="agentModelSelect" aria-describedby="agentModelInfo">
+          <option value="qwen2.5-1.5b">Qwen2.5 1.5B Instruct</option>
+          <option value="smollm2-135m">SmolLM2 135M Instruct (liviano)</option>
+        </select>
+        <p id="agentModelInfo" class="muted" aria-live="polite">Cargando modelos locales…</p>
+      </div>
       <form id="sendForm" class="send">
         <div class="agent-tools desktop-only">
           <button id="agentPlus" class="agent-plus" type="button" aria-label="Elegir Artifacts" aria-expanded="false" title="Elegir Artifacts">＋</button>

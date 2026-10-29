@@ -86,54 +86,56 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
     let modelDiagnostics = "Diagnóstico del modelo no disponible.";
     loadingPromise = (async () => {
       const bridge = window.qbitPC;
-      if (!bridge || typeof bridge.ensureModelFiles !== "function") {
-        throw new Error("No está disponible el administrador de modelos locales de QBIT.");
+      if (!bridge || typeof bridge.ensureModelFiles !== "function" || typeof bridge.getAgentModelSettings !== "function") {
+        throw new Error("No está disponible el selector y administrador de modelos de QBIT. Instalá la compilación más reciente.");
       }
-      onStatus("Agent está comprobando los archivos locales del modelo…");
+      const settings = await bridge.getAgentModelSettings();
+      const profile = settings.models?.find(item => item.id === settings.selectedModelId);
+      if (!profile) throw new Error("QBIT no pudo leer el modelo seleccionado.");
+      onStatus("Agent está comprobando los archivos de " + profile.name + "…");
       const stopListening = typeof bridge.onModelProgress === "function"
         ? bridge.onModelProgress(progress => {
             if (progress.stage === "file-start") {
-              onStatus("Agent está descargando " + progress.file + "…");
+              onStatus("Agent está preparando " + progress.file + "…");
             } else if (progress.stage === "download") {
               const percent = Number.isFinite(progress.percent) ? " (" + progress.percent + "%)" : "";
-              onStatus("Guardando " + progress.file + percent + " en la PC…");
+              onStatus("Descargando " + progress.file + percent + " en la PC…");
             } else if (progress.stage === "file-done") {
               onStatus("Archivo guardado: " + progress.file + ".");
             }
           })
         : () => {};
+      let localFiles;
       try {
-        const localFiles = await bridge.ensureModelFiles();
-        const bytes = Number(localFiles?.modelBytes);
-        const gib = Number.isFinite(bytes) && bytes > 0 ? (bytes / (1024 ** 3)).toFixed(2) + " GiB" : "tamaño no informado";
-        const memory = typeof navigator.deviceMemory === "number" ? navigator.deviceMemory + " GiB aproximados" : "RAM del dispositivo no expuesta por el navegador";
-        modelDiagnostics = [
-          "Modelo: " + String(localFiles?.model || "desconocido"),
-          "Archivo ONNX local: " + gib + (Number.isFinite(bytes) && bytes > 0 ? " (" + bytes + " bytes)" : ""),
-          "Transformers.js: 3.7.2",
-          "Backend: ONNX Runtime nativo/CPU",
-          "Hilos lógicos: " + String(navigator.hardwareConcurrency || "no informado"),
-          "Memoria del dispositivo: " + memory,
-          "Modelo cargado desde el disco por el proceso principal de Electron"
-        ].join("; ");
-        console.info("[QBIT Agent] " + modelDiagnostics);
-        // El archivo oficial ocupa aproximadamente 1,79 GB. Detectar truncados
-        // antes de pasarlos a WASM; nunca borrar ni descargar automáticamente el modelo.
-        if (!Number.isFinite(bytes) || bytes < 1_700_000_000) {
-          throw new Error("El archivo local del modelo parece incompleto (tamaño: " + gib + "). No lo borré ni lo volví a descargar. Revisá el archivo local antes de intentar inicializar ONNX Runtime.");
-        }
-        onStatus(localFiles.downloaded
-          ? "Archivos guardados. Preparando el modelo local…"
-          : "Modelo encontrado en el disco. Preparándolo sin descargarlo…");
+        localFiles = await bridge.ensureModelFiles(profile.id);
       } finally {
         stopListening();
       }
-      onStatus("Agent está inicializando Qwen con ONNX Runtime nativo…");
+      const bytes = Number(localFiles?.modelBytes);
+      const gib = Number.isFinite(bytes) && bytes > 0 ? (bytes / (1024 ** 3)).toFixed(2) + " GiB" : "tamaño no informado";
+      const memory = typeof navigator.deviceMemory === "number" ? navigator.deviceMemory + " GiB aproximados" : "RAM del dispositivo no expuesta por el navegador";
+      modelDiagnostics = [
+        "Modelo: " + String(localFiles?.model || profile.repo),
+        "Archivo ONNX local: " + gib + (Number.isFinite(bytes) && bytes > 0 ? " (" + bytes + " bytes)" : ""),
+        "Transformers.js: 3.7.2",
+        "Backend: ONNX Runtime nativo/CPU",
+        "Hilos lógicos: " + String(navigator.hardwareConcurrency || "no informado"),
+        "Memoria del dispositivo: " + memory,
+        "Modelo cargado desde el disco por el proceso principal de Electron"
+      ].join("; ");
+      console.info("[QBIT Agent] " + modelDiagnostics);
+      if (!Number.isFinite(bytes) || bytes < profile.minimumModelBytes) {
+        throw new Error("El archivo local de " + profile.name + " parece incompleto (" + gib + "). QBIT lo conservó sin borrarlo ni volverlo a descargar.");
+      }
+      onStatus(localFiles.downloaded
+        ? "Modelo guardado. Preparando " + profile.name + "…"
+        : "Modelo encontrado en el disco. Preparando " + profile.name + "…");
+      onStatus("Agent está inicializando " + profile.name + " con ONNX Runtime nativo…");
       try {
         if (typeof bridge.loadAgentModel !== "function" || typeof bridge.generateAgentReply !== "function") {
-          throw new Error("Esta versión de QBIT no incluye el backend nativo del Agent. Instalá la compilación más reciente.");
+          throw new Error("Esta compilación no incluye el backend nativo. Instalá la compilación más reciente.");
         }
-        await bridge.loadAgentModel();
+        await bridge.loadAgentModel(profile.id);
         generator = (messages, options) => bridge.generateAgentReply(messages, options);
       } catch (error) {
         console.error("[QBIT Agent] Falló la inicialización de Transformers.js/ONNX Runtime:", error);
@@ -145,9 +147,9 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
           if (typeof error === "number" && Number.isFinite(error)) detail += " (0x" + (error >>> 0).toString(16).toUpperCase() + ")";
         }
         console.error("[QBIT Agent] Diagnóstico del fallo:", modelDiagnostics);
-        throw new Error("Falló la inicialización del modelo local (Transformers.js/ONNX Runtime). " + detail + "\n" + modelDiagnostics);
+        throw new Error("Falló la inicialización del modelo local. " + detail + "\n" + modelDiagnostics);
       }
-      onStatus("Agent está listo. El modelo se carga desde los archivos de esta PC.");
+      onStatus("Agent está listo con " + profile.name + ".");
       return generator;
     })();
     try {

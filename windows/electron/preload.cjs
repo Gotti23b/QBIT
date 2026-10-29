@@ -3,7 +3,9 @@ const petListeners = new Map();
 contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   isDesktop: true,
   ensureModelFiles: () => ipcRenderer.invoke("qbit:model-ensure"),
-  loadAgentModel: () => ipcRenderer.invoke("qbit:agent-load"),
+  getAgentModelSettings: () => ipcRenderer.invoke("qbit:agent-model-settings"),
+  setAgentModel: modelId => ipcRenderer.invoke("qbit:agent-model-select", String(modelId)),
+  loadAgentModel: modelId => ipcRenderer.invoke("qbit:agent-load", modelId),
   generateAgentReply: (messages, options) => ipcRenderer.invoke("qbit:agent-generate", messages, options),
   onModelProgress: callback => {
     if (typeof callback !== "function") return () => {};

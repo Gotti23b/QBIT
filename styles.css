@@ -25,3 +25,8 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .artifact-menu input[type=checkbox]{width:16px;height:16px;flex:0 0 16px;accent-color:var(--cyan)}
 .artifact-menu #applyArtifacts{width:100%;margin-top:8px}
 @media(max-width:480px){body.qbit-desktop .send{grid-template-columns:auto minmax(0,1fr) auto}body.qbit-desktop .agent-plus{width:40px;height:40px}}
+
+.agent-model-picker{margin:10px 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#091725}
+.agent-model-picker label{margin:0 0 5px;color:var(--text);font-weight:650}
+.agent-model-picker select{padding:8px 10px}
+.agent-model-picker p{font-size:12px;line-height:1.4;margin:7px 0 0}
