@@ -1,16 +1,3 @@
-import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
-
-env.allowLocalModels = true;
-env.allowRemoteModels = false;
-env.localModelPath = "qbit-model://local/";
-env.useBrowserCache = false;
-
-// Evitar el proxy: ONNX Runtime no puede transferir por ese canal algunos
-// ArrayBuffer grandes respaldados por WebAssembly.Memory.
-env.backends.onnx.wasm.proxy = false;
-
-// Transformers.js v3 usa niveles numéricos: DEBUG = 10.
-env.logLevel = 10;
 
 const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_search", "time_date", "automation"]);
 const QUICK_REPLIES = [
@@ -142,12 +129,13 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       } finally {
         stopListening();
       }
-      onStatus("Agent está inicializando Qwen y ONNX Runtime desde los archivos locales…");
+      onStatus("Agent está inicializando Qwen con ONNX Runtime nativo…");
       try {
-        generator = await pipeline("text-generation", "onnx-community/Qwen2.5-1.5B-Instruct", {
-          dtype: "q4",
-          device: "wasm"
-        });
+        if (typeof bridge.loadAgentModel !== "function" || typeof bridge.generateAgentReply !== "function") {
+          throw new Error("Esta versión de QBIT no incluye el backend nativo del Agent. Instalá la compilación más reciente.");
+        }
+        await bridge.loadAgentModel();
+        generator = (messages, options) => bridge.generateAgentReply(messages, options);
       } catch (error) {
         console.error("[QBIT Agent] Falló la inicialización de Transformers.js/ONNX Runtime:", error);
         let detail;
@@ -182,23 +170,14 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       ...history.slice(-4),
       { role: "user", content: message }
     ];
-    const output = await model(conversation, {
+    const answer = String(await model(conversation, {
       max_new_tokens: 128,
       do_sample: true,
       temperature: 0.7,
       top_p: 0.9,
       repetition_penalty: 1.18,
       no_repeat_ngram_size: 3
-    });
-    const generated = output?.[0]?.generated_text;
-    let answer = "";
-    if (Array.isArray(generated)) {
-      const lastAssistant = [...generated].reverse().find((entry) => entry.role === "assistant");
-      answer = lastAssistant?.content || "";
-    } else if (typeof generated === "string") {
-      answer = generated.slice(generated.lastIndexOf(message) + message.length).trim();
-    }
-    answer = String(answer).trim() || "No pude generar una respuesta esta vez. Probá de nuevo.";
+    }) || "").trim() || "No pude generar una respuesta esta vez. Probá de nuevo.";
     history.push({ role: "user", content: message }, { role: "assistant", content: answer });
     if (history.length > 20) history.splice(0, history.length - 20);
     return answer;
