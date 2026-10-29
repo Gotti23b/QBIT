@@ -115,10 +115,23 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       } finally {
         stopListening();
       }
-      generator = await pipeline("text-generation", "onnx-community/Qwen2.5-1.5B-Instruct", {
-        dtype: "q4",
-        device: "wasm"
-      });
+      onStatus("Agent está inicializando Qwen y ONNX Runtime desde los archivos locales…");
+      try {
+        generator = await pipeline("text-generation", "onnx-community/Qwen2.5-1.5B-Instruct", {
+          dtype: "q4",
+          device: "wasm"
+        });
+      } catch (error) {
+        console.error("[QBIT Agent] Falló la inicialización de Transformers.js/ONNX Runtime:", error);
+        let detail;
+        if (error instanceof Error) {
+          detail = error.name + ": " + error.message + (error.stack ? "\\n" + error.stack : "");
+        } else {
+          detail = "El runtime devolvió un valor no estándar (" + typeof error + "): " + String(error);
+          if (typeof error === "number" && Number.isFinite(error)) detail += " (0x" + (error >>> 0).toString(16).toUpperCase() + ")";
+        }
+        throw new Error("Falló la inicialización del modelo local (Transformers.js/ONNX Runtime). " + detail.slice(0, 1200));
+      }
       onStatus("Agent está listo. El modelo se carga desde los archivos de esta PC.");
       return generator;
     })();
