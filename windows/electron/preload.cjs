@@ -3,6 +3,8 @@ const petListeners = new Map();
 contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   isDesktop: true,
   ensureModelFiles: () => ipcRenderer.invoke("qbit:model-ensure"),
+  loadAgentModel: () => ipcRenderer.invoke("qbit:agent-load"),
+  generateAgentReply: (messages, options) => ipcRenderer.invoke("qbit:agent-generate", messages, options),
   onModelProgress: callback => {
     if (typeof callback !== "function") return () => {};
     const listener = (_event, progress) => callback(progress);
