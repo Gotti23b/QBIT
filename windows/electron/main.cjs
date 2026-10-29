@@ -2,14 +2,16 @@ const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, pro
 const { pathToFileURL } = require("node:url");
 
 // A secure, persistent origin is required for browser Cache Storage to reuse model files between launches.
-protocol.registerSchemesAsPrivileged([{
-  scheme: "qbit",
-  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
-}]);
+protocol.registerSchemesAsPrivileged([
+  { scheme: "qbit", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+  { scheme: "qbit-model", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+]);
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
+const { Readable, Transform } = require("node:stream");
+const { pipeline: streamPipeline } = require("node:stream/promises");
 
 let mainWindow;
 let petWindow;
@@ -37,6 +39,96 @@ function sendPetSettings() {
 function getAppRoot() {
   const candidates = [path.join(__dirname, ".."), path.join(__dirname, "..", "..")];
   return candidates.find(candidate => fs.existsSync(path.join(candidate, "index.html"))) || candidates[0];
+}
+
+
+const MODEL_REPO = "onnx-community/SmolLM2-135M-Instruct-ONNX";
+const MODEL_FILES = [
+  "config.json",
+  "generation_config.json",
+  "merges.txt",
+  "special_tokens_map.json",
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "vocab.json",
+  "onnx/model_q4.onnx"
+];
+let modelDownloadPromise = null;
+
+function localModelStorageRoot() {
+  return path.join(app.getPath("userData"), "models");
+}
+
+function localModelRepoPath() {
+  return path.join(localModelStorageRoot(), ...MODEL_REPO.split("/"));
+}
+
+async function ensureLocalModelFiles(sender) {
+  if (modelDownloadPromise) return modelDownloadPromise;
+  modelDownloadPromise = (async () => {
+    const repoRoot = localModelRepoPath();
+    await fs.promises.mkdir(repoRoot, { recursive: true });
+    const missing = [];
+    for (const file of MODEL_FILES) {
+      const target = path.join(repoRoot, ...file.split("/"));
+      try {
+        const stat = await fs.promises.stat(target);
+        const minimumSize = file.endsWith(".onnx") ? 1_000_000 : 1;
+        if (!stat.isFile() || stat.size < minimumSize) {
+          await fs.promises.rm(target, { force: true });
+          missing.push(file);
+        }
+      } catch {
+        missing.push(file);
+      }
+    }
+
+    if (missing.length === 0) {
+      return { ready: true, downloaded: false, model: MODEL_REPO };
+    }
+
+    for (const file of missing) {
+      const target = path.join(repoRoot, ...file.split("/"));
+      await fs.promises.mkdir(path.dirname(target), { recursive: true });
+      const temporary = target + ".download";
+      await fs.promises.rm(temporary, { force: true });
+      sender.send("qbit:model-progress", { stage: "file-start", file, loaded: 0, total: 0, percent: null });
+      const url = "https://huggingface.co/" + MODEL_REPO + "/resolve/main/" + file + "?download=true";
+      const response = await fetch(url, { redirect: "follow" });
+      if (!response.ok || !response.body) {
+        throw new Error("No se pudo descargar " + file + " (HTTP " + response.status + ").");
+      }
+      const total = Number(response.headers.get("content-length")) || 0;
+      let loaded = 0;
+      let lastPercent = -1;
+      const progress = new Transform({
+        transform(chunk, encoding, callback) {
+          loaded += chunk.length;
+          const percent = total > 0 ? Math.min(100, Math.floor(loaded * 100 / total)) : null;
+          if (percent === null || percent !== lastPercent) {
+            lastPercent = percent;
+            try { sender.send("qbit:model-progress", { stage: "download", file, loaded, total, percent }); } catch {}
+          }
+          callback(null, chunk);
+        }
+      });
+      try {
+        await streamPipeline(Readable.fromWeb(response.body), progress, fs.createWriteStream(temporary));
+        const stat = await fs.promises.stat(temporary);
+        if (!stat.isFile() || stat.size < (file.endsWith(".onnx") ? 1_000_000 : 1)) {
+          throw new Error("El archivo descargado está incompleto: " + file);
+        }
+        await fs.promises.rename(temporary, target);
+      } catch (error) {
+        await fs.promises.rm(temporary, { force: true }).catch(() => {});
+        throw error;
+      }
+      sender.send("qbit:model-progress", { stage: "file-done", file, loaded, total, percent: 100 });
+    }
+
+    return { ready: true, downloaded: true, model: MODEL_REPO };
+  })().finally(() => { modelDownloadPromise = null; });
+  return modelDownloadPromise;
 }
 
 const PET_SMALL = { width: 116, height: 116 };
@@ -395,6 +487,11 @@ ipcMain.handle("qbit:pet-hide", event => {
   return true;
 });
 
+ipcMain.handle("qbit:model-ensure", async event => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  return ensureLocalModelFiles(event.sender);
+});
+
 ipcMain.handle("qbit:open-url", async (_event, rawUrl) => {
   if (typeof rawUrl !== "string") throw new Error("Dirección web inválida.");
   let parsed;
@@ -455,6 +552,22 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 
 app.whenReady().then(() => {
   const appRoot = path.resolve(getAppRoot());
+  protocol.handle("qbit-model", request => {
+    const url = new URL(request.url);
+    let relativePath;
+    try { relativePath = decodeURIComponent(url.pathname).replace(/^\\/+/, ""); }
+    catch { return new Response("Bad Request", { status: 400 }); }
+    if (!relativePath) return new Response("Not Found", { status: 404 });
+    const modelRoot = path.resolve(localModelStorageRoot());
+    const filePath = path.resolve(modelRoot, relativePath);
+    if (filePath !== modelRoot && !filePath.startsWith(modelRoot + path.sep)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return new Response("Not Found", { status: 404 });
+    }
+    return net.fetch(pathToFileURL(filePath).href);
+  });
   protocol.handle("qbit", request => {
     const url = new URL(request.url);
     const relativePath = decodeURIComponent(url.pathname).replace(/^\\/+/, "") || "index.html";
