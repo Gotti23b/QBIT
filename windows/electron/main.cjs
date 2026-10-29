@@ -48,6 +48,7 @@ const MODEL_CATALOG = Object.freeze({
     name: "Qwen2.5 1.5B Instruct",
     repo: "onnx-community/Qwen2.5-1.5B-Instruct",
     files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumFreeRamBytes: 2_400_000_000,
     minimumModelBytes: 1_700_000_000,
     downloadLabel: "≈1,79 GB de pesos ONNX",
     ramNote: "Uso de RAM por medir en esta PC.",
@@ -60,6 +61,7 @@ const MODEL_CATALOG = Object.freeze({
     name: "Qwen2.5 0.5B Instruct",
     repo: "onnx-community/Qwen2.5-0.5B-Instruct",
     files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumFreeRamBytes: 1_300_000_000,
     minimumModelBytes: 700_000_000,
     downloadLabel: "≈786 MB de pesos ONNX + archivos auxiliares",
     ramNote: "Consumo de RAM por medir; candidato intermedio para equipos con poca memoria.",
@@ -72,6 +74,7 @@ const MODEL_CATALOG = Object.freeze({
     name: "Qwen2.5-Coder 0.5B Instruct",
     repo: "onnx-community/Qwen2.5-Coder-0.5B-Instruct",
     files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumFreeRamBytes: 1_400_000_000,
     minimumModelBytes: 700_000_000,
     downloadLabel: "≈786 MB de pesos ONNX + archivos auxiliares",
     ramNote: "Consumo de RAM por medir.",
@@ -84,6 +87,7 @@ const MODEL_CATALOG = Object.freeze({
     name: "SmolLM2 360M Instruct",
     repo: "onnx-community/SmolLM2-360M-Instruct-ONNX",
     files: ["config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumFreeRamBytes: 1_200_000_000,
     minimumModelBytes: 350_000_000,
     downloadLabel: "≈386 MB de pesos ONNX + archivos auxiliares",
     ramNote: "Consumo de RAM por medir; candidato liviano con más capacidad que 135M.",
@@ -96,6 +100,7 @@ const MODEL_CATALOG = Object.freeze({
     name: "SmolLM2 135M Instruct (liviano)",
     repo: "onnx-community/SmolLM2-135M-Instruct-ONNX",
     files: ["config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumFreeRamBytes: 450_000_000,
     minimumModelBytes: 160_000_000,
     downloadLabel: "≈181 MB de pesos ONNX + archivos auxiliares",
     ramNote: "Menor uso esperado por su tamaño; medir en esta PC.",
@@ -153,6 +158,7 @@ function getAgentModelSettings() {
       name: profile.name,
       repo: profile.repo,
       minimumModelBytes: profile.minimumModelBytes,
+      minimumFreeRamBytes: profile.minimumFreeRamBytes,
       downloadLabel: profile.downloadLabel,
       ramNote: profile.ramNote,
       speedNote: profile.speedNote,
@@ -183,7 +189,7 @@ async function loadNativeTextGenerator(modelId = readSelectedModelId()) {
   }
   if (nativeTextGeneratorPromise) {
     if (nativeTextGeneratorLoadingId !== profile.id) {
-      throw new Error("QBIT está cargando otro modelo. Esperá a que termine y reiniciá QBIT para cambiarlo.");
+      throw new Error("QBIT está cargando otro modelo. Esperá a que termine y volvé a intentarlo; no hace falta reiniciar.");
     }
     return nativeTextGeneratorPromise;
   }
@@ -201,9 +207,10 @@ async function loadNativeTextGenerator(modelId = readSelectedModelId()) {
       throw new Error("El archivo local de " + profile.name + " está incompleto. Se conservó sin borrarlo ni volverlo a descargar.");
     }
     const freeMemoryBytes = os.freemem();
-    if (profile.id === "qwen2.5-1.5b" && freeMemoryBytes < 2_400_000_000) {
+    if (freeMemoryBytes < profile.minimumFreeRamBytes) {
       const freeMemoryGB = (freeMemoryBytes / (1024 ** 3)).toFixed(2);
-      throw new Error("Hay " + freeMemoryGB + " GiB de RAM libre. Para evitar que QBIT se quede sin memoria, Qwen 1.5B requiere al menos 2.4 GB libres. El archivo descargado se conservó. Elegí SmolLM2 135M en el selector y tocá Cargar modelo.");
+      const minimumGB = (profile.minimumFreeRamBytes / (1024 ** 3)).toFixed(2);
+      throw new Error("Hay " + freeMemoryGB + " GiB de RAM libre; " + profile.name + " necesita como mínimo orientativo " + minimumGB + " GiB libres para intentar cargar con más seguridad. El modelo descargado se conservó. Elegí uno más pequeño o cerrá aplicaciones y volvé a probar.");
     }
     console.info("[QBIT Agent] Inicializando", profile.repo, "con ONNX Runtime nativo; modelo local:", stat.size, "bytes; RAM libre:", freeMemoryBytes, "bytes");
     nativeTextGenerator = await pipeline("text-generation", profile.repo, { dtype: "q4" });
