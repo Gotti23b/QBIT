@@ -49,9 +49,9 @@ function detectArtifact(message) {
 
 function detectArtifactChain(message) {
   const raw = String(message || "").trim();
-  const open = raw.match(/^(?:qbit[, :]+)?(?:abre|abri|abrí|abrir|abrime|ejecuta|ejecutá|inicia|iniciá|open)\\s+(.+)$/i);
+  const open = raw.match(/^(?:qbit[, :]+)?(?:abre|abri|abrí|abrir|abrime|ejecuta|ejecutá|inicia|iniciá|open)\s+(.+)$/i);
   if (open) {
-    const combined = open[1].match(/^(.+?)\\s+y\\s+(?:decime|dime|consulta|consultá|consultar|mostrame|muestra|revisa|revisá|fijate|averigua|averiguá)\\b(.+)$/i);
+    const combined = open[1].match(/^(.+?)\s+y\s+(?:decime|dime|consulta|consultá|consultar|mostrame|muestra|revisa|revisá|fijate|averigua|averiguá)\b(.+)$/i);
     if (combined && /bateria|batería|ram|sistema|equipo|pc|computadora|estado/i.test(combined[2])) {
       const target = combined[1].trim();
       return [
@@ -147,20 +147,20 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
         if (only === "system_info" && /bateria|ram|sistema|equipo|pc|computadora/.test(n)) artifacts = [{ name: only, args: {}, plan: "Elegiste el Artifact de información del sistema. Voy a consultar el dato que pediste." }];
         if (only === "time_date" && /hora|fecha|dia/.test(n)) artifacts = [{ name: only, args: {}, plan: "Elegiste el Artifact de fecha y hora. Voy a consultar el reloj local." }];
         if (only === "web_search") artifacts = [{ name: only, args: { query: message }, plan: "Elegiste el Artifact de búsqueda web. Voy a abrir una búsqueda para tu consulta." }];
-        if (only === "open_anything") artifacts = [{ name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\\s+/i, "").trim() }, plan: "Elegiste el Artifact para abrir aplicaciones y archivos. Voy a buscar lo que pediste." }];
+        if (only === "open_anything") artifacts = [{ name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\s+/i, "").trim() }, plan: "Elegiste el Artifact para abrir aplicaciones y archivos. Voy a buscar lo que pediste." }];
       }
     }
 
     if (artifacts.length) {
       if (typeof executeArtifact !== "function") throw new Error("No está disponible el ejecutor de Artifacts.");
-      onPlan(artifacts.map((artifact) => artifact.plan).join("\\n"));
+      onPlan(artifacts.map((artifact) => artifact.plan).join("\n"));
       const results = [];
       for (const artifact of artifacts) {
         updateStatus("Agent está ejecutando el Artifact: " + artifact.name + "…");
         const result = await executeArtifact(artifact.name, artifact.args);
         results.push(resultText(result));
       }
-      onResult(results.join("\\n\\n"));
+      onResult(results.join("\n\n"));
       updateStatus("Agent terminó la tarea.");
       return;
     }
