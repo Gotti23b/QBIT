@@ -115,7 +115,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       } finally {
         stopListening();
       }
-      generator = await pipeline("text-generation", "onnx-community/SmolLM2-135M-Instruct-ONNX", {
+      generator = await pipeline("text-generation", "onnx-community/Qwen2.5-1.5B-Instruct", {
         dtype: "q4",
         device: "wasm"
       });
@@ -142,7 +142,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       { role: "user", content: message }
     ];
     const output = await model(conversation, {
-      max_new_tokens: 80,
+      max_new_tokens: 128,
       do_sample: true,
       temperature: 0.7,
       top_p: 0.9,
