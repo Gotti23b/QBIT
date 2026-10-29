@@ -11,9 +11,8 @@ env.useBrowserCache = false;
 env.backends.onnx.wasm.numThreads = 1;
 env.backends.onnx.wasm.proxy = false;
 
-// Activar diagnósticos detallados para que el próximo error conserve
-// información útil del cargador/ONNX Runtime en vez de quedar opaco.
-env.logLevel = 10;
+// ONNX Runtime espera un nivel textual; "verbose" habilita diagnósticos detallados.
+env.logLevel = "verbose";
 
 const TOOL_NAMES = new Set(["open_anything", "system_info", "volume", "web_search", "time_date", "automation"]);
 const QUICK_REPLIES = [
