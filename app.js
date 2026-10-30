@@ -196,12 +196,12 @@
       if(folderNames[query.toLocaleLowerCase("es")])return await pc.openFolder(folderNames[query.toLocaleLowerCase("es")]);
       const sites={"youtube":"https://www.youtube.com/","google":"https://www.google.com/","github":"https://github.com/","roblox":"https://www.roblox.com/","minecraft":"https://www.minecraft.net/","spotify":"https://open.spotify.com/","gmail":"https://mail.google.com/","reddit":"https://www.reddit.com/"};
       const site=sites[query.toLocaleLowerCase("es")];
-      if(site){await pc.openUrl(site);return {ok:true,message:"Abriendo "+query+" en el navegador."};}
+      if(site){await pc.openUrl(site);return {ok:true,action:"open_url",target:query,url:site};}
       return await pc.openAnything(query);
     }
     if(name==="system_info"){
       const s=await pc.getStatus();
-      return {ok:true,message:"Información del equipo:\n• Sistema: "+s.os+"\n• Equipo: "+s.computer+"\n• Procesador: "+s.cpu+"\n• Procesadores lógicos: "+s.logicalProcessors+"\n• RAM total: "+s.ramTotalGB+" GB\n• RAM libre: "+s.ramFreeGB+" GB\n• Tiempo encendida: "+s.uptimeHours+" horas"+(s.batteryPercent===null?"":"\n• Batería: "+s.batteryPercent+" %")};
+      return {ok:true,action:"system_info",data:s};
     }
     if(name==="volume"){
       if(!["up","down","mute"].includes(args.action))throw new Error("Acción de volumen no permitida.");
@@ -210,15 +210,15 @@
     if(name==="web_search"){
       const query=String(args.query||"").trim();
       if(!query)throw new Error("Necesito qué querés buscar.");
-      await pc.openUrl("https://www.google.com/search?q="+encodeURIComponent(query));
+      const url="https://www.google.com/search?q="+encodeURIComponent(query); await pc.openUrl(url); return {ok:true,action:"web_search",query,url,results_read:false,limitation:"La búsqueda se abrió en el navegador; QBIT todavía no recupera el contenido de los resultados."};
       return {ok:true,message:"Abrí una búsqueda de Google para: "+query+". La búsqueda se abrió en el navegador; QBIT no lee automáticamente los resultados de esa página."};
     }
     if(name==="time_date"){
       const now=new Date();
-      return {ok:true,message:"Son las "+new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now)+". Hoy es "+new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now)+"."};
+      return {ok:true,action:"time_date",iso:now.toISOString(),localDate:new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now),localTime:new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now),timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone};
     }
     if(name==="automation"){
-      if(!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:true,message:"Cancelaste la automatización. No se realizaron cambios."};
+      if(!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:false,cancelled:true,action:"automation"};
       return await pc.runAutomation("study");
     }
     throw new Error("Artifact desconocido o no habilitado: "+name);
