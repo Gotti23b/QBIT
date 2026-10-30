@@ -211,7 +211,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
     }
   }
 
-  async function generateReply(message) {
+  async function generateReply(message, toolResults = null) {
     const model = await loadModel();
     const conversation = [
       {
@@ -219,7 +219,12 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
         content: "Sos Agent, el asistente local de QBIT. Respondé en español rioplatense, natural, claro y breve. Entendé la intención aunque haya errores de escritura, palabras incompletas, sinónimos o artículos. Para abrir algo, pensá qué es y usá el nombre base más reconocible: por ejemplo, si piden “la calculadora”, “la cosa para hacer cuentas”, “calculator” o escriben mal “claculator”, la búsqueda debe apuntar a “calculadora”, sin palabras de relleno como “la” o “abrí”. Para archivos, priorizá el nombre útil del archivo y no inventes rutas. Si incluís código, escribilo correctamente, con sintaxis válida, espacios e indentación; nunca unas el nombre del lenguaje con la primera línea. Usá siempre bloques Markdown completos: escribí tres acentos graves y el lenguaje (por ejemplo, python) en una línea propia; empezá el código en la línea siguiente, respetá los espacios y la indentación, y cerrá el bloque con otros tres acentos graves en una línea aparte. No escribas etiquetas de lenguaje inventadas ni errores como “pytonrint”. Usá Artifacts cuando el código te permita ejecutarlos; no afirmes que elegiste o ejecutaste una herramienta si no ocurrió. Basate en los resultados reales de las herramientas y diferenciá entre intentar una acción y confirmar su resultado. No inventes datos ni acciones; si no sabés algo, decilo."
       },
       ...history.slice(-4),
-      { role: "user", content: message }
+      {
+        role: "user",
+        content: toolResults
+          ? message + "\n\nResultados reales de los Artifacts ejecutados (datos de ejecución; no inventes información):\n" + JSON.stringify(toolResults)
+          : message
+      }
     ];
     const answer = String(await model(conversation, {
       max_new_tokens: 128,
@@ -258,20 +263,26 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
 
     if (artifacts.length) {
       if (typeof executeArtifact !== "function") throw new Error("No está disponible el ejecutor de Artifacts.");
-      onPlan(artifacts.map((artifact) => artifact.plan).join("\n"));
       const results = [];
       for (const artifact of artifacts) {
-        updateStatus("Agent está ejecutando el Artifact: " + artifact.name + "…");
+        updateStatus("Agent está ejecutando " + artifact.name + "…");
         const result = await executeArtifact(artifact.name, artifact.args);
-        results.push(resultText(result));
+        results.push({
+          artifact: artifact.name,
+          arguments: artifact.args,
+          success: result?.ok !== false,
+          result
+        });
       }
-      onResult(results.join("\n\n"));
+      updateStatus("Agent está interpretando los resultados reales…");
+      const answer = await generateReply(message, results);
+      onResult(answer);
       updateStatus("Agent terminó la tarea.");
       return;
     }
 
     if (selected.length) {
-      onPlan("Me pediste usar Artifacts específicos, pero no encontré una acción compatible con esa selección. Voy a responder sin ejecutar herramientas.");
+      updateStatus("No encontré una acción compatible con los Artifacts seleccionados. Voy a responder sin ejecutar herramientas.");
     } else {
       updateStatus("Agent está pensando…");
     }
