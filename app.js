@@ -6,9 +6,11 @@
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopAgent = null;
   let desktopAgentFactoryPromise = null;
+  let desktopAgentBusy = false;
   function prepareDesktopAgentUI(){
     if(!window.qbitPC?.isDesktop)return;
     document.body.classList.add("qbit-desktop");
+    initializeAgentModelPicker();
     const help=document.querySelector("#chatView .layout > .card > p.muted");
     if(help)help.textContent="Hablá con Agent. Puede responderte y utilizar Artifacts para realizar acciones en Windows.";
     const quickHelp=document.querySelector("#chatView aside > p.muted");
@@ -42,27 +44,146 @@
       });
     }
   }
+  async function initializeAgentModelPicker(){
+    const select=$("agentModelSelect"),info=$("agentModelInfo"),loadButton=$("agentModelLoad"),bridge=window.qbitPC;
+    if(!select||!info||!loadButton||!bridge?.getAgentModelSettings)return;
+    let freeRamGB=null;
+    const render=settings=>{
+      const models=Array.isArray(settings.models)?settings.models:[];
+      const selectedBefore=select.value;
+      const optionLabel=model=>model.name+" · "+(model.recommendedTotalRamGB||"—")+" GB RAM total"+(model.installed?" · instalado":"");
+      if(select.options.length!==models.length||models.some(model=>![...select.options].some(option=>option.value===model.id))){
+        select.replaceChildren(...models.map(model=>{
+          const option=document.createElement("option");
+          option.value=model.id;
+          option.textContent=optionLabel(model);
+          return option;
+        }));
+      }else{
+        models.forEach(model=>{
+          const option=[...select.options].find(item=>item.value===model.id);
+          if(option)option.textContent=optionLabel(model);
+        });
+      }
+      select.value=models.some(model=>model.id===settings.selectedModelId)?settings.selectedModelId:selectedBefore;
+      const profile=models.find(model=>model.id===settings.selectedModelId);
+      if(!profile){info.textContent="No se pudo leer el modelo seleccionado.";return;}
+      const size=profile.installed&&profile.modelBytes?"Archivo ONNX local: "+(profile.modelBytes/1e9).toFixed(2)+" GB.":"Descarga aproximada: "+profile.downloadLabel+".";
+      const requiredRam=Number(profile.minimumFreeRamBytes)/(1024**3);
+      const totalRam=Number(profile.recommendedTotalRamGB);
+      const ramLabel="RAM recomendada: "+(Number.isFinite(totalRam)?totalRam+" GB totales":"sin estimación")+"; procurar al menos "+(Number.isFinite(requiredRam)?requiredRam.toFixed(1)+" GB libres":"memoria libre suficiente")+".";
+      const ramWarning=freeRamGB!==null&&Number.isFinite(requiredRam)&&freeRamGB<requiredRam?"RAM libre ahora: "+freeRamGB.toFixed(1)+" GB; por debajo del mínimo orientativo de "+requiredRam.toFixed(1)+" GB libres. Cerrá aplicaciones o elegí un modelo menor.":"";
+      const loaded=settings.loadedModelId===profile.id?"Este modelo está cargado.":settings.loadedModelId?"Modelo cargado actualmente: "+(models.find(model=>model.id===settings.loadedModelId)?.name||settings.loadedModelId)+". Al cargar otro, QBIT liberará el anterior primero.":"No hay un modelo cargado todavía.";
+      info.textContent=[size,ramLabel,profile.ramNote,profile.speedNote,profile.qualityNote,profile.artifactsNote,ramWarning,loaded].filter(Boolean).join(" ");
+    };
+    try{
+      render(await bridge.getAgentModelSettings());
+      try{const status=await bridge.getStatus();if(Number.isFinite(Number(status?.ramFreeGB)))freeRamGB=Number(status.ramFreeGB);render(await bridge.getAgentModelSettings());}catch{}
+      select.addEventListener("change",async()=>{
+        select.disabled=true;loadButton.disabled=true;info.textContent="Guardando la selección…";
+        try{render(await bridge.setAgentModel(select.value));}
+        catch(error){info.textContent="No se pudo guardar el modelo: "+(error?.message||"error desconocido");}
+        finally{select.disabled=desktopAgentBusy;loadButton.disabled=desktopAgentBusy;}
+      });
+      loadButton.addEventListener("click",async()=>{
+        if(desktopAgentBusy)return;
+        desktopAgentBusy=true;select.disabled=true;loadButton.disabled=true;
+        const sendButton=document.querySelector('#sendForm button[type="submit"]'),input=$("chatInput");
+        if(sendButton)sendButton.disabled=true;if(input)input.disabled=true;
+        const status=$("agentStatus"),stopListening=typeof bridge.onModelProgress==="function"?bridge.onModelProgress(progress=>{
+          if(progress.stage==="file-start")info.textContent="Preparando "+progress.file+"…";
+          else if(progress.stage==="download")info.textContent="Descargando "+progress.file+(Number.isFinite(progress.percent)?" ("+progress.percent+"%)":"")+"…";
+          else if(progress.stage==="file-done")info.textContent="Guardado: "+progress.file+". Cargando el modelo…";
+        }):()=>{};
+        if(status)status.textContent="Cargando el modelo seleccionado en la PC…";
+        info.textContent="Comprobando archivos locales…";
+        try{
+          const loaded=await bridge.loadAgentModel(select.value);
+          const settings=await bridge.getAgentModelSettings();render(settings);
+          info.textContent="Modelo cargado y listo para usar ("+(Number(loaded.modelBytes||0)/1e9).toFixed(2)+" GB locales). "+(settings.models?.find(item=>item.id===select.value)?.artifactsNote||"");
+          if(status)status.textContent="Modelo listo.";
+        }catch(error){
+          const detail=String(error?.message||error||"error desconocido");
+          const lowMemory=/ram libre|memoria libre|insuficiente|not enough memory/i.test(detail);
+          info.textContent=lowMemory?detail:"No se pudo cargar el modelo: "+detail;
+          if(status)status.textContent=lowMemory?"Elegí el modelo liviano para esta cantidad de RAM.":"QBIT no pudo cargar el modelo.";
+        }finally{
+          stopListening();desktopAgentBusy=false;select.disabled=false;loadButton.disabled=false;
+          if(sendButton)sendButton.disabled=false;if(input){input.disabled=false;input.focus();}
+        }
+      });
+    }catch(error){info.textContent="No se pudo leer la configuración de modelos: "+(error?.message||"error desconocido");}
+  }
   prepareDesktopAgentUI();
   async function runDesktopAgent(message, selectedArtifacts){
     const status=$("agentStatus");
     const setStatus=text=>{if(status)status.textContent=text;};
+    if(desktopAgentBusy){
+      bubble("Agent","Estoy terminando la solicitud anterior. Esperá un momento antes de enviar otra.","bot");
+      return;
+    }
+    desktopAgentBusy=true;
+    const responseBubble=bubble("Agent","Recibí tu mensaje. Estoy procesándolo…","bot",{deferPetReply:true});
+    const sendButton=document.querySelector('#sendForm button[type="submit"]');
+    const input=$("chatInput");
+    let requestTimedOut=false;
+    if(sendButton)sendButton.disabled=true;
+    if(input)input.disabled=true;
     try{
       if(!desktopAgent){
-        setStatus("Agent está preparando la IA local. La primera descarga puede tardar…");
-        const factory=await desktopAgentFactoryPromise;
-        if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent. Revisá la conexión y reiniciá QBIT.");
+        setStatus("Agent está preparando la IA local. La primera descarga puede tardar; después debería reutilizar la caché…");
+        const factory=await Promise.race([desktopAgentFactoryPromise,new Promise(resolve=>setTimeout(()=>resolve(null),30000))]);
+        if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent en 30 segundos. Reiniciá QBIT y volvé a intentarlo.");
         desktopAgent=await factory({onStatus:setStatus});
       }
-      await desktopAgent.handle(message,{
+      const operation=desktopAgent.handle(message,{
         selectedArtifacts,
         onStatus:setStatus,
-        onPlan:plan=>bubble("Agent · Plan",plan,"bot"),
-        onResult:result=>bubble("Agent",result,"bot"),
+        onPlan:plan=>bubble("Agent · Plan",plan,"bot",{deferPetReply:true}),
+        onResult:result=>updateBubble(responseBubble,"Agent",result),
         executeArtifact:executeDesktopArtifact
       });
+      let timeoutId;
+      const outcome=await Promise.race([
+        operation.then(()=>({done:true}),error=>({error})),
+        new Promise(resolve=>{timeoutId=setTimeout(()=>resolve({timedOut:true}),180000);})
+      ]);
+      clearTimeout(timeoutId);
+      if(outcome.timedOut){
+        requestTimedOut=true;
+        updateBubble(responseBubble,"Agent","La solicitud está tardando más de 3 minutos. QBIT sigue trabajando; si no cambia, probá cargar el modelo liviano.",{deferPetReply:true});
+        setStatus("La solicitud sigue en proceso. Podés escribir otro mensaje; QBIT avisará que sigue ocupado.");
+        const release=()=>{
+          desktopAgentBusy=false;
+          if(sendButton)sendButton.disabled=false;
+          if(input)input.disabled=false;
+        };
+        operation.then(release,error=>{
+          console.error("[QBIT Agent] La solicitud terminó con error después del aviso de demora:",error);
+          updateBubble(responseBubble,"Agent","No pude completar la petición. "+String(error?.message||"Error local del modelo.").slice(0,500));
+          release();
+        });
+        if(sendButton)sendButton.disabled=false;
+        if(input){input.disabled=false;input.focus();}
+        return;
+      }
+      if(outcome.error)throw outcome.error;
     }catch(error){
-      bubble("Agent","No pude completar la petición: "+(error?.message||"error desconocido")+". Revisá la conexión para descargar el modelo y volvé a intentar.","bot");
-      setStatus("Agent no pudo completar la petición.");
+      const detail=String(error?.message||error||"error desconocido");
+      console.error("[QBIT Agent] Error técnico:",error);
+      const memoryFailure=/memory|memoria|allocation|heap|3587406432/i.test(detail);
+      const friendly=memoryFailure
+        ?"No me alcanzó la memoria para cargar este modelo. Elegí el modelo liviano en el selector y tocá “Cargar modelo”; el Qwen descargado se conserva."
+        :"No pude completar la petición. "+detail.slice(0,500)+" Si sigue ocurriendo, probá el modelo liviano desde el selector.";
+      updateBubble(responseBubble,"Agent",friendly);
+      setStatus(memoryFailure?"Falta memoria para este modelo; probá el modelo liviano.":"Agent no pudo completar la petición.");
+    }finally{
+      if(!requestTimedOut){
+        desktopAgentBusy=false;
+        const modelLoadButton=$("agentModelLoad");if(modelLoadButton)modelLoadButton.disabled=false;
+        if(sendButton)sendButton.disabled=false;
+        if(input){input.disabled=false;input.focus();}
+      }
     }
   }
   async function executeDesktopArtifact(name,args={}){
@@ -75,12 +196,12 @@
       if(folderNames[query.toLocaleLowerCase("es")])return await pc.openFolder(folderNames[query.toLocaleLowerCase("es")]);
       const sites={"youtube":"https://www.youtube.com/","google":"https://www.google.com/","github":"https://github.com/","roblox":"https://www.roblox.com/","minecraft":"https://www.minecraft.net/","spotify":"https://open.spotify.com/","gmail":"https://mail.google.com/","reddit":"https://www.reddit.com/"};
       const site=sites[query.toLocaleLowerCase("es")];
-      if(site){await pc.openUrl(site);return {ok:true,message:"Abriendo "+query+" en el navegador."};}
+      if(site){await pc.openUrl(site);return {ok:true,action:"open_url",target:query,url:site};}
       return await pc.openAnything(query);
     }
     if(name==="system_info"){
       const s=await pc.getStatus();
-      return {ok:true,message:"Información del equipo:\n• Sistema: "+s.os+"\n• Equipo: "+s.computer+"\n• Procesador: "+s.cpu+"\n• Procesadores lógicos: "+s.logicalProcessors+"\n• RAM total: "+s.ramTotalGB+" GB\n• RAM libre: "+s.ramFreeGB+" GB\n• Tiempo encendida: "+s.uptimeHours+" horas"+(s.batteryPercent===null?"":"\n• Batería: "+s.batteryPercent+" %")};
+      return {ok:true,action:"system_info",data:s};
     }
     if(name==="volume"){
       if(!["up","down","mute"].includes(args.action))throw new Error("Acción de volumen no permitida.");
@@ -89,15 +210,15 @@
     if(name==="web_search"){
       const query=String(args.query||"").trim();
       if(!query)throw new Error("Necesito qué querés buscar.");
-      await pc.openUrl("https://www.google.com/search?q="+encodeURIComponent(query));
+      const url="https://www.google.com/search?q="+encodeURIComponent(query); await pc.openUrl(url); return {ok:true,action:"web_search",query,url,results_read:false,limitation:"La búsqueda se abrió en el navegador; QBIT todavía no recupera el contenido de los resultados."};
       return {ok:true,message:"Abrí una búsqueda de Google para: "+query+". La búsqueda se abrió en el navegador; QBIT no lee automáticamente los resultados de esa página."};
     }
     if(name==="time_date"){
       const now=new Date();
-      return {ok:true,message:"Son las "+new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now)+". Hoy es "+new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now)+"."};
+      return {ok:true,action:"time_date",iso:now.toISOString(),localDate:new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now),localTime:new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now),timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone};
     }
     if(name==="automation"){
-      if(!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:true,message:"Cancelaste la automatización. No se realizaron cambios."};
+      if(!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:false,cancelled:true,action:"automation"};
       return await pc.runAutomation("study");
     }
     throw new Error("Artifact desconocido o no habilitado: "+name);
@@ -123,15 +244,65 @@
     }
     renderHistory();
   }
-  function bubble(who,text,kind){
-    const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
-    if(kind==="bot"&&petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
-    if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){chat.messages.push({who,text:String(text),kind,at:new Date().toISOString()});if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
+  function renderMessageContent(container, rawText){
+    const source=String(rawText??"");
+    const fence=/```([^\n`]*)(?:\n|\r\n)([\s\S]*?)```/g;
+    let cursor=0,match;
+    const appendText=value=>{
+      if(!value)return;
+      const fragment=document.createDocumentFragment();
+      const inline=/`([^`\n]+)`/g;
+      let at=0,part;
+      while((part=inline.exec(value))){
+        if(part.index>at)fragment.append(document.createTextNode(value.slice(at,part.index)));
+        const code=node("code","inline-code",part[1]);
+        fragment.append(code);at=inline.lastIndex;
+      }
+      if(at<value.length)fragment.append(document.createTextNode(value.slice(at)));
+      container.append(fragment);
+    };
+    while((match=fence.exec(source))){
+      appendText(source.slice(cursor,match.index));
+      const language=(match[1]||"").trim().toLowerCase()||"código";
+      const codeText=match[2].replace(/\n$/, "");
+      const panel=node("section","code-block");
+      const header=node("div","code-block-header");
+      header.append(node("span","code-language",language));
+      const copy=btn("Copiar","code-copy",async()=>{
+        try{
+          if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(codeText);
+          else{
+            const temp=node("textarea","",codeText);temp.style.position="fixed";temp.style.opacity="0";document.body.append(temp);temp.select();
+            const copied=document.execCommand("copy");temp.remove();if(!copied)throw new Error("No se pudo copiar");
+          }
+          copy.textContent="Copiado";
+          setTimeout(()=>{copy.textContent="Copiar";},1400);
+        }catch{copy.textContent="Error";setTimeout(()=>{copy.textContent="Copiar";},1400);}
+      });
+      header.append(copy);
+      const pre=node("pre","code-pre"),code=node("code","code-content",codeText);
+      pre.append(code);panel.append(header,pre);container.append(panel);
+      cursor=fence.lastIndex;
+    }
+    appendText(source.slice(cursor));
+  }
+  function bubble(who,text,kind,options={}){
+    const b=node("div","bubble "+kind);const label=node("small","",who);const content=node("div","message-content");
+    renderMessageContent(content,text);b.append(label,content);$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    if(kind==="bot"&&petMessagePending&&!options.deferPetReply){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
+    if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){const entry={who,text:String(text),kind,at:new Date().toISOString()};chat.messages.push(entry);b._qbitHistoryEntry=entry;if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
+    b._qbitLabel=label;b._qbitText=content;return b;
+  }
+  function updateBubble(element,who,text,options={}){
+    if(!element)return;
+    element._qbitLabel.textContent=who;element._qbitText.replaceChildren();renderMessageContent(element._qbitText,text);
+    if(element._qbitHistoryEntry){element._qbitHistoryEntry.who=who;element._qbitHistoryEntry.text=String(text);element._qbitHistoryEntry.at=new Date().toISOString();saveHistory();renderHistory();}
+    if(petMessagePending&&!options.deferPetReply){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
   }
   function showChat(id,switchToChat=true){
     const chat=chatHistory.find(c=>c.id===id);if(!chat)return;
     activeChatId=id;restoringChat=true;$("chatbox").replaceChildren();
-    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind);b.append(node("small","",m.who),document.createTextNode(m.text));$("chatbox").append(b);});
+    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind),label=node("small","",m.who),content=node("div","message-content");renderMessageContent(content,m.text);b.append(label,content);$("chatbox").append(b);});
     if(!chat.messages.length){const b=node("div","bubble bot");b.append(node("small","","QBIT"),document.createTextNode("Chat vacío. Escribí un mensaje para empezar. ✨"));$("chatbox").append(b);}
     restoringChat=false;$("chatbox").scrollTop=$("chatbox").scrollHeight;renderHistory();
     if(switchToChat)activateTab("chatView");

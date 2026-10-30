@@ -2,6 +2,17 @@ const { contextBridge, ipcRenderer } = require("electron");
 const petListeners = new Map();
 contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   isDesktop: true,
+  ensureModelFiles: () => ipcRenderer.invoke("qbit:model-ensure"),
+  getAgentModelSettings: () => ipcRenderer.invoke("qbit:agent-model-settings"),
+  setAgentModel: modelId => ipcRenderer.invoke("qbit:agent-model-select", String(modelId)),
+  loadAgentModel: modelId => ipcRenderer.invoke("qbit:agent-load", modelId),
+  generateAgentReply: (messages, options) => ipcRenderer.invoke("qbit:agent-generate", messages, options),
+  onModelProgress: callback => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on("qbit:model-progress", listener);
+    return () => ipcRenderer.removeListener("qbit:model-progress", listener);
+  },
   openUrl: url => ipcRenderer.invoke("qbit:open-url", url),
   getStatus: () => ipcRenderer.invoke("qbit:status"),
   openApp: name => ipcRenderer.invoke("qbit:open-app", name),

@@ -25,3 +25,24 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .artifact-menu input[type=checkbox]{width:16px;height:16px;flex:0 0 16px;accent-color:var(--cyan)}
 .artifact-menu #applyArtifacts{width:100%;margin-top:8px}
 @media(max-width:480px){body.qbit-desktop .send{grid-template-columns:auto minmax(0,1fr) auto}body.qbit-desktop .agent-plus{width:40px;height:40px}}
+
+.agent-model-picker{margin:10px 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#091725}
+.agent-model-picker label{margin:0 0 5px;color:var(--text);font-weight:650}
+.agent-model-picker select{padding:8px 10px}
+.agent-model-picker p{font-size:12px;line-height:1.4;margin:7px 0 0}
+
+.agent-model-picker button{margin-top:8px}
+.agent-model-picker button:disabled,.agent-model-picker select:disabled{opacity:.55;cursor:wait}
+
+
+/* Mensajes enriquecidos y bloques de código del chat */
+.message-content{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.code-block{margin:12px 0 3px;overflow:hidden;border:1px solid #29465c;border-radius:12px;background:#06111d;white-space:normal}
+.code-block-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 10px;background:#102338;border-bottom:1px solid #29465c}
+.code-language{font:600 12px/1.4 system-ui,sans-serif;color:#9fb8c9;text-transform:lowercase}
+.code-copy{padding:5px 10px;font-size:12px;border-radius:8px;background:#173247}
+.code-pre{margin:0;padding:13px 15px;overflow-x:auto;white-space:pre}
+.code-content,.inline-code{font-family:Consolas,"Cascadia Code","Fira Code",monospace;font-size:13px;tab-size:4}
+.code-content{display:block;color:#d8f4ff;line-height:1.6;white-space:pre}
+.inline-code{padding:2px 5px;border-radius:5px;background:#06111d;color:#9cecf7}
+.bubble .code-block{max-width:100%}

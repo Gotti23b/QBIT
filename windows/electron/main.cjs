@@ -1,8 +1,17 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, protocol, net } = require("electron");
+const { pathToFileURL } = require("node:url");
+
+// A secure, persistent origin is required for browser Cache Storage to reuse model files between launches.
+protocol.registerSchemesAsPrivileged([
+  { scheme: "qbit", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+  { scheme: "qbit-model", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }
+]);
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
+const { Readable, Transform } = require("node:stream");
+const { pipeline: streamPipeline } = require("node:stream/promises");
 
 let mainWindow;
 let petWindow;
@@ -30,6 +39,320 @@ function sendPetSettings() {
 function getAppRoot() {
   const candidates = [path.join(__dirname, ".."), path.join(__dirname, "..", "..")];
   return candidates.find(candidate => fs.existsSync(path.join(candidate, "index.html"))) || candidates[0];
+}
+
+
+const MODEL_CATALOG = Object.freeze({
+  "qwen2.5-1.5b": Object.freeze({
+    id: "qwen2.5-1.5b",
+    name: "Qwen2.5 1.5B Instruct",
+    repo: "onnx-community/Qwen2.5-1.5B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    recommendedTotalRamGB: 8,
+    minimumFreeRamBytes: 2_400_000_000,
+    minimumModelBytes: 1_700_000_000,
+    downloadLabel: "≈1,79 GB de pesos ONNX",
+    ramNote: "Uso de RAM por medir en esta PC.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Opción de mayor capacidad esperada; calidad sin medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  }),
+  "qwen2.5-0.5b": Object.freeze({
+    id: "qwen2.5-0.5b",
+    name: "Qwen2.5 0.5B Instruct",
+    repo: "onnx-community/Qwen2.5-0.5B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    recommendedTotalRamGB: 4,
+    minimumFreeRamBytes: 1_300_000_000,
+    minimumModelBytes: 700_000_000,
+    downloadLabel: "≈786 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Consumo de RAM por medir; candidato intermedio para equipos con poca memoria.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Capacidad esperada superior a SmolLM2 135M; sin medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  }),
+  "qwen2.5-coder-0.5b": Object.freeze({
+    id: "qwen2.5-coder-0.5b",
+    name: "Qwen2.5-Coder 0.5B Instruct",
+    repo: "onnx-community/Qwen2.5-Coder-0.5B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    recommendedTotalRamGB: 4,
+    minimumFreeRamBytes: 1_500_000_000,
+    recommendedTotalRamGB: 4,
+    minimumModelBytes: 800_000_000,
+    downloadLabel: "≈862 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Consumo de RAM por medir.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Candidato especializado en programación; calidad por medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT; no ejecuta herramientas por sí solo."
+  }),
+  "smollm2-360m": Object.freeze({
+    id: "smollm2-360m",
+    name: "SmolLM2 360M Instruct",
+    repo: "onnx-community/SmolLM2-360M-Instruct-ONNX",
+    files: ["config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    recommendedTotalRamGB: 4,
+    minimumFreeRamBytes: 1_200_000_000,
+    minimumModelBytes: 350_000_000,
+    downloadLabel: "≈386 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Consumo de RAM por medir; candidato liviano con más capacidad que 135M.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Modelo pequeño; calidad real en español debe probarse.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  }),
+  "qwen2.5-math-1.5b": Object.freeze({
+    id: "qwen2.5-math-1.5b",
+    name: "Qwen2.5-Math 1.5B Instruct",
+    repo: "onnx-community/Qwen2.5-Math-1.5B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    minimumFreeRamBytes: 2_600_000_000,
+    recommendedTotalRamGB: 8,
+    minimumModelBytes: 1_650_000_000,
+    downloadLabel: "≈1,76 GB de pesos ONNX + archivos auxiliares",
+    ramNote: "Recomendación orientativa: PC con 8 GB de RAM total y al menos 2,4 GB libres.",
+    speedNote: "Velocidad por medir.",
+    qualityNote: "Especializado en matemáticas; debe probarse con ejercicios reales.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  }),
+  "qwen2.5-coder-3b": Object.freeze({
+    id: "qwen2.5-coder-3b",
+    name: "Qwen2.5-Coder 3B Instruct",
+    repo: "onnx-community/Qwen2.5-Coder-3B-Instruct",
+    files: ["added_tokens.json", "config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx", "onnx/model_q4.onnx_data"],
+    minimumFreeRamBytes: 5_500_000_000,
+    recommendedTotalRamGB: 16,
+    minimumModelBytes: 1_000_000_000,
+    downloadLabel: "≈3,2 GB de pesos ONNX (incluye datos externos) + archivos auxiliares",
+    ramNote: "Recomendación orientativa: PC con 16 GB de RAM total y al menos 5,1 GB libres.",
+    speedNote: "Puede ser bastante más lento en CPU; velocidad por medir.",
+    qualityNote: "Candidato de mayor capacidad para programación; calidad por medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT; no ejecuta herramientas por sí solo."
+  }),
+  "smollm2-135m": Object.freeze({
+    id: "smollm2-135m",
+    name: "SmolLM2 135M Instruct (liviano)",
+    repo: "onnx-community/SmolLM2-135M-Instruct-ONNX",
+    files: ["config.json", "generation_config.json", "merges.txt", "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json", "onnx/model_q4.onnx"],
+    recommendedTotalRamGB: 4,
+    minimumFreeRamBytes: 450_000_000,
+    minimumModelBytes: 160_000_000,
+    downloadLabel: "≈181 MB de pesos ONNX + archivos auxiliares",
+    ramNote: "Menor uso esperado por su tamaño; medir en esta PC.",
+    speedNote: "Velocidad por medir en esta PC.",
+    qualityNote: "Modelo pequeño; calidad esperada menor, sin medir.",
+    artifactsNote: "Compatible con Artifacts mediante el router de QBIT."
+  })
+});
+const DEFAULT_MODEL_ID = "qwen2.5-1.5b";
+const MODEL_FILES = MODEL_CATALOG[DEFAULT_MODEL_ID].files;
+const modelDownloadPromises = new Map();
+let nativeTextGenerator = null;
+let nativeTextGeneratorPromise = null;
+let nativeTextGeneratorLoadingId = null;
+let nativeTextGeneratorModelId = null;
+
+function getModelProfile(modelId) {
+  const profile = MODEL_CATALOG[String(modelId || DEFAULT_MODEL_ID)];
+  if (!profile) throw new Error("El modelo seleccionado no está disponible en QBIT.");
+  return profile;
+}
+
+function modelSettingsPath() {
+  return path.join(app.getPath("userData"), "model-settings.json");
+}
+
+function readSelectedModelId() {
+  try {
+    const settings = JSON.parse(fs.readFileSync(modelSettingsPath(), "utf8"));
+    if (Object.prototype.hasOwnProperty.call(MODEL_CATALOG, settings?.selectedModelId)) {
+      return settings.selectedModelId;
+    }
+  } catch {}
+  return DEFAULT_MODEL_ID;
+}
+
+function writeSelectedModelId(modelId) {
+  getModelProfile(modelId);
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(modelSettingsPath(), JSON.stringify({ selectedModelId: modelId }, null, 2), "utf8");
+}
+
+function getAgentModelSettings() {
+  const selectedModelId = readSelectedModelId();
+  const models = Object.values(MODEL_CATALOG).map(profile => {
+    let modelBytes = 0;
+    let installed = false;
+    try {
+      const stat = fs.statSync(path.join(localModelRepoPath(profile), "onnx", "model_q4.onnx"));
+      modelBytes = stat.size;
+      installed = stat.isFile() && stat.size >= profile.minimumModelBytes;
+    } catch {}
+    return {
+      id: profile.id,
+      name: profile.name,
+      repo: profile.repo,
+      minimumModelBytes: profile.minimumModelBytes,
+      minimumFreeRamBytes: profile.minimumFreeRamBytes,
+      recommendedTotalRamGB: profile.recommendedTotalRamGB,
+      downloadLabel: profile.downloadLabel,
+      ramNote: profile.ramNote,
+      speedNote: profile.speedNote,
+      qualityNote: profile.qualityNote,
+      artifactsNote: profile.artifactsNote,
+      installed,
+      modelBytes
+    };
+  });
+  return { selectedModelId, loadedModelId: nativeTextGeneratorModelId, models };
+}
+
+async function disposeNativeTextGenerator() {
+  const previous = nativeTextGenerator;
+  nativeTextGenerator = null;
+  nativeTextGeneratorModelId = null;
+  if (previous && typeof previous.dispose === "function") {
+    await previous.dispose();
+  }
+}
+
+async function loadNativeTextGenerator(modelId = readSelectedModelId()) {
+  const profile = getModelProfile(modelId);
+  if (nativeTextGenerator && nativeTextGeneratorModelId === profile.id) return nativeTextGenerator;
+  if (nativeTextGenerator && nativeTextGeneratorModelId !== profile.id) {
+    console.info("[QBIT Agent] Liberando el modelo anterior para cambiar a", profile.repo);
+    await disposeNativeTextGenerator();
+  }
+  if (nativeTextGeneratorPromise) {
+    if (nativeTextGeneratorLoadingId !== profile.id) {
+      throw new Error("QBIT está cargando otro modelo. Esperá a que termine y volvé a intentarlo; no hace falta reiniciar.");
+    }
+    return nativeTextGeneratorPromise;
+  }
+  nativeTextGeneratorLoadingId = profile.id;
+  nativeTextGeneratorPromise = (async () => {
+    const { pipeline, env } = await import("@huggingface/transformers");
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    env.localModelPath = localModelStorageRoot() + path.sep;
+    env.useFS = true;
+    env.useBrowserCache = false;
+    const modelPath = path.join(localModelRepoPath(profile), "onnx", "model_q4.onnx");
+    const stat = await fs.promises.stat(modelPath);
+    if (!stat.isFile() || stat.size < profile.minimumModelBytes) {
+      throw new Error("El archivo local de " + profile.name + " está incompleto. Se conservó sin borrarlo ni volverlo a descargar.");
+    }
+    const freeMemoryBytes = os.freemem();
+    if (freeMemoryBytes < profile.minimumFreeRamBytes) {
+      const freeMemoryGB = (freeMemoryBytes / (1024 ** 3)).toFixed(2);
+      const minimumGB = (profile.minimumFreeRamBytes / (1024 ** 3)).toFixed(2);
+      throw new Error("Hay " + freeMemoryGB + " GiB de RAM libre; " + profile.name + " necesita como mínimo orientativo " + minimumGB + " GiB libres para intentar cargar con más seguridad. El modelo descargado se conservó. Elegí uno más pequeño o cerrá aplicaciones y volvé a probar.");
+    }
+    console.info("[QBIT Agent] Inicializando", profile.repo, "con ONNX Runtime nativo; modelo local:", stat.size, "bytes; RAM libre:", freeMemoryBytes, "bytes");
+    nativeTextGenerator = await pipeline("text-generation", profile.repo, { dtype: "q4" });
+    nativeTextGeneratorModelId = profile.id;
+    console.info("[QBIT Agent] Modelo local inicializado con ONNX Runtime nativo:", profile.repo);
+    return nativeTextGenerator;
+  })().catch(error => {
+    nativeTextGeneratorPromise = null;
+    nativeTextGenerator = null;
+    nativeTextGeneratorLoadingId = null;
+    nativeTextGeneratorModelId = null;
+    throw error;
+  }).finally(() => {
+    nativeTextGeneratorPromise = null;
+    nativeTextGeneratorLoadingId = null;
+  });
+  return nativeTextGeneratorPromise;
+}
+
+function localModelStorageRoot() {
+  return path.join(app.getPath("userData"), "models");
+}
+
+function localModelRepoPath(profile) {
+  return path.join(localModelStorageRoot(), ...profile.repo.split("/"));
+}
+
+async function ensureLocalModelFiles(sender, modelId = readSelectedModelId()) {
+  const profile = getModelProfile(modelId);
+  if (modelDownloadPromises.has(profile.id)) return modelDownloadPromises.get(profile.id);
+  const promise = (async () => {
+    const repoRoot = localModelRepoPath(profile);
+    await fs.promises.mkdir(repoRoot, { recursive: true });
+    const missing = [];
+    for (const file of profile.files) {
+      const target = path.join(repoRoot, ...file.split("/"));
+      try {
+        const stat = await fs.promises.stat(target);
+        const minimumSize = file.endsWith(".onnx") ? profile.minimumModelBytes : 1;
+        if (!stat.isFile() || stat.size < minimumSize) {
+          throw new Error("El archivo local " + file + " existe pero parece incompleto. QBIT lo conservó; no lo borró ni inició otra descarga.");
+        }
+      } catch (error) {
+        if (error?.code === "ENOENT") missing.push(file);
+        else throw error;
+      }
+    }
+
+    if (missing.length === 0) {
+      const modelStat = await fs.promises.stat(path.join(repoRoot, "onnx", "model_q4.onnx"));
+      return { ready: true, downloaded: false, modelId: profile.id, model: profile.repo, modelBytes: modelStat.size };
+    }
+
+    for (const file of missing) {
+      const target = path.join(repoRoot, ...file.split("/"));
+      await fs.promises.mkdir(path.dirname(target), { recursive: true });
+      const temporary = target + ".download";
+      await fs.promises.rm(temporary, { force: true });
+      sender.send("qbit:model-progress", { stage: "file-start", file, loaded: 0, total: 0, percent: null });
+      const url = "https://huggingface.co/" + profile.repo + "/resolve/main/" + file + "?download=true";
+      const response = await fetch(url, { redirect: "follow" });
+      if (!response.ok || !response.body) {
+        throw new Error("No se pudo descargar " + file + " (HTTP " + response.status + "). El modelo anterior se conserva.");
+      }
+      const total = Number(response.headers.get("content-length")) || 0;
+      let loaded = 0;
+      let lastPercent = -1;
+      const progress = new Transform({
+        transform(chunk, encoding, callback) {
+          loaded += chunk.length;
+          const percent = total > 0 ? Math.min(100, Math.floor(loaded * 100 / total)) : null;
+          if (percent === null || percent !== lastPercent) {
+            lastPercent = percent;
+            try { sender.send("qbit:model-progress", { stage: "download", file, loaded, total, percent }); } catch {}
+          }
+          callback(null, chunk);
+        }
+      });
+      try {
+        await streamPipeline(Readable.fromWeb(response.body), progress, fs.createWriteStream(temporary, { flags: "wx" }));
+        const stat = await fs.promises.stat(temporary);
+        const minimumSize = file.endsWith(".onnx") ? profile.minimumModelBytes : 1;
+        if (!stat.isFile() || stat.size < minimumSize) {
+          throw new Error("El archivo descargado está incompleto: " + file + ". Los archivos existentes del modelo no se modificaron.");
+        }
+        if (total > 0 && stat.size !== total) {
+          throw new Error("El tamaño descargado no coincide para " + file + ": se esperaban " + total + " bytes y llegaron " + stat.size + ". Los archivos existentes del modelo no se modificaron.");
+        }
+        try {
+          await fs.promises.access(target);
+          throw new Error("El archivo local " + file + " apareció durante la descarga y se conservó sin reemplazarlo.");
+        } catch (error) {
+          if (error?.code !== "ENOENT") throw error;
+        }
+        await fs.promises.rename(temporary, target);
+      } catch (error) {
+        await fs.promises.rm(temporary, { force: true }).catch(() => {});
+        throw error;
+      }
+      sender.send("qbit:model-progress", { stage: "file-done", file, loaded, total, percent: 100 });
+    }
+
+    const modelStat = await fs.promises.stat(path.join(repoRoot, "onnx", "model_q4.onnx"));
+    return { ready: true, downloaded: true, modelId: profile.id, model: profile.repo, modelBytes: modelStat.size };
+  })().finally(() => modelDownloadPromises.delete(profile.id));
+  modelDownloadPromises.set(profile.id, promise);
+  return promise;
 }
 
 const PET_SMALL = { width: 116, height: 116 };
@@ -64,7 +387,7 @@ function createWindow() {
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("file://")) event.preventDefault();
+    if (!url.startsWith("qbit://app/")) event.preventDefault();
   });
   mainWindow.on("close", event => {
     if (!isQuitting) {
@@ -73,7 +396,7 @@ function createWindow() {
     }
   });
   mainWindow.on("closed", () => { mainWindow = null; });
-  mainWindow.loadFile(path.join(getAppRoot(), "index.html"));
+  mainWindow.loadURL("qbit://app/index.html");
 }
 
 function workAreaForPoint(x, y) {
@@ -191,6 +514,33 @@ function normalizeLocalName(value) {
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+// Convierte pedidos coloquiales en el nombre más útil para buscar.
+// No cambia los permisos: solo normaliza la consulta antes de buscar coincidencias.
+function normalizeOpenQuery(value) {
+  let query = normalizeLocalName(value)
+    .replace(/^(?:(?:por favor|porfa) )+/, "")
+    .replace(/^(?:(?:abrime|abrir|abre|abri|ejecuta|ejecutar|inicia|iniciar|open) )+/, "")
+    .replace(/^(?:(?:la|el|los|las|un|una|mi|mis) )+/, "")
+    .replace(/^(?:(?:aplicacion|programa|app|herramienta|cosa) )+/, "")
+    .trim();
+
+  const calculatorWords = /\b(?:calculadora|calculador|calculator|calculater|claculator|calclator|calc|matematica|matematicas|hacer cuentas|hacer calculos|hacer calculas)\b/;
+  const vagueCalculatorRequest = /\b(?:cosa|herramienta|programa|app)\b.*\b(?:matematica|matematicas|calcular|cuentas|calculos)\b/;
+  if (calculatorWords.test(query) || vagueCalculatorRequest.test(query)) return "calculadora";
+
+  const aliases = [
+    [/\b(?:notepad|bloc de notas|notas)\b/, "bloc de notas"],
+    [/\b(?:task manager|administrador de tareas)\b/, "administrador de tareas"],
+    [/\b(?:file explorer|explorador de archivos|explorador)\b/, "explorador"],
+    [/\b(?:paint|mspaint)\b/, "paint"]
+  ];
+  for (const [pattern, canonical] of aliases) {
+    if (pattern.test(query)) return canonical;
+  }
+
+  return query;
+}
+
 function localMatchScore(query, candidate) {
   const q = normalizeLocalName(query);
   const c = normalizeLocalName(candidate);
@@ -221,7 +571,7 @@ async function collectFiles(root, onFile, state, depth = 0) {
 }
 
 async function findLocalMatches(query) {
-  const normalized = normalizeLocalName(query);
+  const normalized = normalizeOpenQuery(query);
   if (normalized.length < 2) throw new Error("Decime al menos dos letras del nombre del archivo o la aplicación.");
   const matches = [];
   const seen = new Set();
@@ -388,6 +738,65 @@ ipcMain.handle("qbit:pet-hide", event => {
   return true;
 });
 
+
+ipcMain.handle("qbit:agent-model-settings", event => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  return getAgentModelSettings();
+});
+
+ipcMain.handle("qbit:agent-model-select", (event, modelId) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  getModelProfile(modelId);
+  writeSelectedModelId(modelId);
+  return {
+    ...getAgentModelSettings(),
+    restartRequired: false
+  };
+});
+
+ipcMain.handle("qbit:agent-load", async (event, modelId) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  const selectedModelId = readSelectedModelId();
+  if (modelId && modelId !== selectedModelId) throw new Error("La selección cambió. Volvé a elegir el modelo y reenviá el mensaje.");
+  const localFiles = await ensureLocalModelFiles(event.sender, selectedModelId);
+  await loadNativeTextGenerator(selectedModelId);
+  return { ready: true, modelId: selectedModelId, model: localFiles.model, modelBytes: localFiles.modelBytes, backend: "onnxruntime-node" };
+});
+
+ipcMain.handle("qbit:agent-generate", async (event, messages, options = {}) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  if (!Array.isArray(messages) || messages.length > 12) throw new Error("Conversación inválida.");
+  const generator = await loadNativeTextGenerator(readSelectedModelId());
+  const safeMessages = messages.map(item => ({
+    role: ["system", "user", "assistant"].includes(item?.role) ? item.role : "user",
+    content: String(item?.content || "").slice(0, 8000)
+  }));
+  const maxNewTokens = Math.max(16, Math.min(256, Number(options.max_new_tokens) || 128));
+  const output = await generator(safeMessages, {
+    max_new_tokens: maxNewTokens,
+    do_sample: options.do_sample !== false,
+    temperature: Math.max(0.1, Math.min(1.5, Number(options.temperature) || 0.7)),
+    top_p: Math.max(0.1, Math.min(1, Number(options.top_p) || 0.9)),
+    repetition_penalty: Math.max(1, Math.min(2, Number(options.repetition_penalty) || 1.18)),
+    no_repeat_ngram_size: 3
+  });
+  const generated = output?.[0]?.generated_text;
+  if (Array.isArray(generated)) {
+    const lastAssistant = [...generated].reverse().find(item => item?.role === "assistant");
+    return String(lastAssistant?.content || "").trim();
+  }
+  if (typeof generated === "string") {
+    const lastUser = safeMessages.filter(item => item.role === "user").at(-1)?.content || "";
+    return generated.slice(generated.lastIndexOf(lastUser) + lastUser.length).trim();
+  }
+  return "";
+});
+
+ipcMain.handle("qbit:model-ensure", async event => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  return ensureLocalModelFiles(event.sender);
+});
+
 ipcMain.handle("qbit:open-url", async (_event, rawUrl) => {
   if (typeof rawUrl !== "string") throw new Error("Dirección web inválida.");
   let parsed;
@@ -447,6 +856,32 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 });
 
 app.whenReady().then(() => {
+  const appRoot = path.resolve(getAppRoot());
+  protocol.handle("qbit-model", request => {
+    const url = new URL(request.url);
+    let relativePath;
+    try { relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, ""); }
+    catch { return new Response("Bad Request", { status: 400 }); }
+    if (!relativePath) return new Response("Not Found", { status: 404 });
+    const modelRoot = path.resolve(localModelStorageRoot());
+    const filePath = path.resolve(modelRoot, relativePath);
+    if (filePath !== modelRoot && !filePath.startsWith(modelRoot + path.sep)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return new Response("Not Found", { status: 404 });
+    }
+    return net.fetch(pathToFileURL(filePath).href);
+  });
+  protocol.handle("qbit", request => {
+    const url = new URL(request.url);
+    const relativePath = decodeURIComponent(url.pathname).replace(/^\/+/, "") || "index.html";
+    const filePath = path.resolve(appRoot, relativePath);
+    if (filePath !== appRoot && !filePath.startsWith(appRoot + path.sep)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return net.fetch(pathToFileURL(filePath).href);
+  });
   loadPetSettings();
   createTray();
   createWindow();

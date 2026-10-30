@@ -33,8 +33,7 @@
       "qbit-icon.svg",
       "windows/electron/**/*",
       "electron/**/*",
-      "!README.md",
-      "!node_modules/**/*"
+      "!README.md"
     ],
     "win": {
       "target": [
@@ -52,5 +51,9 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.7.2",
+    "onnxruntime-node": "1.22.0"
   }
 }

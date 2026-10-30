@@ -2,13 +2,16 @@ name: Build QBIT for Windows
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/agent-stability-and-cache
 
 permissions:
   contents: read
 
 concurrency:
   group: qbit-windows-build
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
