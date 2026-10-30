@@ -71,34 +71,34 @@ function detectArtifact(message) {
   if (match) {
     const target = match[1].trim().replace(/^(?:la pagina de|la web de|el sitio de|la carpeta|el archivo|la aplicacion|la aplicación)\s+/i, "");
     if (/^(?:documentos|descargas|escritorio|imagenes|imágenes|musica|música|videos|inicio)$/i.test(target)) {
-      return { name: "open_anything", args: { query: target }, plan: "Me pediste abrir " + target + ". Voy a buscarlo entre las aplicaciones y archivos disponibles." };
+      return { name: "open_anything", args: { query: target }};
     }
-    return { name: "open_anything", args: { query: target }, plan: "Me pediste abrir " + target + ". Voy a usar el Artifact para localizarlo y abrirlo." };
+    return { name: "open_anything", args: { query: target }};
   }
 
   if (/(?:bateria|batería|nivel de carga|estado del sistema|informacion de mi pc|información de mi pc|datos de mi pc|informacion del sistema|información del sistema|estado de mi pc|como esta mi pc|cómo está mi pc|cuanta ram|cuánta ram|memoria ram)/i.test(raw) || ["estado","sistema"].includes(n)) {
-    return { name: "system_info", args: {}, plan: "Me pediste información del equipo. Voy a consultar el estado real de Windows, incluida la batería si está disponible." };
+    return { name: "system_info", args: {}};
   }
 
   if (/(?:subi|subí|sube|aumenta|subir|baja|bajá|disminui|disminuí|disminuye|bajar).{0,12}volumen/.test(n)) {
     const action = /(?:baja|bajá|disminui|disminuí|disminuye|bajar)/.test(n) ? "down" : "up";
-    return { name: "volume", args: { action }, plan: "Me pediste cambiar el volumen. Voy a usar el Artifact de control de audio." };
+    return { name: "volume", args: { action }};
   }
   if (/(?:silencia|silenciar|mutea|mute|quita el sonido)/.test(n)) {
-    return { name: "volume", args: { action: "mute" }, plan: "Me pediste silenciar el equipo. Voy a usar el Artifact de control de audio." };
+    return { name: "volume", args: { action: "mute" }};
   }
 
   if (/(?:prepara|preparar|inicia|iniciar).{0,25}(?:entorno de estudio|modo estudio)/.test(n)) {
-    return { name: "automation", args: {}, plan: "Me pediste preparar el entorno de estudio. Voy a solicitar confirmación antes de abrir las aplicaciones." };
+    return { name: "automation", args: {}};
   }
 
   if (/^(?:que hora es|hora actual|que fecha es|fecha de hoy|que dia es hoy|que dia estamos|decime la hora|dime la hora)$/.test(n)) {
-    return { name: "time_date", args: {}, plan: "Me pediste la fecha o la hora. Voy a consultar el reloj local del equipo." };
+    return { name: "time_date", args: {}};
   }
 
   match = raw.match(/^(?:(?:busca|buscar|buscame|buscame|buscá|investiga|investigá)(?:\s+en)?(?:\s+la)?\s+(?:web|internet)|busca(?:r)?(?:me)?(?:\s+en)?\s+(?:google|la web|internet))\s*[:,-]?\s+(.+)$/i);
   if (match) {
-    return { name: "web_search", args: { query: match[1].trim() }, plan: "Me pediste buscar información en Internet. Voy a abrir una búsqueda con tu consulta." };
+    return { name: "web_search", args: { query: match[1].trim() }};
   }
   return null;
 }
@@ -111,18 +111,13 @@ function detectArtifactChain(message) {
     if (combined && /bateria|batería|ram|sistema|equipo|pc|computadora|estado/i.test(combined[2])) {
       const target = combined[1].trim();
       return [
-        { name: "open_anything", args: { query: target }, plan: "Me pediste abrir " + target + ". Voy a localizarlo y abrirlo." },
-        { name: "system_info", args: {}, plan: "Después voy a consultar la información real del equipo, incluida la batería si está disponible." }
+        { name: "open_anything", args: { query: target }},
+        { name: "system_info", args: {}}
       ];
     }
   }
   const single = detectArtifact(message);
   return single ? [single] : [];
-}
-
-function resultText(result) {
-  if (typeof result === "string") return result;
-  return result?.message || JSON.stringify(result);
 }
 
 export async function createDesktopAgent({ onStatus = () => {} } = {}) {
@@ -239,7 +234,7 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
     return answer;
   }
 
-  async function handle(message, { selectedArtifacts = [], onPlan = () => {}, onResult = () => {}, executeArtifact, onStatus: updateStatus = onStatus } = {}) {
+  async function handle(message, { selectedArtifacts = [], onResult = () => {}, executeArtifact, onStatus: updateStatus = onStatus } = {}) {
     const selected = Array.isArray(selectedArtifacts) ? selectedArtifacts.filter((name) => TOOL_NAMES.has(name)) : [];
     const canned = quickReply(message);
     if (canned && !selected.length) {
@@ -254,10 +249,10 @@ export async function createDesktopAgent({ onStatus = () => {} } = {}) {
       if (!artifacts.length && selected.length === 1) {
         const only = selected[0];
         const n = normalize(message);
-        if (only === "system_info" && /bateria|ram|sistema|equipo|pc|computadora/.test(n)) artifacts = [{ name: only, args: {}, plan: "Elegiste el Artifact de información del sistema. Voy a consultar el dato que pediste." }];
-        if (only === "time_date" && /hora|fecha|dia/.test(n)) artifacts = [{ name: only, args: {}, plan: "Elegiste el Artifact de fecha y hora. Voy a consultar el reloj local." }];
-        if (only === "web_search") artifacts = [{ name: only, args: { query: message }, plan: "Elegiste el Artifact de búsqueda web. Voy a abrir una búsqueda para tu consulta." }];
-        if (only === "open_anything") artifacts = [{ name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\s+/i, "").trim() }, plan: "Elegiste el Artifact para abrir aplicaciones y archivos. Voy a buscar lo que pediste." }];
+        if (only === "system_info" && /bateria|ram|sistema|equipo|pc|computadora/.test(n)) artifacts = [{ name: only, args: {}}];
+        if (only === "time_date" && /hora|fecha|dia/.test(n)) artifacts = [{ name: only, args: {}}];
+        if (only === "web_search") artifacts = [{ name: only, args: { query: message }}];
+        if (only === "open_anything") artifacts = [{ name: only, args: { query: message.replace(/^(?:busca|abre|abrí|abrir|open)\s+/i, "").trim() }}];
       }
     }
 
