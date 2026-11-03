@@ -288,27 +288,51 @@
     if(switchToChat)activateTab("chatView");
   }
   function renderHistory(){
-    const chats=$("chatSidebarList"),pinned=$("pinnedChatList");
-    if(!chats||!pinned)return;
-    chats.replaceChildren();pinned.replaceChildren();
+    const chats=$("chatSidebarList"),pinned=$("pinnedChatList"),archived=$("archivedChatList");
+    if(!chats||!pinned||!archived)return;
+    chats.replaceChildren();pinned.replaceChildren();archived.replaceChildren();
     const sorted=[...chatHistory].sort((a,b)=>new Date(b.updatedAt||b.createdAt)-new Date(a.updatedAt||a.createdAt));
-    const pinnedChats=sorted.filter(chat=>chat.pinned===true);
-    const makeItem=chat=>{
+    const activeChats=sorted.filter(chat=>chat.archived!==true);
+    const pinnedChats=activeChats.filter(chat=>chat.pinned===true);
+    const archivedChats=sorted.filter(chat=>chat.archived===true);
+    const makeItem=(chat,isArchived=false)=>{
       const row=node("div","sidebar-chat-row");
       const open=btn(chat.title||"Nuevo chat","sidebar-chat-item"+(chat.id===activeChatId?" active":""),()=>showChat(chat.id,true));
       open.title=chat.title||"Nuevo chat";
-      const label=node("span","sidebar-chat-title",chat.title||"Nuevo chat");open.replaceChildren(node("span","","◌"),label);
-      const pin=btn(chat.pinned?"★":"☆","sidebar-chat-pin"+(chat.pinned?" is-pinned":""),()=>{
-        chat.pinned=!chat.pinned;saveHistory();renderHistory();
+      open.append(node("span","sidebar-chat-title",chat.title||"Nuevo chat"));
+      const more=btn("···","sidebar-chat-more",event=>{
+        event.stopPropagation();
+        document.querySelectorAll(".sidebar-chat-menu").forEach(menu=>menu.remove());
+        const menu=node("div","sidebar-chat-menu");
+        const addAction=(label,action,kind="")=>menu.append(btn(label,"sidebar-chat-menu-action"+(kind?" "+kind:""),()=>{
+          menu.remove();
+          action();
+        }));
+        addAction(chat.pinned?"☆  Quitar de fijados":"★  Fijar chat",()=>{chat.pinned=!chat.pinned;saveHistory();renderHistory();});
+        addAction("✎  Cambiar nombre",()=>{
+          const title=prompt("Nuevo nombre para este chat:",chat.title||"Nuevo chat");
+          if(title===null)return;
+          const clean=title.trim();
+          if(!clean){alert("El nombre no puede estar vacío.");return;}
+          chat.title=clean.slice(0,80);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();
+        });
+        addAction(isArchived?"↩  Restaurar chat":"▣  Archivar chat",()=>{
+          chat.archived=!isArchived;saveHistory();renderHistory();
+        });
+        addAction("⌫  Borrar chat",()=>deleteChat(chat.id),"danger");
+        row.append(menu);
+        event.currentTarget.setAttribute("aria-expanded","true");
       });
-      pin.title=chat.pinned?"Quitar de fijados":"Fijar chat";pin.setAttribute("aria-label",pin.title);
-      row.append(open,pin);
+      more.title="Opciones del chat";more.setAttribute("aria-label","Opciones del chat");more.setAttribute("aria-haspopup","true");
+      row.append(open,more);
       return row;
     };
-    if(!sorted.length)chats.append(node("div","sidebar-empty","Todavía no hay chats"));
-    else sorted.forEach(chat=>chats.append(makeItem(chat)));
+    if(!activeChats.length)chats.append(node("div","sidebar-empty","Todavía no hay chats"));
+    else activeChats.forEach(chat=>chats.append(makeItem(chat)));
     if(!pinnedChats.length)pinned.append(node("div","sidebar-empty","Todavía no hay chats fijados"));
     else pinnedChats.forEach(chat=>pinned.append(makeItem(chat)));
+    if(!archivedChats.length)archived.append(node("div","sidebar-empty","No hay chats archivados"));
+    else archivedChats.forEach(chat=>archived.append(makeItem(chat,true)));
   }
   function deleteChat(id){
     if(!confirm("¿Borrar esta conversación del historial?"))return;
