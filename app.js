@@ -4,67 +4,6 @@
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
-  let desktopAgent = null;
-  let desktopAgentFactoryPromise = null;
-  function prepareDesktopAgentUI(){
-    if(!window.qbitPC?.isDesktop)return;
-    document.body.classList.add("qbit-desktop");
-    const help=document.querySelector("#chatView .layout > .card > p.muted");
-    if(help)help.textContent="Hablá con Agent. Puede responderte y utilizar Artifacts para realizar acciones en Windows.";
-    const quickHelp=document.querySelector("#chatView aside > p.muted");
-    if(quickHelp)quickHelp.textContent="Agent puede elegir herramientas automáticamente o podés seleccionarlas con el botón +.";
-    desktopAgentFactoryPromise=new Promise(resolve=>{
-      if(typeof window.qbitDesktopAgentFactory==="function")resolve(window.qbitDesktopAgentFactory);
-      else{
-        window.addEventListener("qbit-agent-ready",()=>resolve(window.qbitDesktopAgentFactory),{once:true});
-        window.addEventListener("qbit-agent-load-error",()=>resolve(null),{once:true});
-      }
-    });
-    const plus=$("agentPlus"),menu=$("artifactMenu"),apply=$("applyArtifacts");
-    if(plus&&menu){
-      plus.addEventListener("click",()=>{
-        const opening=menu.classList.contains("hidden");
-        menu.classList.toggle("hidden",!opening);
-        plus.setAttribute("aria-expanded",String(opening));
-      });
-      apply?.addEventListener("click",()=>{
-        menu.classList.add("hidden");
-        plus.setAttribute("aria-expanded","false");
-        const count=menu.querySelectorAll('input[type="checkbox"]:checked').length;
-        plus.title=count?count+" Artifact(s) seleccionados":"Agent elegirá los Artifacts automáticamente";
-        plus.setAttribute("aria-label",plus.title);
-      });
-      document.addEventListener("click",event=>{
-        if(!menu.contains(event.target)&&!plus.contains(event.target)){
-          menu.classList.add("hidden");
-          plus.setAttribute("aria-expanded","false");
-        }
-      });
-    }
-  }
-  prepareDesktopAgentUI();
-  async function runDesktopAgent(message, selectedArtifacts){
-    const status=$("agentStatus");
-    const setStatus=text=>{if(status)status.textContent=text;};
-    try{
-      if(!desktopAgent){
-        setStatus("Agent está preparando la IA local. La primera descarga puede tardar…");
-        const factory=await desktopAgentFactoryPromise;
-        if(typeof factory!=="function")throw new Error("No se pudo cargar el módulo local de Agent. Revisá la conexión y reiniciá QBIT.");
-        desktopAgent=await factory({onStatus:setStatus});
-      }
-      await desktopAgent.handle(message,{
-        selectedArtifacts,
-        onStatus:setStatus,
-        onPlan:plan=>bubble("Agent · Plan",plan,"bot"),
-        onResult:result=>bubble("Agent",result,"bot"),
-        executeArtifact:executeDesktopArtifact
-      });
-    }catch(error){
-      bubble("Agent","No pude completar la petición: "+(error?.message||"error desconocido")+". Revisá la conexión para descargar el modelo y volvé a intentar.","bot");
-      setStatus("Agent no pudo completar la petición.");
-    }
-  }
   async function executeDesktopArtifact(name,args={}){
     const pc=window.qbitPC;
     if(!pc?.isDesktop)throw new Error("Este Artifact solo está disponible en QBIT Desktop para Windows.");
@@ -83,6 +22,11 @@
       return {ok:true,message:"Información del equipo:\n• Sistema: "+s.os+"\n• Equipo: "+s.computer+"\n• Procesador: "+s.cpu+"\n• Procesadores lógicos: "+s.logicalProcessors+"\n• RAM total: "+s.ramTotalGB+" GB\n• RAM libre: "+s.ramFreeGB+" GB\n• Tiempo encendida: "+s.uptimeHours+" horas"+(s.batteryPercent===null?"":"\n• Batería: "+s.batteryPercent+" %")};
     }
     if(name==="volume"){
+      if(args.action==="set"){
+        const level=Math.round(Number(args.level));
+        if(!Number.isFinite(level)||level<0||level>100)throw new Error("El volumen tiene que ser un número entre 0 y 100.");
+        return await pc.volume("set",level);
+      }
       if(!["up","down","mute"].includes(args.action))throw new Error("Acción de volumen no permitida.");
       return await pc.volume(args.action);
     }
@@ -97,11 +41,200 @@
       return {ok:true,message:"Son las "+new Intl.DateTimeFormat("es-AR",{hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(now)+". Hoy es "+new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now)+"."};
     }
     if(name==="automation"){
-      if(!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:true,message:"Cancelaste la automatización. No se realizaron cambios."};
+      if(!args.__allowed&&!window.confirm("Agent quiere preparar el entorno de estudio: abrir Calculadora, Bloc de notas y Documentos. ¿Continuar?"))return {ok:true,message:"Cancelaste la automatización. No se realizaron cambios."};
       return await pc.runAutomation("study");
     }
+    if(name==="open_settings")return await pc.openSettings(String(args.page||"system"));
+    if(name==="lock_pc")return await pc.lockPC();
+    if(name==="battery_info")return await pc.getBatteryInfo();
+    if(name==="network_info")return await pc.getNetworkInfo();
+    if(name==="display_info")return await pc.getDisplayInfo();
+    if(name==="brightness_info")return await pc.getBrightnessInfo();
+    if(name==="brightness_set"){
+      const rawLevel=args.level&&typeof args.level==="object"?(args.level.level??args.level.value):args.level;
+      const level=Number(rawLevel);
+      if(!Number.isInteger(level)||level<0||level>100)throw new Error("El brillo tiene que ser un número entero entre 0 y 100.");
+      return await pc.setBrightness(level);
+    }
+    if(name==="brightness_up")return await pc.adjustBrightness(10);
+    if(name==="brightness_down")return await pc.adjustBrightness(-10);
+    if(name==="media_control"){
+      if(!["play_pause","next","previous","stop"].includes(args.action))throw new Error("Acción multimedia no válida.");
+      return await pc.mediaControl(args.action);
+    }
+    if(name==="create_folder")return await pc.createFolder(String(args.base||"documentos"),String(args.path||""));
+    if(name==="create_file")return await pc.createFile(String(args.base||"documentos"),String(args.path||""),String(args.content??""));
+    if(name==="search_files"){
+      const result=await pc.searchFiles(String(args.query||""));
+      if(!result.matches?.length)return {ok:true,message:"No encontré archivos con ese nombre."};
+      return {ok:true,message:"Archivos encontrados:\n"+result.matches.map(x=>"• "+x.name+" (carpeta: "+x.folder+")").join("\n")};
+    }
+    if(name==="empty_recycle_bin")return await pc.emptyRecycleBin();
+    if(name==="get_processes")return await pc.getProcesses();
+    if(name==="cpu_usage")return await pc.getCpuUsage();
+    if(name==="ram_usage")return await pc.getRamUsage();
+    if(name==="disk_usage")return await pc.getDiskUsage();
+    if(name==="toggle_night_light")return await pc.openNightLightSettings();
+    if(name==="toggle_wifi")return await pc.toggleWifi(args.action);
+    if(name==="minimize_all")return await pc.minimizeAll();
+    if(name==="restore_all")return await pc.restoreAll();
+    if(name==="focus_app")return await pc.focusApp(String(args.query||""));
+    if(name==="close_window")return await pc.closeWindow(String(args.query||""));
+    if(name==="open_file_location")return await pc.openFileLocation(String(args.query||""));
+    if(name==="get_file_info")return await pc.getFileInfo(String(args.query||""));
+    if(name==="zip_files")return await pc.zipFile(String(args.query||""));
+    if(name==="unzip_file")return await pc.unzipFile(String(args.query||""));
+    if(name==="read_text_file")return await pc.readTextFile(String(args.query||""));
+    if(name==="show_notification")return await pc.showNotification(String(args.title||"QBIT"),String(args.message||""));
+    if(name==="set_timer")return await pc.setTimer(Number(args.seconds),String(args.label||"Temporizador"));
+    if(name==="cancel_timer")return await pc.cancelTimer(String(args.id||"default"));
+    if(name==="open_calculator")return await pc.openApp("calculadora");
+    if(name==="open_notepad")return await pc.openApp("bloc de notas");
+    if(name==="open_task_manager")return await pc.openApp("administrador de tareas");
+    if(name==="volume_info")return await pc.getAudioDevices();
+    if(name==="volume_set"){const level=Number(args.level);if(!Number.isInteger(level)||level<0||level>100)throw new Error("El volumen debe ser un entero entre 0 y 100.");return await pc.volume("set",level);}
+    if(name==="audio_mute")return await pc.volume("mute");
+    if(name==="clipboard_write")return await pc.writeClipboard(String(args.text??""));
+
     throw new Error("Artifact desconocido o no habilitado: "+name);
   }
+  // ── Artifacts desde la IA del navegador ──────────────────────────────────
+  // La IA puede pedir un artifact con un bloque:  ```qbit\n{"artifact":"volume","args":{"action":"up"}}\n```
+  const AI_ARTIFACTS={
+    open_anything:"abrir una aplicación, archivo, carpeta o sitio",
+    system_info:"consultar información del equipo",
+    volume:"cambiar el volumen",
+    web_search:"buscar en Google",
+    time_date:"consultar la hora y la fecha",
+    automation:"preparar el entorno de estudio",
+    open_settings:"abrir una sección de Configuración de Windows",
+    lock_pc:"bloquear la PC",
+    battery_info:"consultar el estado de la batería",
+    network_info:"consultar las conexiones de red activas",
+    display_info:"consultar las pantallas conectadas",
+    brightness_info:"consultar el nivel de brillo de la pantalla",
+    brightness_set:"establecer el brillo de la pantalla",
+    brightness_up:"subir el brillo de la pantalla",
+    brightness_down:"bajar el brillo de la pantalla",
+    media_control:"controlar la reproducción multimedia",
+    create_folder:"crear una carpeta en Documentos, Descargas o Escritorio",
+    create_file:"crear un archivo de texto en Documentos, Descargas o Escritorio",
+    search_files:"buscar archivos por nombre",
+    clipboard_write:"copiar texto al portapapeles",
+    empty_recycle_bin:"vaciar la Papelera de reciclaje (acción irreversible)",
+    get_processes:"consultar los procesos activos",
+    cpu_usage:"consultar el uso del procesador",
+    ram_usage:"consultar el uso de memoria RAM",
+    disk_usage:"consultar el espacio de los discos",
+    toggle_night_light:"abrir la configuración de Luz nocturna de Windows",
+    toggle_wifi:"activar o desactivar el Wi-Fi",
+    minimize_all:"minimizar todas las ventanas",
+    restore_all:"restaurar las ventanas minimizadas",
+    focus_app:"llevar una aplicación abierta al frente",
+    close_window:"cerrar una aplicación abierta",
+    open_file_location:"mostrar un archivo en su carpeta",
+    get_file_info:"consultar información de un archivo",
+    zip_files:"comprimir un archivo en ZIP",
+    unzip_file:"extraer un archivo ZIP",
+    read_text_file:"leer un archivo de texto",
+    show_notification:"mostrar una notificación de Windows",
+    set_timer:"crear un temporizador",
+    cancel_timer:"cancelar un temporizador",
+    open_calculator:"abrir la Calculadora",
+    open_notepad:"abrir el Bloc de notas",
+    open_task_manager:"abrir el Administrador de tareas",
+    volume_info:"consultar los dispositivos de audio detectados",
+    volume_set:"establecer el volumen",
+    audio_mute:"silenciar el audio",
+  };
+  const AI_ARTIFACTS_NO_CONFIRM=new Set(["system_info","time_date","battery_info","network_info","display_info","brightness_info","get_processes","cpu_usage","ram_usage","disk_usage","volume_info"]);
+  let aiGuideSent=false;
+  function aiGuide(){
+    return "[Instrucciones de QBIT — leelas y respondé solo al mensaje del usuario]\n"+
+      "Estás respondiendo a través de QBIT, un asistente de escritorio para Windows. Respondé en español.\n"+
+      "Si el usuario te pide una acción en su PC, agregá al final un bloque de código con lenguaje qbit y un JSON, por ejemplo:\n"+
+      "```qbit\n{\"artifact\":\"volume\",\"args\":{\"action\":\"up\"}}\n```\n"+
+      "Artifacts disponibles: open_anything {\"query\":\"nombre\"}; system_info {}; volume {\"action\":\"up|down|mute\"} o {\"action\":\"set\",\"level\":0-100}; web_search {\"query\":\"texto\"}; time_date {}; automation {}; open_settings {\"page\":\"system|display|sound|network|wifi|bluetooth|apps|personalization|updates|storage|notifications|privacy\"}; lock_pc {}; battery_info {}; network_info {}; display_info {}; brightness_info {}; brightness_set {\"level\":0-100}; brightness_up {}; brightness_down {}; media_control {\"action\":\"play_pause|next|previous|stop\"}; create_folder {\"base\":\"documentos|descargas|escritorio\",\"path\":\"Carpeta nueva\"}; create_file {\"base\":\"documentos|descargas|escritorio\",\"path\":\"nota.txt\",\"content\":\"texto\"}; search_files {\"query\":\"nombre\"}; clipboard_write {\"text\":\"texto\"}; empty_recycle_bin {}; get_processes {}; cpu_usage {}; ram_usage {}; disk_usage {}; toggle_night_light {}; toggle_wifi {\"action\":\"on|off\"}; minimize_all {}; restore_all {}; focus_app {\"query\":\"nombre de aplicación\"}; close_window {\"query\":\"nombre de aplicación\"}; open_file_location {\"query\":\"nombre de archivo\"}; get_file_info {\"query\":\"nombre de archivo\"}; zip_files {\"query\":\"nombre de archivo\"}; unzip_file {\"query\":\"archivo ZIP\"}; read_text_file {\"query\":\"archivo de texto\"}; show_notification {\"title\":\"Título\",\"message\":\"Texto\"}; set_timer {\"seconds\":60,\"label\":\"Descanso\"}; cancel_timer {\"id\":\"default\"}; open_calculator {}; open_notepad {}; open_task_manager {}; volume_info {}; volume_set {\"level\":0-100}; audio_mute {}.\n"+
+
+      "El bloque tiene que empezar exactamente con ```qbit. Usá como máximo uno por respuesta y solo si el usuario lo pidió.\n\nMensaje del usuario:\n";
+  }
+  // Acepta ```qbit … ``` y también cualquier bloque cuyo contenido sea un JSON con "artifact"
+  // (algunas IAs, como Gemini, pierden el nombre del lenguaje).
+  function extractArtifactBlocks(text){
+    const calls=[];
+    // Junta bloques vacíos pegados ("```\n```\n{...}") que dejan algunas páginas.
+    const fixed=String(text).replace(/```[\w#+.-]*[ \t]*\n```[ \t]*\n/g,"```\n");
+    const clean=fixed.replace(/```([\w#+.-]*)\s*\n([\s\S]*?)```/g,(whole,lang,body)=>{
+      const json=body.replace(/^\s*```\w*\s*$/gm,"").trim();
+      let isArtifact=lang.toLowerCase()==="qbit";
+      if(!isArtifact){try{const o=JSON.parse(json);isArtifact=!!(o&&typeof o==="object"&&o.artifact);}catch{}}
+      if(!isArtifact)return whole;
+      calls.push(json);return "";
+    }).replace(/\n{3,}/g,"\n\n").trim();
+    return {clean,calls:calls.slice(0,3)};
+  }
+  // ── Permisos de las acciones de la IA ("Permitir siempre") ────────────────
+  // Se guardan en esta PC. Se cambian desde la pestaña Conector.
+  const ALLOW_KEY="qbit-ai-always-allow";
+  let allowMemory=null; // respaldo por si el almacenamiento no está disponible
+  function loadAlwaysAllow(){try{const v=JSON.parse(localStorage.getItem(ALLOW_KEY)||"[]");return new Set(Array.isArray(v)?v.filter(n=>AI_ARTIFACTS[n]):[]);}catch{return new Set(allowMemory||[]);}}
+  function saveAlwaysAllow(set){allowMemory=[...set];try{localStorage.setItem(ALLOW_KEY,JSON.stringify(allowMemory));}catch{}renderAllowSettings();}
+  function setAlwaysAllow(name,on){const set=loadAlwaysAllow();on?set.add(name):set.delete(name);saveAlwaysAllow(set);}
+  // Ventana propia con tres opciones (window.confirm solo tiene Aceptar/Cancelar).
+  function askPermission(name,detail){
+    return new Promise(resolve=>{
+      const overlay=node("div","qbit-modal-overlay");const box=node("div","qbit-modal card");
+      box.setAttribute("role","dialog");box.setAttribute("aria-modal","true");
+      box.append(node("h3","","La IA quiere hacer algo en tu PC"),node("p","","Quiere "+AI_ARTIFACTS[name]+detail+"."));
+      const actions=node("div","qbit-modal-actions");
+      const done=v=>{overlay.remove();document.removeEventListener("keydown",onKey);resolve(v);};
+      const onKey=e=>{if(e.key==="Escape")done("deny");};
+      actions.append(btn("No","",()=>done("deny")),btn("Permitir siempre","",()=>done("always")),btn("Permitir una vez","primary",()=>done("once")));
+      box.append(actions,node("p","muted small-note","«Permitir siempre» se puede desactivar en la pestaña 🔌 Conector."));
+      overlay.append(box);document.body.append(overlay);document.addEventListener("keydown",onKey);
+      actions.lastChild.focus();
+    });
+  }
+  function renderAllowSettings(){
+    const list=document.getElementById("aiAllowList");if(!list)return;
+    const allowed=loadAlwaysAllow();list.replaceChildren();
+    for(const [name,label] of Object.entries(AI_ARTIFACTS)){
+      if(AI_ARTIFACTS_NO_CONFIRM.has(name))continue;
+      const row=node("label","allow-row");const input=document.createElement("input");input.type="checkbox";input.className="switch";input.checked=allowed.has(name);
+      input.addEventListener("change",()=>setAlwaysAllow(name,input.checked));
+      row.append(input,node("span","",label.charAt(0).toUpperCase()+label.slice(1)));list.append(row);
+    }
+    const all=document.getElementById("aiAllowAll");
+    if(all){const total=Object.keys(AI_ARTIFACTS).filter(n=>!AI_ARTIFACTS_NO_CONFIRM.has(n)).length;all.textContent=allowed.size?"Volver a preguntar siempre":"Permitir todas";all.onclick=()=>{const set=new Set();if(!allowed.size)Object.keys(AI_ARTIFACTS).filter(n=>!AI_ARTIFACTS_NO_CONFIRM.has(n)).forEach(n=>set.add(n));saveAlwaysAllow(set);};}
+  }
+  setTimeout(renderAllowSettings,0);
+  async function runArtifactBlock(json){
+    let call;try{call=JSON.parse(json);}catch{return "La IA mandó un bloque qbit que no es JSON válido.";}
+    const name=String(call?.artifact||"");const args=call?.args&&typeof call.args==="object"?{...call.args}:Object.fromEntries(Object.entries(call||{}).filter(([key])=>key!=="artifact"));
+    delete args.__allowed;
+    if(!AI_ARTIFACTS[name])return "La IA pidió un artifact que no existe: "+name;
+    if(!AI_ARTIFACTS_NO_CONFIRM.has(name)&&!loadAlwaysAllow().has(name)){
+      const detail=args.query?" (\""+String(args.query).slice(0,80)+"\")":args.action==="set"?" al "+args.level+"%":args.action?" ("+args.action+")":"";
+      const answer=await askPermission(name,detail);
+      if(answer==="deny")return "Cancelaste el artifact "+name+".";
+      if(answer==="always")setAlwaysAllow(name,true);
+    }
+    args.__allowed=true;
+    try{const r=await executeDesktopArtifact(name,args);return r?.message||("Artifact "+name+" ejecutado.");}
+    catch(e){return "No pude ejecutar "+name+": "+(e?.message||e);}
+  }
+  // ── Actualizaciones (solo QBIT Desktop) ─────────────────────────────────
+  (async()=>{
+    const pc=window.qbitPC;if(!pc?.isDesktop||!pc.checkForUpdates)return;
+    const bar=document.getElementById("updateBar"),label=document.getElementById("updateVersion"),status=document.getElementById("updateStatus"),button=document.getElementById("updateBtn");
+    if(!bar)return;bar.classList.remove("hidden");
+    try{label.textContent="v"+await pc.getAppVersion();}catch{}
+    const show=s=>{if(!s)return;status.textContent=s.message||"";status.className=s.status==="error"?"error":"muted";button.textContent="";
+      button.append(document.createTextNode(s.status==="ready"?"⬆ Actualizar a v"+s.version+" ":"⟳ "),Object.assign(document.createElement("span"),{id:"updateVersion",textContent:"v"+(s.current||label.textContent.replace(/^v/,""))}));
+      if(s.status==="latest")setTimeout(()=>{if(status.textContent===s.message)status.textContent="";},6000);};
+    pc.onUpdateState(show);
+    button.addEventListener("click",async()=>{try{show(await pc.checkForUpdates());}catch(e){show({status:"error",message:e?.message||"No pude buscar actualizaciones."});}});
+  })();
   const say = (id, text, error=false) => { $(id).textContent=text; $(id).className=error?"error":"muted"; };
   const node = (tag, cls, text) => { const n=document.createElement(tag); if(cls)n.className=cls; if(text!==undefined)n.textContent=text; return n; };
   function normalizeText(value){ return String(value).toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?¡!.,;:]/g," ").replace(/\s+/g," ").trim(); }
@@ -123,8 +256,22 @@
     }
     renderHistory();
   }
+  // Muestra el texto y convierte los bloques ```lenguaje … ``` en código con botón Copiar.
+  function richText(text){
+    text=String(text).replace(/```[\w#+.-]*[ \t]*\n```[ \t]*\n/g,"```\n");
+    const frag=document.createDocumentFragment();const re=/```([\w#+.-]*)\n([\s\S]*?)```/g;let last=0,m;
+    while((m=re.exec(text))){
+      if(m.index>last)frag.append(document.createTextNode(text.slice(last,m.index)));
+      const box=node("div","codeblock");const head=node("div","codehead");head.append(node("span","",m[1]||"código"));
+      const code=m[2].replace(/\n$/,"");
+      head.append(btn("Copiar","small",async e=>{try{await navigator.clipboard.writeText(code);e.target.textContent="¡Copiado!";setTimeout(()=>e.target.textContent="Copiar",1500);}catch{e.target.textContent="No se pudo";}}));
+      const pre=node("pre");pre.append(node("code","",code));box.append(head,pre);frag.append(box);last=re.lastIndex;
+    }
+    if(last<text.length)frag.append(document.createTextNode(text.slice(last)));
+    return frag;
+  }
   function bubble(who,text,kind){
-    const b=node("div","bubble "+kind);b.append(node("small","",who),document.createTextNode(text));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
+    const b=node("div","bubble "+kind);b.append(node("small","",who),richText(String(text)));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
     if(kind==="bot"&&petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
     if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){chat.messages.push({who,text:String(text),kind,at:new Date().toISOString()});if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
   }
@@ -165,8 +312,8 @@
   }
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","historyView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
-    if(id==="mascotSettingsView")void loadPetSettings();
+    ["chatView","historyView","connectorView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
@@ -425,17 +572,6 @@
     e.preventDefault();
     const q=$("chatInput").value.trim();if(!q)return;
     bubble("Vos",q,"user");$("chatInput").value="";
-    if(window.qbitPC?.isDesktop){
-      const artifactMenu=$("artifactMenu");
-      const selectedArtifacts=artifactMenu?[...artifactMenu.querySelectorAll('input[type="checkbox"]:checked')].map(input=>input.value):[];
-      if(artifactMenu)artifactMenu.querySelectorAll('input[type="checkbox"]').forEach(input=>{input.checked=false;});
-      const plus=$("agentPlus");
-      if(plus){plus.title="Agent elegirá los Artifacts automáticamente";plus.setAttribute("aria-label",plus.title);}
-      artifactMenu?.classList.add("hidden");
-      plus?.setAttribute("aria-expanded","false");
-      await runDesktopAgent(q,selectedArtifacts);
-      return;
-    }
     const desktopRequest=getDesktopRequest(q);
     if(desktopRequest){
       if(!window.qbitPC?.isDesktop){
@@ -513,15 +649,27 @@
     if(mathAnswer!==null){bubble("QBIT",mathAnswer,"bot");return;}
     const n=normalizeText(q);
     const found=commands.filter(c=>{const trigger=normalizeText(c.trigger_text);return trigger&&(" "+n+" ").includes(" "+trigger+" ");}).sort((a,b)=>normalizeText(b.trigger_text).length-normalizeText(a.trigger_text).length)[0];
-    if(!found){bubble("QBIT","Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");return;}
-    const activeResponses=responses.filter(x=>x.command_id===found.id&&x.is_active);
-    const r=activeResponses.length?activeResponses[Math.floor(Math.random()*activeResponses.length)]:null;
-    bubble("QBIT",r?r.content:"Encontré el comando, pero todavía no tiene respuestas activas.","bot");
+    const activeResponses=found?responses.filter(x=>x.command_id===found.id&&x.is_active):[];
+    if(!found||!activeResponses.length){
+      if(window.qbitPC?.isDesktop){const waiting=node("div","bubble bot");waiting.append(node("small","","QBIT"),document.createTextNode("Consultando la IA del navegador…"));$("chatbox").append(waiting);$("chatbox").scrollTop=$("chatbox").scrollHeight;try{const prompt=aiGuideSent?q:aiGuide()+q;const result=await window.qbitPC.askBrowserAI(prompt);aiGuideSent=true;const providerLabel=$("activeProvider");if(providerLabel&&result.provider){providerLabel.textContent="· "+String(result.provider);providerLabel.classList.remove("hidden");}waiting.remove();const {clean,calls}=extractArtifactBlocks(result.answer||"");if(clean||!calls.length)bubble("QBIT",clean||"La IA no devolvió una respuesta.","bot");for(const call of calls)bubble("QBIT",await runArtifactBlock(call),"bot");}catch(error){waiting.remove();bubble("QBIT","No encontré una respuesta guardada y no pude consultar la IA: "+(error?.message||"conector desconectado")+". Revisá la pestaña Conector. 🔌","bot");}}
+      else bubble("QBIT",found?"Encontré el comando, pero no tiene respuestas activas.":"Todavía no tengo una respuesta para eso. Podés agregar el comando desde el panel de administración.","bot");
+      return;
+    }
+    const r=activeResponses[Math.floor(Math.random()*activeResponses.length)];
+    bubble("QBIT",r.content,"bot");
   };
   window.qbitPC?.onPetMessage?.(message=>{const input=$("chatInput");if(!input)return;petMessagePending=true;input.value=String(message||"").slice(0,500);$("sendForm").requestSubmit();});
   $("clearChat").onclick=()=>newChat();
   $("newChatFromHistory").onclick=()=>newChat();
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
+
+  function connectorNotice(message,error=false){const el=$("connectorStatus");if(el){el.textContent=message;el.className=error?"notice error":"notice";}}
+  async function refreshConnectorStatus(){if(!window.qbitPC?.isDesktop){connectorNotice("Disponible en QBIT Desktop para Windows.",true);return;}try{const s=await window.qbitPC.getConnectorStatus();connectorNotice(s.running?(s.connected?"Conector activo · Extensión conectada.":"Conector activo · Esperando Chrome."):"Conector detenido. Inicialo para usar la IA.");}catch(e){connectorNotice("No pude consultar el estado: "+(e?.message||"error"),true);}}
+  $("connectorStart")?.addEventListener("click",async()=>{try{const s=await window.qbitPC.startConnector();connectorNotice(s.message||"Conector iniciado.");}catch(e){connectorNotice(e?.message||"No se pudo iniciar.",true);}await refreshConnectorStatus();});
+  $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();connectorNotice("Conector desconectado.");}catch(e){connectorNotice(e?.message||"No se pudo detener.",true);}await refreshConnectorStatus();});
+  $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta.",true);}});
+  $("connectorChrome")?.addEventListener("click",async()=>{try{await window.qbitPC.openChromeExtensions();}catch(e){connectorNotice("Abrí chrome://extensions manualmente. "+(e?.message||""),true);}});
+  setInterval(()=>{if(!$("connectorView")?.classList.contains("hidden"))void refreshConnectorStatus();},2500);
   function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
   async function loadPetSettings(){
     if(!window.qbitPC?.isDesktop){$("petSettingsForm").classList.add("hidden");petSettingsMessage("Esta configuración está disponible en QBIT Desktop para Windows.",true);return;}

@@ -1,0 +1,77 @@
+{
+  "name": "qbit-desktop",
+  "version": "1.5.0",
+  "description": "QBIT Desktop 1.4.7 con corrección de artifacts y proveedor visible",
+  "private": true,
+  "main": "windows/electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check windows/electron/main.cjs && node --check windows/electron/preload.cjs && node --check app.js && node --check mascot.js && node --check windows/electron/mascot-window.js && node --check browser-extension/background.js && node --check browser-extension/ai-provider.js && node --check browser-extension/popup.js",
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "release": "electron-builder --win nsis --x64 --publish always"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "sharp": "^0.34.2"
+  },
+  "build": {
+    "appId": "com.gotti23b.qbit",
+    "productName": "QBIT",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "app.js",
+      "styles.css",
+      "mascot.css",
+      "mascot.js",
+      "qbit-icon.ico",
+      "qbit-icon.svg",
+      "windows/electron/**/*",
+      "windows/scripts/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "qbit-icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "qbit-icon.ico",
+      "uninstallerIcon": "qbit-icon.ico"
+    },
+    "extraResources": [
+      {
+        "from": "browser-extension",
+        "to": "browser-extension",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Gotti23b",
+        "repo": "QBIT-extestion",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

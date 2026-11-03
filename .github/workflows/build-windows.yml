@@ -1,79 +1,40 @@
-name: Build QBIT for Windows
-
+name: Build QBIT Desktop for Windows
+# Push a main → arma el instalador y publica la actualización (Release v<version de package.json>).
+# Si no cambiaste "version" en package.json, arma igual pero no publica nada nuevo.
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
-
 permissions:
-  contents: read
-
-concurrency:
-  group: qbit-windows-build
-  cancel-in-progress: false
-
+  contents: write  # necesario para publicar el Release con la actualización
 jobs:
   build:
-    name: Build Windows installer
     runs-on: windows-latest
-    timeout-minutes: 40
-
+    timeout-minutes: 45
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Prepare Windows app folder
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          New-Item -ItemType Directory -Force -Path desktop-build | Out-Null
-          Copy-Item -Path index.html, app.js, desktop-agent.js, styles.css, mascot.css, mascot.js, qbit-icon.svg -Destination desktop-build
-          Copy-Item -Path windows/electron -Destination desktop-build -Recurse
-          Copy-Item -Path windows/scripts -Destination desktop-build -Recurse
-          $desktopHtmlPath = Join-Path (Resolve-Path desktop-build) "index.html"
-          $desktopHtml = Get-Content -Path $desktopHtmlPath -Raw
-          $desktopHtml = $desktopHtml.Replace('<script src="app.js" defer></script>', '<script src="app.js" defer></script>' + "`n" + '<script type="module" src="desktop-agent.js" onerror="window.dispatchEvent(new Event(''qbit-agent-load-error''))"></script>')
-          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-          [System.IO.File]::WriteAllText($desktopHtmlPath, $desktopHtml, $utf8NoBom)
-
-          $package = Get-Content -Path config/package.json -Raw | ConvertFrom-Json
-          $package.main = "electron/main.cjs"
-          $package.scripts.start = "electron ."
-          $package.scripts.check = "node --check electron/main.cjs && node --check electron/preload.cjs && node --check app.js && node --check desktop-agent.js && node --check mascot.js && node --check electron/mascot-window.js"
-          $package.build.directories.output = "../dist"
-          $package.build.win | Add-Member -NotePropertyName icon -NotePropertyValue "qbit-icon.ico" -Force
-          $package.build.nsis | Add-Member -NotePropertyName installerIcon -NotePropertyValue "qbit-icon.ico" -Force
-          $package.build.nsis | Add-Member -NotePropertyName uninstallerIcon -NotePropertyValue "qbit-icon.ico" -Force
-
-          $json = $package | ConvertTo-Json -Depth 30
-          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-          [System.IO.File]::WriteAllText((Join-Path (Resolve-Path desktop-build) "package.json"), $json, $utf8NoBom)
-
-      - name: Install Windows build dependencies
-        working-directory: desktop-build
-        run: npm install
-
-      - name: Generate QBIT Windows icon
-        working-directory: desktop-build
-        run: |
-          npm install --no-save sharp
-          node scripts/create-windows-icon.cjs
-
+          # Deliberately omit cache: npm because this repo has no lockfile.
+      - run: npm install
+      - name: Generate Windows icon
+        run: node windows/scripts/create-windows-icon.cjs
       - name: Check JavaScript syntax
-        working-directory: desktop-build
         run: npm run check
-
-      - name: Build Windows installer
-        working-directory: desktop-build
-        run: npx electron-builder --win nsis --x64 --publish never
-
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+      - name: Build NSIS installer (sin publicar)
+        if: github.ref != 'refs/heads/main' || github.event_name == 'pull_request'
+        run: npm run dist
+      - name: Build and publish release (actualización automática)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
         with:
           name: QBIT-Windows-Installer
           path: dist/*.exe
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14

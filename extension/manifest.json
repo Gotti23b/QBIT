@@ -1,0 +1,72 @@
+{
+  "manifest_version": 3,
+  "name": "QBIT Extension",
+  "version": "0.4.0",
+  "description": "Conecta el chat de QBIT con chats de IA abiertos en el navegador mediante QBIT Console.",
+  "permissions": [
+    "clipboardRead",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://gotti23b.github.io/QBIT/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://arena.ai/*",
+    "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://chat.deepseek.com/*",
+    "https://chat.qwen.ai/*",
+    "https://www.meta.ai/*",
+    "https://meta.ai/*",
+    "http://127.0.0.1/*",
+    "ws://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Abrir QBIT"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gotti23b.github.io/QBIT/*"
+      ],
+      "js": [
+        "qbit-page-main.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://gotti23b.github.io/QBIT/*"
+      ],
+      "js": [
+        "qbit-page.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://arena.ai/*",
+        "https://gemini.google.com/*",
+        "https://claude.ai/*",
+        "https://chat.deepseek.com/*",
+        "https://chat.qwen.ai/*",
+        "https://www.meta.ai/*",
+        "https://meta.ai/*"
+      ],
+      "js": [
+        "ai-provider.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

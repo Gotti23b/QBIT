@@ -7,6 +7,8 @@
   const stateLabel = document.getElementById("petStateLabel");
   const form = document.getElementById("petForm");
   const input = document.getElementById("petInput");
+  const sendButton = form.querySelector('button[type="submit"]');
+  let sending = false;
   const stateNames = { idle: "tranqui", working: "trabajando", resting: "descansando" };
   let expanded = false;
   let busyTimer = null;
@@ -15,7 +17,8 @@
   function applySettings(settings) {
     if (!settings || typeof settings !== "object") return;
     const scale = settings.size === "small" ? 0.8 : settings.size === "large" ? 1.2 : 1;
-    document.body.style.zoom = String(scale);
+    // El tamaño de la ventana ya se escala desde Electron. Aplicar zoom acá
+    // duplicaba el escalado y hacía que el panel se cortara.
     document.documentElement.classList.toggle("no-animations", settings.animations === false);
   }
 
@@ -85,25 +88,39 @@
     }
   }));
 
-  form.addEventListener("submit", event => {
+  form.addEventListener("submit", async event => {
     event.preventDefault();
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || sending) return;
+    sending = true;
     input.value = "";
+    input.disabled = true;
+    sendButton.disabled = true;
     greeting.textContent = "Te escucho… 💠";
     setState("working");
-    api?.sendMessage?.(text).then(ok => {
-      if (!ok) { greeting.textContent = "No pude enviar el mensaje al chat de QBIT."; setState("idle"); }
-    }).catch(() => {
-      greeting.textContent = "No pude conectar con el chat de QBIT. Intentá de nuevo.";
+    try {
+      const ok = await api?.sendMessage?.(text);
+      if (!ok) throw new Error("No pude enviar el mensaje al chat oculto de QBIT.");
+    } catch (error) {
+      greeting.textContent = error?.message || "No pude conectar con QBIT. Intentá de nuevo.";
+      sending = false;
+      input.disabled = false;
+      sendButton.disabled = false;
       setState("idle");
-    });
-    busyTimer = window.setTimeout(() => { if (button.dataset.state === "working") setState("idle"); }, 10000);
+      input.focus({ preventScroll: true });
+    }
   });
 
   if (api?.onPetSettings) api.onPetSettings(applySettings);
   if (api?.getSettings) api.getSettings().then(applySettings).catch(() => {});
-  if (api?.onPetReply) api.onPetReply(reply => { greeting.textContent = String(reply); setState("idle"); });
+  if (api?.onPetReply) api.onPetReply(reply => {
+    greeting.textContent = String(reply);
+    sending = false;
+    input.disabled = false;
+    sendButton.disabled = false;
+    setState("idle");
+    input.focus({ preventScroll: true });
+  });
   if (api?.onPetToggle) api.onPetToggle(() => { void setExpanded(!expanded); });
   if (api?.onPetState) api.onPetState(state => setState(state));
   setState("idle");

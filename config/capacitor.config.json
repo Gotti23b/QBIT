@@ -1,8 +1,0 @@
-{
-  "appId": "com.gotti23b.qbit",
-  "appName": "QBIT",
-  "webDir": "www",
-  "server": {
-    "androidScheme": "https"
-  }
-}

@@ -1,0 +1,45 @@
+name: Package QBIT Extension installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Assemble installer package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $staging = Join-Path $env:RUNNER_TEMP "QBIT-Extension"
+          $output = Join-Path $env:GITHUB_WORKSPACE "dist"
+          New-Item -ItemType Directory -Force -Path $staging, $output | Out-Null
+          Copy-Item -Path extension -Destination $staging -Recurse
+          Copy-Item -Path install-qbit-extension.bat, install-qbit-extension.ps1, start-qbit-console.bat, qbit-console.ps1, README.md -Destination $staging
+          $version = (Get-Content extension/manifest.json -Raw | ConvertFrom-Json).version
+          Compress-Archive -Path (Join-Path $staging "*") -DestinationPath (Join-Path $output "QBIT-Extension-Installer.zip") -Force
+          "QBIT_EXTENSION_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Upload downloadable installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: QBIT-Extension-Installer
+          path: dist/QBIT-Extension-Installer.zip
+          if-no-files-found: error
+
+      - name: Publish installer on tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: QBIT Extension ${{ env.QBIT_EXTENSION_VERSION }}
+          files: dist/QBIT-Extension-Installer.zip
+          generate_release_notes: true
