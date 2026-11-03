@@ -1,6 +1,6 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "QBIT Desktop 1.4.7 con corrección de artifacts y proveedor visible",
   "private": true,
   "main": "windows/electron/main.cjs",
