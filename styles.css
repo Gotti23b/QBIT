@@ -255,3 +255,16 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .workspace{min-height:0}
   .chatbox{overflow-y:auto;overscroll-behavior:contain}
 }
+
+/* Menú de acciones de cada conversación. */
+.sidebar-chat-row{position:relative;display:flex;align-items:center;gap:2px;min-width:0}
+.sidebar-chat-row .sidebar-chat-item{flex:1;min-width:0}
+.sidebar-chat-more{flex:0 0 27px;width:27px;height:28px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--muted-2);font-size:17px;line-height:1}
+.sidebar-chat-more:hover,.sidebar-chat-more[aria-expanded="true"]{background:#1a2731;border-color:var(--line);color:var(--cyan)}
+.sidebar-chat-menu{position:absolute;z-index:80;top:calc(100% - 2px);right:2px;width:184px;padding:5px;border:1px solid #30404d;border-radius:9px;background:#111a22;box-shadow:0 12px 28px #0009}
+.sidebar-chat-menu-action{display:block;width:100%;padding:8px 9px;border:0;border-radius:6px;background:transparent;text-align:left;color:var(--text);font-size:11px}
+.sidebar-chat-menu-action:hover{background:#1b2a35;border-color:transparent}
+.sidebar-chat-menu-action.danger{color:#ff9b9b}
+.sidebar-chat-menu-action.danger:hover{background:#382127}
+.sidebar-archived{padding-top:8px;border-top:1px solid var(--line-soft)}
+@media(max-width:620px){.sidebar-archived{display:grid}.sidebar-archived .sidebar-chat-list{max-height:75px;overflow-y:auto}}
