@@ -29,36 +29,66 @@
 </section>
 <section id="appView" class="hidden">
   <div class="app-shell">
-    <aside class="sidebar card" aria-label="Navegación principal">
-      <div class="sidebar-heading"><img src="qbit-icon.svg" alt=""><div><strong>QBIT</strong><small>Espacio de trabajo</small></div></div>
-      <button id="newChatSidebar" class="new-session" type="button"><span>＋</span> Nueva sesión</button>
-      <div class="sidebar-label">MENÚ</div>
-      <nav class="sidebar-nav">
-        <button class="active" data-tab="chatView" type="button"><span>◈</span> Asistente</button>
-        <button data-tab="historyView" type="button"><span>◷</span> Historial</button>
-        <button data-tab="connectorView" type="button"><span>⌁</span> Conector</button>
-        <button data-tab="mascotSettingsView" type="button"><span>◇</span> Mascota</button>
-        <button data-tab="adminView" type="button"><span>⚙</span> Administrar QBIT</button>
-      </nav>
-      <div class="sidebar-bottom"><span class="status-dot"></span><span>QBIT Extension</span><small>Conectá tu IA desde Conector</small></div>
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="sidebar-brand">
+        <img src="qbit-icon.svg" alt="">
+        <div><strong>QBIT</strong><small>WORKSPACE</small></div>
+        <span class="brand-glow"></span>
+      </div>
+      <button id="newChatSidebar" class="new-session" type="button"><span>＋</span><span>Nueva sesión</span><kbd>Ctrl K</kbd></button>
+      <div class="sidebar-group">
+        <div class="sidebar-label">GETTING STARTED</div>
+        <nav class="sidebar-nav">
+          <button class="active" data-tab="chatView" type="button"><span class="nav-icon">⌂</span><span>Asistente</span><span class="nav-arrow">›</span></button>
+        </nav>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-label">SESIONES</div>
+        <nav class="sidebar-nav">
+          <button data-tab="historyView" type="button"><span class="nav-icon">◷</span><span>Historial de chats</span></button>
+        </nav>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-label">CAPACIDADES</div>
+        <nav class="sidebar-nav">
+          <button data-tab="connectorView" type="button"><span class="nav-icon">⌁</span><span>Conector de IA</span></button>
+          <button data-tab="mascotSettingsView" type="button"><span class="nav-icon">◇</span><span>Mascota</span></button>
+          <button data-tab="adminView" type="button"><span class="nav-icon">⚙</span><span>Administrar QBIT</span></button>
+        </nav>
+      </div>
+      <div class="sidebar-pinned">
+        <div class="sidebar-label">FIJADAS</div>
+        <div class="pinned-item"><span class="pin-mark">✦</span><span><strong>QBIT Workspace</strong><small>Tu espacio de trabajo</small></span></div>
+      </div>
+      <div class="sidebar-bottom">
+        <span class="status-dot"></span>
+        <span><strong>QBIT Extension</strong><small>Entorno de escritorio</small></span>
+        <span class="sidebar-version">1.5.4</span>
+      </div>
     </aside>
     <main class="workspace">
   <section id="chatView"><div class="layout">
-    <div class="card"><div class="section-title"><h2>Chat</h2><button id="clearChat" class="small">Limpiar chat</button></div>
-      <p class="muted">Primero se ejecutan tus comandos y funciones de QBIT. Si no hay respuesta, se consulta la IA conectada.</p>
+    <div class="chat-surface">
+      <div class="chat-topline">
+        <div><span class="eyebrow">CONVERSACIÓN ACTUAL</span><h2>Asistente <span id="activeProvider" class="active-provider hidden" aria-live="polite"></span></h2></div>
+        <div class="chat-top-actions"><span class="connection-pill"><i></i> Espacio listo</span><button id="clearChat" class="icon-button" type="button" title="Limpiar chat">↻</button></div>
+      </div>
+      <div class="chat-intro"><div class="intro-orb"><img src="qbit-icon.svg" alt=""></div><div><strong>¿En qué trabajamos?</strong><p>Escribile a QBIT. Podés pedir ayuda, consultar a tu IA conectada o ejecutar acciones desde el agente.</p></div></div>
       <div id="chatbox" class="chatbox" aria-live="polite"><div class="bubble bot"><small>QBIT</small>¡Hola! Soy QBIT. Agregá comandos y respuestas en el panel de administración para empezar. ✨</div></div>
-      
       <form id="sendForm" class="send">
-        <input id="chatInput" placeholder="Escribí un mensaje…" autocomplete="off" required>
-        <button class="primary">Enviar</button>
+        <input id="chatInput" placeholder="Escribí un mensaje o una instrucción…" autocomplete="off" required>
+        <button class="primary" type="submit"><span>Enviar</span><span>↑</span></button>
       </form>
+      <div class="composer-hint"><span>QBIT puede cometer errores. Revisá las acciones antes de confirmarlas.</span><span>ENTER ↵</span></div>
     </div>
-    <aside class="card workspace-panel">
-      <div class="panel-heading"><div><span class="eyebrow">ESPACIO DE TRABAJO</span><h3>Archivos y artefactos</h3></div><span class="panel-indicator">● En línea</span></div>
-      <div class="artifact-section"><div class="mini-heading"><span>Artefactos recientes</span><span class="muted">0</span></div><div id="artifactPanel" class="artifact-placeholder"><span class="artifact-icon">◇</span><strong>Tu espacio está listo</strong><p>Los archivos y resultados creados por QBIT aparecerán acá.</p></div></div>
+    <aside class="workspace-panel">
+      <div class="panel-heading"><div><span class="eyebrow">WORKSPACE</span><h3>Archivos</h3></div><button class="panel-more" type="button" aria-label="Más opciones">···</button></div>
+      <div class="artifact-placeholder"><span class="artifact-icon">▧</span><strong>Sin archivos abiertos</strong><p>Los archivos relacionados con tu trabajo van a aparecer en este espacio.</p></div>
       <div class="panel-divider"></div>
-      <div class="mini-heading"><span>Comandos disponibles</span><span class="muted">QBIT</span></div>
-      <p class="muted panel-description">Accesos rápidos guardados en tu cuenta.</p>
+      <div class="mini-heading"><span>ARTEFACTOS</span><span class="muted">0</span></div>
+      <div id="artifactPanel" class="artifact-list-empty"><span>◇</span><div><strong>Sin artefactos todavía</strong><small>Los resultados del agente aparecerán acá.</small></div></div>
+      <div class="panel-divider"></div>
+      <div class="mini-heading"><span>COMANDOS RÁPIDOS</span><span class="muted">QBIT</span></div>
       <div id="quickCommands" class="list"><div class="empty">Todavía no hay comandos.</div></div>
     </aside>
   </div></section>
@@ -91,8 +121,8 @@
     </div>
   </section>
       <div class="desktop-dock" aria-label="Estado de QBIT">
-        <div class="dock-left"><span class="dock-prompt">›_</span><strong>Terminal</strong><span class="dock-muted">Consola de actividad</span></div>
-        <div class="dock-right"><span class="status-dot"></span><span>Agente listo</span><span class="dock-separator"></span><span class="dock-muted">Conector disponible</span></div>
+        <div class="dock-left"><span class="dock-prompt">›_</span><strong>ACTIVIDAD</strong><span class="dock-muted">No hay procesos en ejecución</span></div>
+        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.4</span></div>
       </div>
     </main>
   </div>
