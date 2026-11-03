@@ -77,3 +77,51 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .workspace .chatbox{height:48vh;min-height:260px}
   .top{margin-bottom:14px}
 }
+
+
+/* QBIT 1.5.1 — interfaz compacta inspirada en Hermes */
+body.qbit-desktop{background:#0b0e12;color:#e5e7eb}
+body.qbit-desktop .wrap{max-width:none;width:100%;height:100vh;min-height:100vh;padding:0;display:flex;flex-direction:column;overflow:hidden}
+body.qbit-desktop .top{height:48px;min-height:48px;margin:0;padding:0 18px 0 260px;background:#0b0e12;border-bottom:1px solid #20252c;gap:12px}
+body.qbit-desktop .brand{display:none}
+body.qbit-desktop .app-shell{flex:1;min-height:0;height:calc(100vh - 78px);grid-template-columns:248px minmax(0,1fr);gap:0}
+body.qbit-desktop .sidebar{position:relative;top:auto;height:100%;min-height:0;border:0;border-right:1px solid #20252c;border-radius:0;padding:14px 9px;background:#0b0e12;gap:13px}
+body.qbit-desktop .sidebar-heading{display:none}
+body.qbit-desktop .sidebar-label{padding:0 10px;color:#77808c}
+body.qbit-desktop .new-session{justify-content:flex-start;border:0;background:transparent;color:#cbd5e1;font-weight:500;padding:10px 12px}
+body.qbit-desktop .new-session:hover{background:#171c22;border-color:transparent}
+body.qbit-desktop .sidebar-nav{gap:2px}
+body.qbit-desktop .sidebar-nav button{padding:9px 11px;border:0;border-radius:7px;color:#aeb7c2;font-size:13px}
+body.qbit-desktop .sidebar-nav button span{font-size:15px;color:#8b95a2}
+body.qbit-desktop .sidebar-nav button.active{background:#18242c;color:#e6faff}
+body.qbit-desktop .sidebar-nav button.active span{color:#38d7ed}
+body.qbit-desktop .sidebar-bottom{border-color:#20252c;color:#8c97a3}
+body.qbit-desktop .workspace{height:100%;min-height:0;overflow:auto;background:#0b0e12;padding:0 22px}
+body.qbit-desktop #chatView .layout{display:block;height:100%}
+body.qbit-desktop #chatView .layout>.card:first-child{height:100%;display:flex;flex-direction:column;border:0;border-radius:0;background:transparent;padding:0;min-height:0}
+body.qbit-desktop #chatView .layout>.card:first-child>.section-title{display:none}
+body.qbit-desktop #chatView .layout>.card:first-child>p.muted{display:none}
+body.qbit-desktop .workspace .chatbox{flex:1;height:auto;min-height:0;padding:22px 0 18px;gap:16px}
+body.qbit-desktop .bubble{max-width:88%;border:0;border-radius:8px;padding:12px 14px;background:#171b21;color:#d8dee6;font-size:14px}
+body.qbit-desktop .bubble.user{align-self:stretch;background:#10151b;border:1px solid #26323c;color:#e5edf5}
+body.qbit-desktop .bubble.bot{align-self:stretch;background:transparent;padding-left:0;padding-right:0}
+body.qbit-desktop .bubble small{color:#7f8b98;font-size:11px}
+body.qbit-desktop .send{position:sticky;bottom:0;background:#0b0e12;padding:10px 0 16px;grid-template-columns:auto minmax(0,1fr) auto;gap:9px}
+body.qbit-desktop .send input{background:#10151b;border:1px solid #283541;border-radius:8px;padding:13px;color:#e5edf5}
+body.qbit-desktop .send button.primary{background:#25cde5;color:#06232a;border-radius:8px}
+body.qbit-desktop .agent-plus{background:#151b22;border-color:#2a3b49}
+body.qbit-desktop footer{display:none}
+body.qbit-desktop .workspace .layout>aside.card{display:none}
+body.qbit-desktop .workspace section>.card{background:#10151b;border:1px solid #242d36;border-radius:10px}
+body.qbit-desktop .update-bar{margin-left:auto}
+@media(max-width:760px){
+ body.qbit-desktop .top{padding-left:12px}
+ body.qbit-desktop .app-shell{grid-template-columns:64px minmax(0,1fr)}
+ body.qbit-desktop .sidebar{padding:10px 5px}
+ body.qbit-desktop .new-session{font-size:0;justify-content:center}
+ body.qbit-desktop .new-session span{font-size:22px}
+ body.qbit-desktop .sidebar-label,body.qbit-desktop .sidebar-bottom{display:none}
+ body.qbit-desktop .sidebar-nav button{font-size:0;justify-content:center;padding:11px 4px}
+ body.qbit-desktop .sidebar-nav button span{font-size:18px}
+ body.qbit-desktop .workspace{padding:0 12px}
+}
