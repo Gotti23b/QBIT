@@ -299,9 +299,11 @@
       const row=node("div","sidebar-chat-row");
       const open=btn(chat.title||"Nuevo chat","sidebar-chat-item"+(chat.id===activeChatId?" active":""),()=>showChat(chat.id,true));
       open.title=chat.title||"Nuevo chat";
-      open.append(node("span","sidebar-chat-title",chat.title||"Nuevo chat"));
+      open.replaceChildren(node("span","","◌"),node("span","sidebar-chat-title",chat.title||"Nuevo chat"));
       const more=btn("···","sidebar-chat-more",event=>{
         event.stopPropagation();
+        const existing=row.querySelector(".sidebar-chat-menu");
+        if(existing){existing.remove();event.currentTarget.setAttribute("aria-expanded","false");return;}
         document.querySelectorAll(".sidebar-chat-menu").forEach(menu=>menu.remove());
         const menu=node("div","sidebar-chat-menu");
         const addAction=(label,action,kind="")=>menu.append(btn(label,"sidebar-chat-menu-action"+(kind?" "+kind:""),()=>{
