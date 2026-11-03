@@ -33,3 +33,47 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 
 /* Proveedor de IA activo junto al nombre de QBIT */
 .brand-title{display:flex;align-items:baseline;gap:7px}.active-provider{font-size:13px;font-weight:450;letter-spacing:0;color:var(--muted);opacity:.78}
+
+
+/* Diseño de espacio de trabajo: chat amplio + navegación lateral */
+.wrap{max-width:1600px;width:100%;padding:20px 26px}
+.app-shell{display:grid;grid-template-columns:238px minmax(0,1fr);gap:18px;align-items:start;min-height:calc(100vh - 145px)}
+.sidebar{position:sticky;top:18px;min-height:calc(100vh - 165px);display:flex;flex-direction:column;gap:18px;padding:17px 13px;background:linear-gradient(180deg,#0d1d30,#091725);border-color:#1b354b}
+.sidebar-heading{display:flex;align-items:center;gap:10px;padding:2px 5px 8px}
+.sidebar-heading img{width:36px;height:36px;border-radius:11px;background:#103549;padding:5px}
+.sidebar-heading strong{display:block;font-size:17px;letter-spacing:1.5px}
+.sidebar-heading small{display:block;color:var(--muted);font-size:11px}
+.new-session{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;padding:11px;border-color:#1c7184;background:#0d3444;color:#baf6ff;font-weight:650}
+.new-session span{font-size:20px;line-height:1}
+.sidebar-label{padding:0 9px;color:#66899d;font-size:10px;font-weight:750;letter-spacing:1.5px}
+.sidebar-nav{display:grid;gap:5px}
+.sidebar-nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:10px 11px;border-color:transparent;background:transparent;color:#a9c1d0;border-radius:10px}
+.sidebar-nav button span{width:20px;text-align:center;color:#72b9ca;font-size:17px}
+.sidebar-nav button:hover{background:#10283a;border-color:#24475d;color:var(--text)}
+.sidebar-nav button.active{background:#103747;border-color:#1b7183;color:#c9f8ff}
+.sidebar-nav button.active span{color:var(--cyan)}
+.sidebar-bottom{margin-top:auto;padding:12px 8px 2px;border-top:1px solid var(--line);display:grid;grid-template-columns:9px 1fr;align-items:center;column-gap:8px;font-size:12px;color:#b6d0dc}
+.sidebar-bottom small{grid-column:2;color:var(--muted);font-size:10px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#22c99a;box-shadow:0 0 10px #22c99a66}
+.workspace{min-width:0}
+.workspace>section{min-width:0}
+.workspace .layout{grid-template-columns:minmax(0,1.65fr) minmax(220px,.75fr)}
+.workspace .chatbox{height:calc(100vh - 390px);min-height:340px}
+.workspace .card{min-width:0}
+@media(max-width:850px){
+  .wrap{padding:14px}
+  .app-shell{grid-template-columns:190px minmax(0,1fr);gap:12px}
+  .sidebar{padding:13px 9px}
+  .workspace .layout{grid-template-columns:minmax(0,1fr)}
+}
+@media(max-width:620px){
+  .app-shell{grid-template-columns:1fr;min-height:0}
+  .sidebar{position:static;min-height:0;gap:10px}
+  .sidebar-heading,.sidebar-label,.sidebar-bottom{display:none}
+  .new-session{width:auto;align-self:stretch}
+  .sidebar-nav{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+  .sidebar-nav button{justify-content:center;flex-direction:column;gap:3px;padding:8px 3px;font-size:10px;text-align:center}
+  .sidebar-nav button span{font-size:16px}
+  .workspace .chatbox{height:48vh;min-height:260px}
+  .top{margin-bottom:14px}
+}
