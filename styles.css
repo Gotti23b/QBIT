@@ -128,6 +128,7 @@ body.qbit-desktop .update-bar{margin-left:auto}
 
 
 /* QBIT 1.5.3 — espacio de trabajo inspirado en Hermes */
+.desktop-dock{display:none}
 body.qbit-desktop .workspace{display:flex;flex-direction:column;overflow:hidden;padding:0 22px 0 24px}
 body.qbit-desktop #chatView{display:flex;flex:1;min-height:0;overflow:hidden}
 body.qbit-desktop #chatView .layout{display:grid;height:100%;width:100%;min-height:0;grid-template-columns:minmax(0,1fr) 292px;gap:22px;align-items:stretch}
