@@ -240,6 +240,10 @@
   function normalizeText(value){ return String(value).toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?¡!.,;:]/g," ").replace(/\s+/g," ").trim(); }
   const btn = (text, cls, fn) => { const b=node("button",cls,text); b.type="button"; b.onclick=fn; return b; };
   const historyKey=()=> "qbit-chat-history-"+(user?.id||"guest");
+  const PRESET_COMMANDS_KEY="qbit-use-preset-commands";
+  const PRESET_TRIGGERS=new Set(["hola","buenas","gracias","ayuda","quién sos","qué podés hacer","contame un chiste"]);
+  function usePresetCommands(){try{return localStorage.getItem(PRESET_COMMANDS_KEY)==="true";}catch{return false;}}
+  function syncPresetToggle(){const toggle=$("presetCommandsToggle");if(toggle)toggle.checked=usePresetCommands();}
   function saveHistory(){if(!user)return;try{localStorage.setItem(historyKey(),JSON.stringify(chatHistory));}catch(e){console.warn("No se pudo guardar el historial",e);}}
   function ensureActiveChat(){
     if(activeChatId&&chatHistory.some(c=>c.id===activeChatId))return;
@@ -284,17 +288,27 @@
     if(switchToChat)activateTab("chatView");
   }
   function renderHistory(){
-    const list=$("historyList");if(!list)return;list.replaceChildren();
-    if(!chatHistory.length){list.append(node("div","empty","Todavía no hay conversaciones guardadas."));return;}
-    [...chatHistory].sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt)).forEach(chat=>{
-      const preview=[...chat.messages].reverse().find(m=>m.kind==="user")?.text||"Conversación vacía";
-      const date=new Date(chat.updatedAt||chat.createdAt);
-      const detail=(Number.isNaN(date.getTime())?"":new Intl.DateTimeFormat("es-AR",{dateStyle:"short",timeStyle:"short"}).format(date))+" · "+chat.messages.length+" mensajes\n"+preview;
-      list.append(card(chat.title||"Nuevo chat",detail,[
-        btn("Abrir","small",()=>showChat(chat.id,true)),
-        btn("Borrar","small danger",()=>deleteChat(chat.id))
-      ]));
-    });
+    const chats=$("chatSidebarList"),pinned=$("pinnedChatList");
+    if(!chats||!pinned)return;
+    chats.replaceChildren();pinned.replaceChildren();
+    const sorted=[...chatHistory].sort((a,b)=>new Date(b.updatedAt||b.createdAt)-new Date(a.updatedAt||a.createdAt));
+    const pinnedChats=sorted.filter(chat=>chat.pinned===true);
+    const makeItem=chat=>{
+      const row=node("div","sidebar-chat-row");
+      const open=btn(chat.title||"Nuevo chat","sidebar-chat-item"+(chat.id===activeChatId?" active":""),()=>showChat(chat.id,true));
+      open.title=chat.title||"Nuevo chat";
+      const label=node("span","sidebar-chat-title",chat.title||"Nuevo chat");open.replaceChildren(node("span","","◌"),label);
+      const pin=btn(chat.pinned?"★":"☆","sidebar-chat-pin"+(chat.pinned?" is-pinned":""),()=>{
+        chat.pinned=!chat.pinned;saveHistory();renderHistory();
+      });
+      pin.title=chat.pinned?"Quitar de fijados":"Fijar chat";pin.setAttribute("aria-label",pin.title);
+      row.append(open,pin);
+      return row;
+    };
+    if(!sorted.length)chats.append(node("div","sidebar-empty","Todavía no hay chats"));
+    else sorted.forEach(chat=>chats.append(makeItem(chat)));
+    if(!pinnedChats.length)pinned.append(node("div","sidebar-empty","Todavía no hay chats fijados"));
+    else pinnedChats.forEach(chat=>pinned.append(makeItem(chat)));
   }
   function deleteChat(id){
     if(!confirm("¿Borrar esta conversación del historial?"))return;
@@ -312,7 +326,7 @@
   }
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","historyView","connectorView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    ["chatView","connectorView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
     if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();
   }
   function solveMathQuestion(message){
@@ -344,7 +358,7 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){const changed=user?.id!==u?.id;user=u;$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}}
+  function session(u){const changed=user?.id!==u?.id;user=u;syncPresetToggle();$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -356,7 +370,8 @@
     const error=a.error||b.error||c.error;if(error){notice("Error al cargar: "+error.message,true);return;}
 
     categories=a.data||[];commands=b.data||[];responses=c.data||[];
-    const variants={
+    if(usePresetCommands()){
+      const variants={
       "hola":["¡Buenas! ¿En qué te doy una mano? 👋","¡Ey, hola! Acá QBIT, listo para ayudarte.","¡Hola! ¿Qué hacemos hoy?"],
       "buenas":["¡Buenas! 😎 ¿Todo bien?","¡Buenasss! ¿Qué onda?","¡Hola! ¿Qué necesitás?"],
       "gracias":["¡No hay de qué! 😊","¡Cuando quieras!","¡De nada! Para eso estoy."],
@@ -376,9 +391,8 @@
         responses.push(added);seeded=true;
       }
     }
-    if(seeded){notice("¡Se agregaron las variantes de respuesta!");}
-
-    if(["hola","ayuda","gracias","quién sos","qué podés hacer","contame un chiste"].some(t=>!commands.some(cmd=>cmd.trigger_text===t))){await addStarterCommands();return;}
+    }
+    if(usePresetCommands()&&["hola","ayuda","gracias","quién sos","qué podés hacer","contame un chiste"].some(t=>!commands.some(cmd=>cmd.trigger_text===t))){await addStarterCommands();return;}
     render();
   }
   function render(){
@@ -397,7 +411,7 @@
     if(!commands.length)ml.append(node("div","empty","Todavía no hay comandos."));
     const uncategorized=commands.filter(c=>!categories.some(cat=>cat.id===c.category_id));
     categories.forEach(cat=>{
-      const grouped=commands.filter(c=>c.category_id===cat.id);
+      const grouped=visibleCommands.filter(c=>c.category_id===cat.id);
       if(!grouped.length)return;
       const group=node("section","command-category");
       group.append(node("h4","category-heading",cat.name));
@@ -421,14 +435,15 @@
       btn("Editar","small",()=>{$("responseId").value=r.id;$("responseCommand").value=r.command_id;$("responseContent").value=r.content;$("responsePriority").value=r.priority;$("responseActive").checked=r.is_active;$("cancelResponse").classList.remove("hidden");}),
       btn("Borrar","small danger",()=>remove("qbit_responses",r.id,"¿Borrar esta respuesta?"))
     ]));});
-    if(!commands.length)qc.append(node("div","empty","Agregá comandos desde el panel."));
+    const visibleCommands=commands.filter(c=>usePresetCommands()||!PRESET_TRIGGERS.has(c.trigger_text));
+    if(!visibleCommands.length)qc.append(node("div","empty",usePresetCommands()?"Agregá comandos desde el panel.":"No hay comandos personalizados para mostrar."));
     categories.forEach(cat=>{
       const grouped=commands.filter(c=>c.category_id===cat.id);
       if(!grouped.length)return;
       qc.append(node("h4","category-heading",cat.name));
       grouped.forEach(c=>{const x=node("div","item");x.append(node("strong","",c.name),node("p","muted","Escribí: "+c.trigger_text));x.append(btn("Probar comando","small",()=>{$("chatInput").value=c.trigger_text;$("sendForm").requestSubmit();}));qc.append(x);});
     });
-    commands.filter(c=>!categories.some(cat=>cat.id===c.category_id)).forEach(c=>{const x=node("div","item");x.append(node("strong","","Sin categoría · "+c.name),node("p","muted","Escribí: "+c.trigger_text));x.append(btn("Probar comando","small",()=>{$("chatInput").value=c.trigger_text;$("sendForm").requestSubmit();}));qc.append(x);});
+    visibleCommands.filter(c=>!categories.some(cat=>cat.id===c.category_id)).forEach(c=>{const x=node("div","item");x.append(node("strong","","Sin categoría · "+c.name),node("p","muted","Escribí: "+c.trigger_text));x.append(btn("Probar comando","small",()=>{$("chatInput").value=c.trigger_text;$("sendForm").requestSubmit();}));qc.append(x);});
   }
   async function save(table,idField,values,reset){
     const id=$(idField).value,payload={...values,user_id:user.id};
@@ -447,6 +462,11 @@
   function resetResponse(){$("responseId").value="";$("responseCommand").value="";$("responseContent").value="";$("responsePriority").value="1";$("responseActive").checked=true;$("cancelResponse").classList.add("hidden");}
   $("loginForm").addEventListener("submit",async e=>{e.preventDefault();say("loginMsg","Iniciando sesión…");const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){say("loginMsg","No se pudo iniciar sesión. Revisá los datos. "+error.message,true);return;}$("password").value="";session(data.user);await refresh();});
   $("logoutBtn").onclick=async()=>{await db.auth.signOut();session(null);};
+  $("presetCommandsToggle")?.addEventListener("change",async e=>{
+    try{localStorage.setItem(PRESET_COMMANDS_KEY,String(e.target.checked));}catch{}
+    if(e.target.checked){notice("Activando los comandos predeterminados…");await addStarterCommands();}
+    else{notice("Comandos predeterminados desactivados. No se crearán ni aparecerán en comandos rápidos.");await refresh();}
+  });
   $("categoryForm").onsubmit=async e=>{e.preventDefault();await save("qbit_categories","categoryId",{name:$("categoryName").value.trim()},resetCategory);};
   $("commandForm").onsubmit=async e=>{e.preventDefault();if(!$("commandCategory").value){notice("Elegí una categoría primero.",true);return;}await save("qbit_commands","commandId",{name:$("commandName").value.trim(),trigger_text:$("commandTrigger").value.trim(),category_id:$("commandCategory").value},resetCommand);};
   $("responseForm").onsubmit=async e=>{e.preventDefault();if(!$("responseCommand").value){notice("Elegí un comando primero.",true);return;}await save("qbit_responses","responseId",{command_id:$("responseCommand").value,content:$("responseContent").value.trim(),priority:Number($("responsePriority").value)||0,is_active:$("responseActive").checked,updated_at:new Date().toISOString()},resetResponse);};
@@ -660,7 +680,6 @@
   };
   window.qbitPC?.onPetMessage?.(message=>{const input=$("chatInput");if(!input)return;petMessagePending=true;input.value=String(message||"").slice(0,500);$("sendForm").requestSubmit();});
   $("clearChat").onclick=()=>newChat();
-  $("newChatFromHistory").onclick=()=>newChat();
   $("newChatSidebar")?.addEventListener("click",()=>newChat());
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
 
@@ -723,7 +742,7 @@
         if(respError){notice("No se pudo guardar la respuesta de "+item[0]+": "+respError.message,true);return;}
       }
     }
-    notice("¡Listo! Se agregaron 6 comandos iniciales.");
+    notice("¡Listo! Se agregaron los comandos predeterminados.");
     await refresh();
   }
   (async()=>{const {data}=await db.auth.getSession();if(data.session){session(data.session.user);await refresh();}else session(null);})();
