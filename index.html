@@ -28,7 +28,21 @@
   </form>
 </section>
 <section id="appView" class="hidden">
-  <div class="tabs"><button class="active" data-tab="chatView">💬 Asistente</button><button data-tab="historyView">🕘 Historial</button><button data-tab="connectorView">🔌 Conector</button><button data-tab="mascotSettingsView">🤖 Mascota</button><button data-tab="adminView">⚙️ Administrar QBIT</button></div>
+  <div class="app-shell">
+    <aside class="sidebar card" aria-label="Navegación principal">
+      <div class="sidebar-heading"><img src="qbit-icon.svg" alt=""><div><strong>QBIT</strong><small>Espacio de trabajo</small></div></div>
+      <button id="newChatSidebar" class="new-session" type="button"><span>＋</span> Nueva sesión</button>
+      <div class="sidebar-label">MENÚ</div>
+      <nav class="sidebar-nav">
+        <button class="active" data-tab="chatView" type="button"><span>◈</span> Asistente</button>
+        <button data-tab="historyView" type="button"><span>◷</span> Historial</button>
+        <button data-tab="connectorView" type="button"><span>⌁</span> Conector</button>
+        <button data-tab="mascotSettingsView" type="button"><span>◇</span> Mascota</button>
+        <button data-tab="adminView" type="button"><span>⚙</span> Administrar QBIT</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="status-dot"></span><span>QBIT Extension</span><small>Conectá tu IA desde Conector</small></div>
+    </aside>
+    <main class="workspace">
   <section id="chatView"><div class="layout">
     <div class="card"><div class="section-title"><h2>Chat</h2><button id="clearChat" class="small">Limpiar chat</button></div>
       <p class="muted">Primero se ejecutan tus comandos y funciones de QBIT. Si no hay respuesta, se consulta la IA conectada.</p>
@@ -69,6 +83,8 @@
       <div id="responsesList" class="list"></div>
     </div>
   </section>
+    </main>
+  </div>
 </section>
 <footer>QBIT · Primera versión en construcción 🩵</footer>
 </div>
