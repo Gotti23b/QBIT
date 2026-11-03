@@ -1,7 +1,7 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.5",
-  "description": "QBIT Desktop 1.4.7 con corrección de artifacts y proveedor visible",
+  "version": "1.5.6",
+  "description": "QBIT Desktop con organización de chats y menú de conversación",
   "private": true,
   "main": "windows/electron/main.cjs",
   "scripts": {
