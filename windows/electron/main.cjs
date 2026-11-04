@@ -4,6 +4,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const WebSocket = require("ws");
+const { AgentEngine } = require("./agent-engine.cjs");
 let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
 
@@ -13,6 +14,8 @@ let tray;
 let isQuitting = false;
 let connectorServer=null,connectorSocket=null;
 const connectorPending=new Map();
+const agentActionPending = new Map();
+let agentEngine = null;
 let petExpanded = false;
 const DEFAULT_PET_SETTINGS = Object.freeze({ visible: true, size: "normal", animations: true });
 let petSettings = { ...DEFAULT_PET_SETTINGS };
@@ -37,6 +40,51 @@ function connectorConnected(){return !!connectorSocket&&connectorSocket.readySta
 function startConnectorServer(){if(connectorServer)return Promise.resolve({ok:true,message:"El conector ya está iniciado."});return new Promise((resolve,reject)=>{const server=new WebSocket.Server({host:"127.0.0.1",port:17614,path:"/qbit-console"});connectorServer=server;server.once("listening",()=>resolve({ok:true,message:"Conector iniciado. Ahora conectá QBIT Extension desde Chrome."}));server.once("error",err=>{connectorServer=null;reject(new Error(err.code==="EADDRINUSE"?"El puerto 17614 ya está ocupado.":err.message));});server.on("connection",(socket,request)=>{if(!/^chrome-extension:\/\/[a-p]{32}$/.test(String(request.headers.origin||""))){socket.close(1008,"Origen no permitido");return;}if(connectorSocket&&connectorSocket.readyState===WebSocket.OPEN)connectorSocket.close();connectorSocket=socket;socket.on("message",raw=>{let msg;try{msg=JSON.parse(String(raw));}catch{return;}if(msg.type==="hello"){socket.send(JSON.stringify({type:"hello_ack"}));const bundled=bundledExtensionVersion();if(bundled&&msg.version&&isNewerVersion(bundled,String(msg.version)))socket.send(JSON.stringify({type:"reload_extension",version:bundled}));return;}if(msg.type==="ai_result"&&typeof msg.id==="string"){const p=connectorPending.get(msg.id);if(!p)return;clearTimeout(p.timer);connectorPending.delete(msg.id);msg.ok&&typeof msg.answer==="string"?p.resolve({answer:msg.answer,provider:String(msg.provider||"IA del navegador")}):p.reject(new Error(String(msg.error||"La IA no pudo responder.")));}});socket.on("close",()=>{if(connectorSocket===socket)connectorSocket=null;for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("La extensión se desconectó."));connectorPending.delete(id);}if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:!!connectorServer,connected:false});});socket.on("error",()=>{});if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:true,connected:true});});});}
 function stopConnectorServer(){for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("El conector se desconectó."));connectorPending.delete(id);}if(connectorSocket){try{connectorSocket.close(1000,"Desconectado desde QBIT");}catch{}connectorSocket=null;}if(connectorServer){try{connectorServer.close();}catch{}connectorServer=null;}return {ok:true};}
 function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));if(!connectorConnected())return Promise.reject(new Error("La extensión no está conectada. Iniciá el conector y tocá Conectar en el icono de QBIT Extension."));const id=require("node:crypto").randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}});}
+
+function dispatchAgentArtifact(payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error("Abrí QBIT para autorizar la acción del agente."));
+  const id = require("node:crypto").randomUUID();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { agentActionPending.delete(id); reject(new Error("La acción no recibió respuesta de QBIT.")); }, 120000);
+    agentActionPending.set(id, { resolve, reject, timer });
+    mainWindow.webContents.send("qbit:agent-action", { id, ...payload });
+  });
+}
+function initializeAgentEngine() {
+  if (agentEngine) return;
+  agentEngine = new AgentEngine({
+    dataPath: path.join(app.getPath("userData"), "agents", "state.json"),
+    runAI: prompt => askBrowserAI(prompt),
+    onAction: payload => dispatchAgentArtifact(payload),
+    onUpdate: state => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:agents-updated", state);
+    }
+  });
+  agentEngine.start();
+}
+ipcMain.handle("qbit:agents-get", () => agentEngine?.snapshot() || { bots: [], tasks: [], logs: [] });
+ipcMain.handle("qbit:agents-create-bot", (_e, input) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.createBot(input); });
+ipcMain.handle("qbit:agents-update-bot", (_e, id, patch) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.updateBot(id, patch); });
+ipcMain.handle("qbit:agents-delete-bot", (_e, id) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.deleteBot(id); });
+ipcMain.handle("qbit:agents-create-task", (_e, input) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.createTask(input); });
+ipcMain.handle("qbit:agents-task-state", (_e, id, state) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.setTaskState(id, state); });
+ipcMain.handle("qbit:agents-run-task", async (_e, id) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); await agentEngine.runNow(id); return { ok: true }; });
+ipcMain.handle("qbit:agents-action-result", (event, id, result) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("No autorizado.");
+  const pending = agentActionPending.get(String(id));
+  if (!pending) return { ok: false };
+  clearTimeout(pending.timer); agentActionPending.delete(String(id)); pending.resolve(String(result || "Acción procesada."));
+  return { ok: true };
+});
+ipcMain.on("qbit:agents-action-error", (event, id, message) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return;
+  const pending = agentActionPending.get(String(id));
+  if (!pending) return;
+  clearTimeout(pending.timer); agentActionPending.delete(String(id)); pending.reject(new Error(String(message || "La acción falló.")));
+});
+ipcMain.on("qbit:agents-ready", event => {
+  if (mainWindow && event.sender === mainWindow.webContents && agentEngine) event.sender.send("qbit:agents-updated", agentEngine.snapshot());
+});
 
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 // QBIT baja la versión nueva en segundo plano y pregunta: reiniciar ahora o seguir
@@ -718,13 +766,14 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 });
 
 app.whenReady().then(() => {
+  initializeAgentEngine();
   loadPetSettings();
   createTray();
   createWindow();
   createPetWindow();
   setupAutoUpdater();
 });
-app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); });
+app.on("before-quit", () => { isQuitting = true; agentEngine?.stop(); for (const [id,p] of agentActionPending) { clearTimeout(p.timer); p.reject(new Error("QBIT se está cerrando.")); agentActionPending.delete(id); } stopConnectorServer(); });
 app.on("window-all-closed", () => {
   if (isQuitting) app.quit();
 });
