@@ -116,6 +116,7 @@ class AgentEngine {
     if (!name) throw new Error("El bot necesita un nombre.");
     const bot = { id: this.id(), name, instructions: String(input.instructions || "").slice(0, 6000), createdAt: this.iso(), enabled: true };
     if (Array.isArray(input.allowedArtifacts)) bot.allowedArtifacts = input.allowedArtifacts.map(String);
+    bot.computerUse = input.computerUse === true;
     this.state.bots.push(bot); this.changed(); return bot;
   }
   updateBot(id, patch = {}) {
@@ -124,6 +125,7 @@ class AgentEngine {
     if (patch.name !== undefined) { const name = String(patch.name).trim().slice(0, 60); if (!name) throw new Error("El nombre no puede quedar vacío."); bot.name = name; }
     if (patch.instructions !== undefined) bot.instructions = String(patch.instructions).slice(0, 6000);
     if (patch.enabled !== undefined) bot.enabled = !!patch.enabled;
+    if (patch.computerUse !== undefined) bot.computerUse = patch.computerUse === true;
     if (patch.allowedArtifacts !== undefined) bot.allowedArtifacts = Array.isArray(patch.allowedArtifacts) ? patch.allowedArtifacts.map(String) : undefined;
     this.changed(); return bot;
   }
@@ -234,6 +236,7 @@ class AgentEngine {
     if (tool === "fetch_url") return this.fetchText(args.url, MAX_OBS);
     if (tool === "remember") { task.memory = String(args.nota ?? args.note ?? "").slice(0, 800); this.changed(); return "Nota guardada."; }
     if (tool === "notify") { this.notify({ title: String(args.title || bot.name).slice(0, 80), body: String(args.message || "").slice(0, 300) }); return "Notificación enviada."; }
+    if (tool.startsWith("computer_") && bot.computerUse !== true) return "BLOQUEADO: activá Computer Use en la configuración de este bot.";
     if (Array.isArray(bot.allowedArtifacts) && !bot.allowedArtifacts.includes(tool)) return "BLOQUEADO: este bot no tiene permiso para usar " + tool + ".";
     if (typeof this.onAction !== "function") throw new Error("No está disponible el sistema de Artifacts de QBIT.");
     return String((await this.onAction({ botId: bot.id, taskId: task.id, call: { artifact: tool, args } })) ?? "Acción procesada.");
@@ -258,7 +261,7 @@ class AgentEngine {
         `"esperar" te vuelve a ejecutar en N minutos. "vigilar": QBIT consulta la fuente sin usar IA y te despierta cuando cambie o coincida; ` +
         `la fuente debe ser fetch_url (elegí páginas estables) o una herramienta de solo lectura (system_info, battery_info, network_info, get_processes, cpu_usage, ram_usage, disk_usage…). ` +
         `Podés trabajar todos los pasos que necesites. Si la meta es larga, guardá tu avance con remember: los pasos viejos del historial se recortan para que el mensaje entre. Si algo falló o no te autorizaron, no insistas con lo mismo.`,
-      `HERRAMIENTAS PC: ${CATALOG}\nHERRAMIENTAS DEL AGENTE: fetch_url {"url"}; remember {"nota"} (reemplaza tu nota); notify {"title","message"}.`,
+      `HERRAMIENTAS PC: ${CATALOG}\n` + (bot.computerUse === true ? `COMPUTER USE: computer_observe {}; computer_click {"target":"nombre o AutomationId"}; computer_type {"text":"texto"} (campo enfocado); computer_key {"key":"ENTER|TAB|ESCAPE|BACKSPACE|DELETE|UP|DOWN|LEFT|RIGHT|CTRL+A|CTRL+C|CTRL+V"}. Observá antes y verificá después. Solo controles accesibles por Windows UI Automation; no se envían capturas al modelo. No realices compras, pagos, envíos de mensajes ni acciones destructivas sin autorización explícita.\n` : "COMPUTER USE DESACTIVADO para este bot.\n") + `HERRAMIENTAS DEL AGENTE: fetch_url {"url"}; remember {"nota"} (reemplaza tu nota); notify {"title","message"}.`,
       `INSTRUCCIONES DEL BOT:\n${String(bot.instructions || "Trabajá con cuidado.").slice(0, 1500)}`,
       `META:\n${String(task.objective).slice(0, 2000)}`,
       task.memory ? `TU NOTA GUARDADA:\n${task.memory.slice(0, 800)}` : "",
