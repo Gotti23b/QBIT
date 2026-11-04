@@ -100,12 +100,12 @@
   </div></section>
 <section id="agentsView" class="hidden">
     <div class="agents-page">
-      <div class="agents-heading"><div><span class="eyebrow">QBIT AUTONOMOUS WORKSPACE</span><h2>Bots y automatizaciones</h2><p class="muted">Agentes persistentes que conservan sus tareas y pueden reanudarlas.</p></div><button id="agentCreateBot" class="primary" type="button">＋ Nuevo bot</button></div>
+      <div class="agents-heading"><div><span class="eyebrow">QBIT AUTONOMOUS WORKSPACE</span><h2>Bots y automatizaciones</h2><p class="muted">Agentes persistentes que conservan sus tareas y pueden reanudarlas.</p></div><button id="agentCreateBot" data-agent-action="create-bot" class="primary" type="button">＋ Nuevo bot</button></div>
       <div class="agents-layout">
         <aside class="card agents-list-card"><div class="mini-heading"><span>TUS BOTS</span><span id="agentBotCount" class="muted">0</span></div><div id="agentBotList" class="agents-bot-list"><div class="empty">Cargando bots…</div></div></aside>
         <div class="agents-main">
-          <div class="card agent-detail-card"><div class="agents-heading"><div><span class="eyebrow">AGENTE SELECCIONADO</span><h3 id="agentSelectedName">QBIT</h3><p id="agentSelectedInstructions" class="muted">Configuración e instrucciones del bot.</p></div><button id="agentEditBot" type="button" class="small">⚙ Configurar</button></div><div class="agent-controls"><span id="agentEngineStatus" class="notice">Motor de agentes listo. La IA se activa cuando una tarea necesita razonar.</span></div></div>
-          <div class="card agent-tasks-card"><div class="agents-heading"><div><h3>Tareas</h3><p class="muted">Programadas, manuales y en ejecución.</p></div><button id="agentCreateTask" class="primary" type="button">＋ Nueva tarea</button></div><div id="agentTaskList" class="agents-task-list"><div class="empty">Todavía no hay tareas.</div></div></div>
+          <div class="card agent-detail-card"><div class="agents-heading"><div><span class="eyebrow">AGENTE SELECCIONADO</span><h3 id="agentSelectedName">QBIT</h3><p id="agentSelectedInstructions" class="muted">Configuración e instrucciones del bot.</p></div><button id="agentEditBot" data-agent-action="edit-bot" type="button" class="small">⚙ Configurar</button></div><div class="agent-controls"><span id="agentEngineStatus" class="notice">Motor de agentes listo. La IA se activa cuando una tarea necesita razonar.</span></div></div>
+          <div class="card agent-tasks-card"><div class="agents-heading"><div><h3>Tareas</h3><p class="muted">Programadas, manuales y en ejecución.</p></div><button id="agentCreateTask" data-agent-action="create-task" class="primary" type="button">＋ Nueva tarea</button></div><div id="agentTaskList" class="agents-task-list"><div class="empty">Todavía no hay tareas.</div></div></div>
           <div class="card agent-logs-card"><div class="agents-heading"><div><h3>Actividad</h3><p class="muted">Registro de ejecuciones y resultados.</p></div></div><div id="agentLogList" class="agents-log-list"><div class="empty">Todavía no hay actividad.</div></div></div>
         </div>
       </div>
