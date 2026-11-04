@@ -24,14 +24,19 @@ QBIT Desktop y la consola de PowerShell usan el mismo puerto (`127.0.0.1:17614`)
 La consola de PowerShell solo reenvía texto: no ejecuta comandos ni lo que escribe la IA.
 
 
-## Agentes persistentes (QBIT Desktop 1.5.7)
+## BOTS y automatizaciones (QBIT Desktop 1.5.9)
 
-La sección **BOTS** incorpora el primer motor local de agentes persistentes:
+La sección **BOTS** permite crear agentes persistentes que trabajan con la IA conectada mediante QBIT Extension y ejecutan los Artifacts de escritorio existentes, respetando sus permisos y confirmaciones.
 
-- Los bots y sus instrucciones se guardan en `%APPDATA%/qbit-desktop/agents/state.json` (carpeta de datos de Electron).
-- Cada bot puede tener tareas manuales o programadas por intervalo.
-- El motor revisa las tareas cada cinco segundos, pero solo consulta la IA cuando una tarea vence o se ejecuta manualmente.
-- Las tareas conservan estado, próxima ejecución e historial; al cerrar QBIT se guarda el estado y al volver a abrir se recuperan las tareas.
-- Los bots usan la IA conectada mediante QBIT Extension. Los bloques `qbit` que devuelve la IA se envían al sistema de Artifacts existente, que mantiene sus confirmaciones y permisos.
+Funciones incluidas:
+- Crear, configurar, activar, pausar y borrar bots.
+- Asignar a cada bot tareas manuales, recurrentes por intervalo o programadas para una fecha y hora.
+- Editar y borrar tareas; ejecutarlas ahora, pausarlas, reanudarlas o detenerlas.
+- Reintentar tareas programadas que fallen: el motor vuelve a intentarlo al minuto siguiente.
+- Guardar bots, tareas, próximas ejecuciones y hasta 500 registros de actividad en la carpeta de datos de QBIT.
+- Reanudar las tareas activas al abrir QBIT. El motor solo consulta a la IA cuando una tarea se ejecuta; el temporizador local revisa vencimientos cada cinco segundos.
+- Enviar los bloques `qbit` devueltos por la IA al ejecutor de Artifacts de QBIT, que conserva las confirmaciones y permisos configurados.
 
-Esta es la primera etapa del sistema. Los disparadores externos (por ejemplo, detectar que apareció un video o que Classroom publicó un archivo), Computer Use con observación de pantalla y la colaboración entre varios bots todavía requieren implementación adicional; no se anuncian como funciones terminadas en esta versión.
+Las tareas automáticas funcionan mientras QBIT Desktop esté abierto, incluso si la ventana principal está minimizada en la bandeja. Al salir completamente de QBIT, el temporizador se detiene y el estado queda guardado.
+
+**Límites de esta versión:** la programación por intervalo y fecha/hora ya está disponible, pero todavía no hay detectores específicos de eventos externos (por ejemplo, vigilar automáticamente las novedades de Classroom o detectar que un video se publicó), observación continua de pantalla/Computer Use autónomo ni colaboración coordinada entre varios bots. Esas capacidades requieren integraciones adicionales y no se presentan como terminadas.
