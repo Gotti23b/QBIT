@@ -311,7 +311,7 @@
           action();
         }));
         addAction(chat.pinned?"☆  Quitar de fijados":"★  Fijar chat",()=>{chat.pinned=!chat.pinned;saveHistory();renderHistory();});
-        addAction("✎  Cambiar nombre",()=>{
+        addAction("✎  Cambiar nombre",async()=>{
           const title=await agentDialog("Cambiar nombre del chat",[{name:"title",label:"Nombre del chat",value:chat.title||"Nuevo chat",required:true}]);
           if(title===null)return;
           const clean=title.trim();
