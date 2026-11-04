@@ -350,10 +350,82 @@
     bubble("QBIT","Chat nuevo. ¿Qué probamos? ✨","bot");
     renderHistory();activateTab("chatView");
   }
+  let agentState={bots:[],tasks:[],logs:[]},selectedAgentId=null;
+  function selectedAgent(){return agentState.bots.find(x=>x.id===selectedAgentId)||agentState.bots[0]||null;}
+  function renderAgents(){
+    const list=$("agentBotList"),tasks=$("agentTaskList"),logs=$("agentLogList");if(!list||!tasks||!logs)return;
+    list.replaceChildren();$("agentBotCount").textContent=String(agentState.bots.length);
+    if(!agentState.bots.length)list.append(node("div","empty","No hay bots todavía."));
+    for(const bot of agentState.bots){
+      const item=btn("", "agent-bot-item"+(bot.id===selectedAgentId?" active":""),()=>{selectedAgentId=bot.id;renderAgents();});
+      item.append(node("span","agent-bot-avatar","🤖"),node("span","agent-bot-name",bot.name),node("span","agent-bot-state",bot.enabled?"●":"Ⅱ"));list.append(item);
+    }
+    const bot=selectedAgent();
+    $("agentSelectedName").textContent=bot?.name||"Sin bots";
+    $("agentSelectedInstructions").textContent=bot?.instructions||"Este bot todavía no tiene instrucciones propias.";
+    $("agentEditBot").disabled=!bot;
+    const ownTasks=agentState.tasks.filter(t=>t.botId===bot?.id);
+    tasks.replaceChildren();
+    if(!ownTasks.length)tasks.append(node("div","empty","Este bot todavía no tiene tareas. Creá una con «Nueva tarea»."));
+    for(const task of ownTasks){
+      const card=node("article","agent-task-item"),head=node("div","agent-task-head"),title=node("strong","",task.title),status=node("span","agent-task-status "+task.status,task.status==="active"?"ACTIVA":task.status==="paused"?"PAUSADA":"DETENIDA");
+      head.append(title,status);card.append(head,node("p","",task.objective));
+      const meta=task.trigger==="interval"?"Cada "+task.intervalMinutes+" min":"Ejecución manual";
+      card.append(node("small","agent-task-meta",meta+(task.nextRunAt?" · Próxima: "+new Date(task.nextRunAt).toLocaleString("es-AR"):"")));
+      const actions=node("div","agent-task-actions");
+      actions.append(btn("▶ Ejecutar","small",async()=>{try{await window.qbitPC.runAgentTask(task.id);await loadAgents();}catch(e){alert(e.message||"No se pudo iniciar la tarea.");}}));
+      if(task.status==="active")actions.append(btn("Ⅱ Pausar","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"paused");await loadAgents();}));
+      else if(task.status==="paused")actions.append(btn("▶ Reanudar","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"active");await loadAgents();}));
+      if(task.status!=="stopped")actions.append(btn("■ Detener","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"stopped");await loadAgents();}));
+      card.append(actions);tasks.append(card);
+    }
+    logs.replaceChildren();
+    const ownLogs=agentState.logs.filter(x=>x.botId===bot?.id).slice(-30).reverse();
+    if(!ownLogs.length)logs.append(node("div","empty","Las ejecuciones de este bot aparecerán acá."));
+    for(const log of ownLogs){const row=node("div","agent-log-item "+log.level);row.append(node("span","agent-log-time",new Date(log.at).toLocaleString("es-AR")),node("span","agent-log-message",log.message));logs.append(row);}
+  }
+  async function loadAgents(){
+    if(!window.qbitPC?.isDesktop){$("agentEngineStatus").textContent="Los agentes persistentes están disponibles en QBIT Desktop para Windows.";return;}
+    try{agentState=await window.qbitPC.getAgents();if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();$("agentEngineStatus").textContent="Motor activo · "+agentState.bots.length+" bots · "+agentState.tasks.filter(t=>t.status==="active").length+" tareas activas.";}
+    catch(e){$("agentEngineStatus").textContent="No pude cargar los agentes: "+(e.message||e);}
+  }
+  async function createAgentBot(){
+    const name=prompt("Nombre del nuevo bot:","Nuevo bot");if(name===null)return;
+    const instructions=prompt("Instrucciones propias del bot (podés cambiarlas después):","");if(instructions===null)return;
+    try{const bot=await window.qbitPC.createAgentBot({name,instructions});selectedAgentId=bot.id;await loadAgents();}
+    catch(e){alert(e.message||"No se pudo crear el bot.");}
+  }
+  async function editAgentBot(){
+    const bot=selectedAgent();if(!bot)return;
+    const name=prompt("Nombre del bot:",bot.name);if(name===null)return;
+    const instructions=prompt("Instrucciones del bot:",bot.instructions||"");if(instructions===null)return;
+    try{await window.qbitPC.updateAgentBot(bot.id,{name,instructions});await loadAgents();}
+    catch(e){alert(e.message||"No se pudo guardar la configuración.");}
+  }
+  async function createAgentTask(){
+    const bot=selectedAgent();if(!bot){alert("Primero creá un bot.");return;}
+    const title=prompt("Nombre de la tarea:","Nueva tarea");if(title===null)return;
+    const objective=prompt("¿Qué tiene que hacer el bot? Escribí el objetivo completo.");if(objective===null)return;
+    const mode=prompt("¿Cómo se ejecuta? Escribí «cada» para una tarea programada o «manual» para ejecutarla cuando quieras.","cada");
+    if(mode===null)return;
+    let trigger="manual",intervalMinutes=30;
+    if(normalizeText(mode).startsWith("cada")){const raw=prompt("¿Cada cuántos minutos?","30");if(raw===null)return;intervalMinutes=Number(raw);if(!Number.isInteger(intervalMinutes)||intervalMinutes<1||intervalMinutes>10080){alert("Usá un intervalo entre 1 y 10080 minutos.");return;}trigger="interval";}
+    try{await window.qbitPC.createAgentTask({botId:bot.id,title,objective,trigger,intervalMinutes});await loadAgents();}
+    catch(e){alert(e.message||"No se pudo crear la tarea.");}
+  }
+  window.qbitPC?.onAgentsUpdated?.(state=>{agentState=state;if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();});
+  window.qbitPC?.onAgentAction?.(async payload=>{
+    try{const result=await runArtifactBlock(JSON.stringify(payload.call||{}));await window.qbitPC.completeAgentAction(payload.id,result);}
+    catch(e){window.qbitPC?.sendAgentActionError?.(payload.id,e?.message||"No se pudo ejecutar el Artifact.");}
+  });
+  $("agentCreateBot")?.addEventListener("click",createAgentBot);
+  $("agentEditBot")?.addEventListener("click",editAgentBot);
+  $("agentCreateTask")?.addEventListener("click",createAgentTask);
+  const originalActivateTab = null;
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","connectorView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
-    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();
+    ["chatView","agentsView","connectorView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="agentsView")void loadAgents();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
