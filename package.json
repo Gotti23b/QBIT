@@ -1,6 +1,6 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.12",
+  "version": "1.5.13",
   "description": "QBIT Desktop con bots persistentes, tareas programadas y gestión completa",
   "private": true,
   "main": "windows/electron/main.cjs",
@@ -26,6 +26,7 @@
     "directories": {
       "output": "dist"
     },
+    "asarUnpack": ["windows/scripts/**/*"],
     "files": [
       "index.html",
       "app.js",
