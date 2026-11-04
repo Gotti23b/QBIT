@@ -114,6 +114,7 @@ class AgentEngine {
       }
       this.log(bot.id, task.id, "success", report || "Ejecución completada.");
     } catch (error) {
+      if (task.trigger === "interval" && task.status === "active") task.nextRunAt = new Date(Date.now() + 60000).toISOString();
       this.log(bot.id, task.id, "error", error?.message || "No se pudo ejecutar la tarea.");
     } finally {
       this.busy.delete(taskId);
