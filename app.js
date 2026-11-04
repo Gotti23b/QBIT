@@ -363,7 +363,7 @@
     }
     const bot=selectedAgent();
     $("agentSelectedName").textContent=bot?.name||"Sin bots";
-    $("agentSelectedInstructions").textContent=bot?.instructions||"Este bot todavía no tiene instrucciones propias.";
+    $("agentSelectedInstructions").textContent=(bot?.instructions||"Este bot todavía no tiene instrucciones propias.")+(bot?.computerUse?"\n\nComputer Use: ACTIVADO":"\n\nComputer Use: desactivado");
     $("agentEditBot").disabled=!bot;
     const toggle=$("agentToggleBot"),remove=$("agentDeleteBot");
     if(toggle){toggle.disabled=!bot;toggle.textContent=bot?.enabled?"Ⅱ Pausar bot":"▶ Activar bot";}
@@ -434,13 +434,13 @@
     });
   }
   async function createAgentBot(){
-    const v=await agentDialog("Crear un bot",[{name:"name",label:"Nombre",value:"Nuevo bot",required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:""}]);
-    if(!v)return;try{const bot=await window.qbitPC.createAgentBot(v);selectedAgentId=bot.id;await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
+    const v=await agentDialog("Crear un bot",[{name:"name",label:"Nombre",value:"Nuevo bot",required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:""},{name:"computerUse",label:"Computer Use",type:"select",value:"false",options:[{value:"false",label:"Desactivado"},{value:"true",label:"Activado — controlar ventanas de Windows"}]}]);
+    if(!v)return;v.computerUse=v.computerUse==="true";try{const bot=await window.qbitPC.createAgentBot(v);selectedAgentId=bot.id;await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
   async function editAgentBot(){
     const bot=selectedAgent();if(!bot)return;
-    const v=await agentDialog("Configurar bot",[{name:"name",label:"Nombre",value:bot.name,required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:bot.instructions||""}]);
-    if(!v)return;try{await window.qbitPC.updateAgentBot(bot.id,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
+    const v=await agentDialog("Configurar bot",[{name:"name",label:"Nombre",value:bot.name,required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:bot.instructions||""},{name:"computerUse",label:"Computer Use",type:"select",value:bot.computerUse?"true":"false",options:[{value:"false",label:"Desactivado"},{value:"true",label:"Activado — controlar ventanas de Windows"}]}]);
+    if(!v)return;v.computerUse=v.computerUse==="true";try{await window.qbitPC.updateAgentBot(bot.id,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
   async function createAgentTask(){
     const bot=selectedAgent();if(!bot){agentMessage("Primero creá un bot.");return;}if(!bot.enabled){agentMessage("Activá el bot antes.");return;}
