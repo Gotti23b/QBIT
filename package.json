@@ -1,6 +1,6 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.9",
+  "version": "1.5.10",
   "description": "QBIT Desktop con bots persistentes, tareas programadas y gestión completa",
   "private": true,
   "main": "windows/electron/main.cjs",
