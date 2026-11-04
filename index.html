@@ -42,6 +42,10 @@
           <button class="active" data-tab="chatView" type="button"><span class="nav-icon">⌂</span><span>Asistente</span><span class="nav-arrow">›</span></button>
         </nav>
       </div>
+      <div class="sidebar-group">
+        <div class="sidebar-label">AGENTES</div>
+        <nav class="sidebar-nav"><button data-tab="agentsView" type="button"><span class="nav-icon">🤖</span><span>BOTS</span></button></nav>
+      </div>
       <div class="sidebar-group chat-sidebar-group">
         <div class="sidebar-label">CHATS</div>
         <div id="chatSidebarList" class="sidebar-chat-list"><div class="sidebar-empty">Todavía no hay chats</div></div>
@@ -65,7 +69,7 @@
       <div class="sidebar-bottom">
         <span class="status-dot"></span>
         <span><strong>QBIT Extension</strong><small>Entorno de escritorio</small></span>
-        <span class="sidebar-version">1.5.6</span>
+        <span class="sidebar-version">1.5.7</span>
       </div>
     </aside>
     <main class="workspace">
@@ -94,6 +98,19 @@
       <div id="quickCommands" class="list"><div class="empty">Todavía no hay comandos.</div></div>
     </aside>
   </div></section>
+<section id="agentsView" class="hidden">
+    <div class="agents-page">
+      <div class="agents-heading"><div><span class="eyebrow">QBIT AUTONOMOUS WORKSPACE</span><h2>Bots y automatizaciones</h2><p class="muted">Agentes persistentes que conservan sus tareas y pueden reanudarlas.</p></div><button id="agentCreateBot" class="primary" type="button">＋ Nuevo bot</button></div>
+      <div class="agents-layout">
+        <aside class="card agents-list-card"><div class="mini-heading"><span>TUS BOTS</span><span id="agentBotCount" class="muted">0</span></div><div id="agentBotList" class="agents-bot-list"><div class="empty">Cargando bots…</div></div></aside>
+        <div class="agents-main">
+          <div class="card agent-detail-card"><div class="agents-heading"><div><span class="eyebrow">AGENTE SELECCIONADO</span><h3 id="agentSelectedName">QBIT</h3><p id="agentSelectedInstructions" class="muted">Configuración e instrucciones del bot.</p></div><button id="agentEditBot" type="button" class="small">⚙ Configurar</button></div><div class="agent-controls"><span id="agentEngineStatus" class="notice">Motor de agentes listo. La IA se activa cuando una tarea necesita razonar.</span></div></div>
+          <div class="card agent-tasks-card"><div class="agents-heading"><div><h3>Tareas</h3><p class="muted">Programadas, manuales y en ejecución.</p></div><button id="agentCreateTask" class="primary" type="button">＋ Nueva tarea</button></div><div id="agentTaskList" class="agents-task-list"><div class="empty">Todavía no hay tareas.</div></div></div>
+          <div class="card agent-logs-card"><div class="agents-heading"><div><h3>Actividad</h3><p class="muted">Registro de ejecuciones y resultados.</p></div></div><div id="agentLogList" class="agents-log-list"><div class="empty">Todavía no hay actividad.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
 <section id="connectorView" class="hidden"><div class="card connector-card"><h2>Conector de IA 🔌</h2><p class="muted">Conectá QBIT con una pestaña de IA abierta en Chrome. Sin API keys ni modelos locales.</p><p id="connectorStatus" class="notice" aria-live="polite">Comprobando el conector…</p><div class="connector-actions"><button id="connectorStart" class="primary" type="button">▶ Ejecutar consola integrada</button><button id="connectorStop" type="button">⏹ Detener consola</button><button id="connectorFolder" type="button">📁 Abrir carpeta de la extensión</button><button id="connectorChrome" type="button">🌐 Abrir extensiones de Chrome</button></div><h3>Configuración inicial</h3><ol><li>Iniciá el conector desde el botón de arriba.</li><li>En Chrome, entrá a <code>chrome://extensions</code> y activá «Modo de desarrollador».</li><li>Elegí «Cargar descomprimida» y seleccioná la carpeta <code>browser-extension</code> incluida con QBIT.</li><li>Abrí una pestaña de ChatGPT, Gemini, Claude, DeepSeek, Qwen, Arena o Meta AI.</li><li>Tocá el icono de QBIT Extension para conectar o desconectar.</li></ol><p class="muted">Chrome requiere confirmar manualmente la carga de una extensión no publicada.</p><h3>Acciones de la IA</h3><p class="muted">Cuando la IA pide hacer algo en tu PC, QBIT te pregunta antes. Activá las que querés permitir siempre, sin preguntar. Ver la hora y la información de la PC nunca preguntan.</p><div id="aiAllowList" class="allow-list"></div><button id="aiAllowAll" class="small" type="button">Permitir todas</button><p class="muted small-note">⚠️ Con «Abrir una app, archivo, carpeta o sitio» permitido siempre, la IA puede abrir cosas de tu PC sin avisarte.</p><div class="connector-providers"><span>ChatGPT</span><span>Gemini</span><span>Claude</span><span>DeepSeek</span><span>Qwen</span><span>Arena</span><span>Meta AI</span></div></div></section>
   <section id="mascotSettingsView" class="hidden">
     <div class="card"><h2>Configuración de la mascota 🤖</h2><p class="muted">Personalizá cómo se ve y se comporta la mascota de escritorio de QBIT en Windows.</p>
@@ -124,7 +141,7 @@
   </section>
       <div class="desktop-dock" aria-label="Estado de QBIT">
         <div class="dock-left"><span class="dock-prompt">›_</span><strong>ACTIVIDAD</strong><span class="dock-muted">No hay procesos en ejecución</span></div>
-        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.5</span></div>
+        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.7</span></div>
       </div>
     </main>
   </div>
