@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, powerSaveBlocker } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -58,11 +58,19 @@ function initializeAgentEngine() {
     dataPath: path.join(app.getPath("userData"), "agents", "state.json"),
     runAI: prompt => askBrowserAI(prompt),
     onAction: payload => dispatchAgentArtifact(payload),
+    notify: ({ title, body }) => { try { if (Notification.isSupported()) new Notification({ title, body }).show(); } catch {} },
     onUpdate: state => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:agents-updated", state);
     }
   });
   agentEngine.start();
+  // Mientras haya vigilancias o tareas programadas, Windows no suspende la PC (sí puede apagar la pantalla).
+  let sleepBlock = null;
+  setInterval(() => {
+    const need = agentEngine.hasActiveWork();
+    if (need && sleepBlock === null) sleepBlock = powerSaveBlocker.start("prevent-app-suspension");
+    else if (!need && sleepBlock !== null) { powerSaveBlocker.stop(sleepBlock); sleepBlock = null; }
+  }, 30000).unref?.();
 }
 ipcMain.handle("qbit:agents-get", () => agentEngine?.snapshot() || { bots: [], tasks: [], logs: [] });
 ipcMain.handle("qbit:agents-create-bot", (_e, input) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.createBot(input); });

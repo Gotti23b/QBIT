@@ -376,7 +376,7 @@
       const labels={active:"ACTIVA",paused:"PAUSADA",stopped:"DETENIDA",completed:"COMPLETADA"};
       const status=node("span","agent-task-status "+task.status,labels[task.status]||task.status.toUpperCase());
       head.append(title,status);card.append(head,node("p","",task.objective));
-      let meta=task.trigger==="interval"?"Cada "+task.intervalMinutes+" min":task.trigger==="once"?"Una vez · "+(task.scheduledAt?new Date(task.scheduledAt).toLocaleString("es-AR"):"Fecha pendiente"):"Ejecución manual";
+      let meta=task.trigger==="interval"?"Cada "+task.intervalMinutes+" min":task.trigger==="auto"?(task.watch?"Autónoma · vigilando cada "+task.watch.everyMinutes+" min":"Autónoma"):task.trigger==="once"?"Una vez · "+(task.scheduledAt?new Date(task.scheduledAt).toLocaleString("es-AR"):"Fecha pendiente"):"Ejecución manual";
       card.append(node("small","agent-task-meta",meta+(task.nextRunAt?" · Próxima: "+new Date(task.nextRunAt).toLocaleString("es-AR"):"")));
       const actions=node("div","agent-task-actions");
       const runButton=btn("▶ Ejecutar","small",null);runButton.dataset.agentAction="run-task";runButton.dataset.taskId=task.id;actions.append(runButton);
@@ -444,7 +444,7 @@
   }
   async function createAgentTask(){
     const bot=selectedAgent();if(!bot){agentMessage("Primero creá un bot.");return;}if(!bot.enabled){agentMessage("Activá el bot antes.");return;}
-    const v=await agentDialog("Nueva tarea",[{name:"title",label:"Nombre",value:"Nueva tarea",required:true},{name:"objective",label:"Objetivo detallado",type:"textarea",required:true},{name:"trigger",label:"Programación",type:"select",value:"interval",options:[{value:"manual",label:"Manual"},{value:"interval",label:"Cada intervalo"},{value:"once",label:"Una vez, en fecha y hora"}]},{name:"intervalMinutes",label:"Intervalo (minutos)",type:"number",value:"30",min:1,max:10080},{name:"scheduledAt",label:"Fecha/hora para «Una vez»",type:"datetime-local"}]);
+    const v=await agentDialog("Nueva tarea",[{name:"title",label:"Nombre",value:"Nueva tarea",required:true},{name:"objective",label:"Objetivo detallado",type:"textarea",required:true},{name:"trigger",label:"Programación",type:"select",value:"auto",options:[{value:"auto",label:"Autónoma (la empieza y se gobierna sola)"},{value:"manual",label:"Manual"},{value:"interval",label:"Cada intervalo"},{value:"once",label:"Una vez, en fecha y hora"}]},{name:"intervalMinutes",label:"Intervalo (minutos)",type:"number",value:"30",min:1,max:10080},{name:"scheduledAt",label:"Fecha/hora para «Una vez»",type:"datetime-local"}]);
     if(!v)return;v.intervalMinutes=Number(v.intervalMinutes);if(v.trigger==="once"&&v.scheduledAt)v.scheduledAt=new Date(v.scheduledAt).toISOString();
     try{await window.qbitPC.createAgentTask({...v,botId:bot.id});await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
