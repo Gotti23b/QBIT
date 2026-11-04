@@ -304,3 +304,6 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 #agentsView,.agents-page,.agents-page button{pointer-events:auto;}
 #agentsView .agents-heading button,#agentsView .agent-task-actions button,#agentsView .agent-bot-item{position:relative;z-index:1;}
 #agentsView button:disabled{opacity:.55;cursor:wait;}
+
+.agent-task-status.completed{border-color:#285d4b;color:#7ee0ae}.agent-task-actions .danger{color:#ffaaaa;border-color:#603b43}.agent-task-actions .danger:hover{background:#351d24}
+#agentToggleBot,#agentDeleteBot{margin-left:6px}
