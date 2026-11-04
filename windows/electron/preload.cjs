@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   setAgentTaskState: (id, state) => ipcRenderer.invoke("qbit:agents-task-state", id, state),
   runAgentTask: id => ipcRenderer.invoke("qbit:agents-run-task", id),
   completeAgentAction: (id, result) => ipcRenderer.invoke("qbit:agents-action-result", id, result),
+  sendAgentActionError: (id, message) => ipcRenderer.send("qbit:agents-action-error", id, String(message || "Error de ejecución.")),
   onAgentAction: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:agent-action", (_event, payload) => callback(payload)); },
   onAgentsUpdated: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:agents-updated", (_event, state) => callback(state)); },
   notifyAgentsReady: () => ipcRenderer.send("qbit:agents-ready"),
