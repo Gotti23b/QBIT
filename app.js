@@ -357,7 +357,8 @@
     list.replaceChildren();$("agentBotCount").textContent=String(agentState.bots.length);
     if(!agentState.bots.length)list.append(node("div","empty","No hay bots todavía."));
     for(const bot of agentState.bots){
-      const item=btn("", "agent-bot-item"+(bot.id===selectedAgentId?" active":""),()=>{selectedAgentId=bot.id;renderAgents();});
+      const item=btn("", "agent-bot-item"+(bot.id===selectedAgentId?" active":""),null);
+      item.dataset.agentAction="select-bot";item.dataset.botId=bot.id;
       item.append(node("span","agent-bot-avatar","🤖"),node("span","agent-bot-name",bot.name),node("span","agent-bot-state",bot.enabled?"●":"Ⅱ"));list.append(item);
     }
     const bot=selectedAgent();
@@ -373,10 +374,9 @@
       const meta=task.trigger==="interval"?"Cada "+task.intervalMinutes+" min":"Ejecución manual";
       card.append(node("small","agent-task-meta",meta+(task.nextRunAt?" · Próxima: "+new Date(task.nextRunAt).toLocaleString("es-AR"):"")));
       const actions=node("div","agent-task-actions");
-      actions.append(btn("▶ Ejecutar","small",async()=>{try{if(task.status!=="active")await window.qbitPC.setAgentTaskState(task.id,"active");await window.qbitPC.runAgentTask(task.id);await loadAgents();}catch(e){alert(e.message||"No se pudo iniciar la tarea.");}}));
-      if(task.status==="active")actions.append(btn("Ⅱ Pausar","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"paused");await loadAgents();}));
-      else if(task.status==="paused")actions.append(btn("▶ Reanudar","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"active");await loadAgents();}));
-      if(task.status!=="stopped")actions.append(btn("■ Detener","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"stopped");await loadAgents();}));
+      const runButton=btn("▶ Ejecutar","small",null);runButton.dataset.agentAction="run-task";runButton.dataset.taskId=task.id;actions.append(runButton);
+      if(task.status==="active"||task.status==="paused"){const stateButton=btn(task.status==="active"?"Ⅱ Pausar":"▶ Reanudar","small",null);stateButton.dataset.agentAction=task.status==="active"?"pause-task":"resume-task";stateButton.dataset.taskId=task.id;actions.append(stateButton);}
+      if(task.status!=="stopped"){const stopButton=btn("■ Detener","small",null);stopButton.dataset.agentAction="stop-task";stopButton.dataset.taskId=task.id;actions.append(stopButton);}
       card.append(actions);tasks.append(card);
     }
     logs.replaceChildren();
@@ -418,9 +418,25 @@
     try{const result=await runArtifactBlock(JSON.stringify(payload.call||{}));await window.qbitPC.completeAgentAction(payload.id,result);}
     catch(e){window.qbitPC?.sendAgentActionError?.(payload.id,e?.message||"No se pudo ejecutar el Artifact.");}
   });
-  $("agentCreateBot")?.addEventListener("click",createAgentBot);
-  $("agentEditBot")?.addEventListener("click",editAgentBot);
-  $("agentCreateTask")?.addEventListener("click",createAgentTask);
+  document.addEventListener("click",async event=>{
+    const control=event.target.closest("[data-agent-action]");
+    if(!control)return;
+    event.preventDefault();
+    if(control.disabled)return;
+    const action=control.dataset.agentAction;
+    control.disabled=true;
+    try{
+      if(action==="select-bot"){selectedAgentId=control.dataset.botId;renderAgents();}
+      else if(action==="create-bot")await createAgentBot();
+      else if(action==="edit-bot")await editAgentBot();
+      else if(action==="create-task")await createAgentTask();
+      else if(action==="run-task"){const taskId=control.dataset.taskId;const task=agentState.tasks.find(x=>x.id===taskId);if(task?.status!=="active")await window.qbitPC.setAgentTaskState(taskId,"active");await window.qbitPC.runAgentTask(taskId);await loadAgents();}
+      else if(action==="pause-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"paused");await loadAgents();}
+      else if(action==="resume-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"active");await loadAgents();}
+      else if(action==="stop-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"stopped");await loadAgents();}
+    }catch(error){const message=error?.message||"No se pudo completar la acción.";const status=$("agentEngineStatus");if(status)status.textContent="Error: "+message;else alert(message);}
+    finally{if(control.isConnected)control.disabled=false;}
+  });
   const originalActivateTab = null;
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
