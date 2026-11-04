@@ -22,3 +22,16 @@ La consola solo escucha en `127.0.0.1:17614`. También podés iniciarla con `sta
 QBIT Desktop y la consola de PowerShell usan el mismo puerto (`127.0.0.1:17614`). Usá solo una de las dos a la vez.
 
 La consola de PowerShell solo reenvía texto: no ejecuta comandos ni lo que escribe la IA.
+
+
+## Agentes persistentes (QBIT Desktop 1.5.7)
+
+La sección **BOTS** incorpora el primer motor local de agentes persistentes:
+
+- Los bots y sus instrucciones se guardan en `%APPDATA%/qbit-desktop/agents/state.json` (carpeta de datos de Electron).
+- Cada bot puede tener tareas manuales o programadas por intervalo.
+- El motor revisa las tareas cada cinco segundos, pero solo consulta la IA cuando una tarea vence o se ejecuta manualmente.
+- Las tareas conservan estado, próxima ejecución e historial; al cerrar QBIT se guarda el estado y al volver a abrir se recuperan las tareas.
+- Los bots usan la IA conectada mediante QBIT Extension. Los bloques `qbit` que devuelve la IA se envían al sistema de Artifacts existente, que mantiene sus confirmaciones y permisos.
+
+Esta es la primera etapa del sistema. Los disparadores externos (por ejemplo, detectar que apareció un video o que Classroom publicó un archivo), Computer Use con observación de pantalla y la colaboración entre varios bots todavía requieren implementación adicional; no se anuncian como funciones terminadas en esta versión.
