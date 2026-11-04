@@ -43,6 +43,8 @@ function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||me
 
 function dispatchAgentArtifact(payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error("Abrí QBIT para autorizar la acción del agente."));
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
   const id = require("node:crypto").randomUUID();
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { agentActionPending.delete(id); reject(new Error("La acción no recibió respuesta de QBIT.")); }, 120000);
