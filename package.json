@@ -1,7 +1,7 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.8",
-  "description": "QBIT Desktop con agentes persistentes y controles corregidos",
+  "version": "1.5.9",
+  "description": "QBIT Desktop con bots persistentes, tareas programadas y gestión completa",
   "private": true,
   "main": "windows/electron/main.cjs",
   "scripts": {
