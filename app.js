@@ -434,54 +434,25 @@
     });
   }
   async function createAgentBot(){
-    const name=prompt("Nombre del nuevo bot:","Nuevo bot");if(name===null)return;
-    const instructions=prompt("Instrucciones propias del bot:","");if(instructions===null)return;
-    try{const bot=await window.qbitPC.createAgentBot({name,instructions});selectedAgentId=bot.id;await loadAgents();}
-    catch(e){alert(e.message||"No se pudo crear el bot.");}
+    const v=await agentDialog("Crear un bot",[{name:"name",label:"Nombre",value:"Nuevo bot",required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:""}]);
+    if(!v)return;try{const bot=await window.qbitPC.createAgentBot(v);selectedAgentId=bot.id;await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
   async function editAgentBot(){
     const bot=selectedAgent();if(!bot)return;
-    const name=prompt("Nombre del bot:",bot.name);if(name===null)return;
-    const instructions=prompt("Instrucciones del bot:",bot.instructions||"");if(instructions===null)return;
-    try{await window.qbitPC.updateAgentBot(bot.id,{name,instructions});await loadAgents();}
-    catch(e){alert(e.message||"No se pudo guardar la configuración.");}
+    const v=await agentDialog("Configurar bot",[{name:"name",label:"Nombre",value:bot.name,required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:bot.instructions||""}]);
+    if(!v)return;try{await window.qbitPC.updateAgentBot(bot.id,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
   async function createAgentTask(){
-    const bot=selectedAgent();if(!bot){alert("Primero creá un bot.");return;}
-    if(!bot.enabled){alert("Activá el bot antes de asignarle una tarea.");return;}
-    const title=prompt("Nombre de la tarea:","Nueva tarea");if(title===null)return;
-    const objective=prompt("¿Qué tiene que hacer el bot? Escribí el objetivo completo.");if(objective===null)return;
-    const mode=prompt("Elegí el tipo: «manual», «cada» (intervalo) o «una vez» (fecha y hora).","cada");
-    if(mode===null)return;
-    let trigger="manual",intervalMinutes=30,scheduledAt=null;
-    const normalized=normalizeText(mode);
-    if(normalized.startsWith("cada")||normalized==="intervalo"){
-      const raw=prompt("¿Cada cuántos minutos?","30");if(raw===null)return;
-      intervalMinutes=Number(raw);if(!Number.isInteger(intervalMinutes)||intervalMinutes<1||intervalMinutes>10080){alert("Usá un intervalo entre 1 y 10080 minutos.");return;}trigger="interval";
-    }else if(normalized==="una vez"||normalized==="una"||normalized==="once"){
-      scheduledAt=prompt("Fecha y hora futura (AAAA-MM-DDTHH:MM), por ejemplo 2026-11-04T18:30","");
-      if(scheduledAt===null)return;trigger="once";
-    }
-    try{await window.qbitPC.createAgentTask({botId:bot.id,title,objective,trigger,intervalMinutes,scheduledAt});await loadAgents();}
-    catch(e){alert(e.message||"No se pudo crear la tarea.");}
+    const bot=selectedAgent();if(!bot){agentMessage("Primero creá un bot.");return;}if(!bot.enabled){agentMessage("Activá el bot antes.");return;}
+    const v=await agentDialog("Nueva tarea",[{name:"title",label:"Nombre",value:"Nueva tarea",required:true},{name:"objective",label:"Objetivo detallado",type:"textarea",required:true},{name:"trigger",label:"Programación",type:"select",value:"interval",options:[{value:"manual",label:"Manual"},{value:"interval",label:"Cada intervalo"},{value:"once",label:"Una vez, en fecha y hora"}]},{name:"intervalMinutes",label:"Intervalo (minutos)",type:"number",value:"30",min:1,max:10080},{name:"scheduledAt",label:"Fecha/hora para «Una vez»",type:"datetime-local"}]);
+    if(!v)return;v.intervalMinutes=Number(v.intervalMinutes);if(v.trigger==="once"&&v.scheduledAt)v.scheduledAt=new Date(v.scheduledAt).toISOString();
+    try{await window.qbitPC.createAgentTask({...v,botId:bot.id});await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
   async function editAgentTask(taskId){
-    const task=agentState.tasks.find(x=>x.id===taskId);if(!task)return;
-    const title=prompt("Nombre de la tarea:",task.title);if(title===null)return;
-    const objective=prompt("Objetivo completo:",task.objective);if(objective===null)return;
-    const current=task.trigger==="interval"?"cada":task.trigger==="once"?"una vez":"manual";
-    const mode=prompt("Tipo: «manual», «cada» o «una vez».",current);if(mode===null)return;
-    const normalized=normalizeText(mode);let trigger="manual",patch={title,objective};
-    if(normalized.startsWith("cada")||normalized==="intervalo"){
-      const raw=prompt("¿Cada cuántos minutos?",String(task.intervalMinutes||30));if(raw===null)return;
-      const intervalMinutes=Number(raw);if(!Number.isInteger(intervalMinutes)||intervalMinutes<1||intervalMinutes>10080){alert("Usá un intervalo entre 1 y 10080 minutos.");return;}
-      trigger="interval";patch={...patch,trigger,intervalMinutes};
-    }else if(normalized==="una vez"||normalized==="una"||normalized==="once"){
-      const date=prompt("Fecha y hora futura (AAAA-MM-DDTHH:MM):",task.scheduledAt?task.scheduledAt.slice(0,16):"");if(date===null)return;
-      trigger="once";patch={...patch,trigger,scheduledAt:date};
-    }else patch={...patch,trigger};
-    try{await window.qbitPC.updateAgentTask(taskId,patch);await loadAgents();}
-    catch(e){alert(e.message||"No se pudo editar la tarea.");}
+    const t=agentState.tasks.find(x=>x.id===taskId);if(!t)return;
+    const v=await agentDialog("Editar tarea",[{name:"title",label:"Nombre",value:t.title,required:true},{name:"objective",label:"Objetivo detallado",type:"textarea",value:t.objective,required:true},{name:"trigger",label:"Programación",type:"select",value:t.trigger,options:[{value:"manual",label:"Manual"},{value:"interval",label:"Cada intervalo"},{value:"once",label:"Una vez, en fecha y hora"}]},{name:"intervalMinutes",label:"Intervalo (minutos)",type:"number",value:String(t.intervalMinutes||30),min:1,max:10080},{name:"scheduledAt",label:"Fecha/hora para «Una vez»",type:"datetime-local",value:t.scheduledAt?t.scheduledAt.slice(0,16):""}]);
+    if(!v)return;v.intervalMinutes=Number(v.intervalMinutes);if(v.trigger==="once"&&v.scheduledAt)v.scheduledAt=new Date(v.scheduledAt).toISOString();
+    try{await window.qbitPC.updateAgentTask(taskId,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
   window.qbitPC?.onAgentsUpdated?.(state=>{agentState=state;if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();});
   window.qbitPC?.onAgentAction?.(async payload=>{
@@ -498,10 +469,10 @@
       else if(action==="create-bot")await createAgentBot();
       else if(action==="edit-bot")await editAgentBot();
       else if(action==="toggle-bot"){const bot=selectedAgent();if(bot)await window.qbitPC.updateAgentBot(bot.id,{enabled:!bot.enabled});await loadAgents();}
-      else if(action==="delete-bot"){const bot=selectedAgent();if(bot&&confirm("¿Borrar el bot «"+bot.name+"» y todas sus tareas e historial?")){await window.qbitPC.deleteAgentBot(bot.id);selectedAgentId=null;await loadAgents();}}
+      else if(action==="delete-bot"){const bot=selectedAgent();if(bot&&await agentConfirm("Borrar bot","¿Borrar «"+bot.name+"» y todas sus tareas e historial?")){await window.qbitPC.deleteAgentBot(bot.id);selectedAgentId=null;await loadAgents();}}
       else if(action==="create-task")await createAgentTask();
       else if(action==="edit-task")await editAgentTask(control.dataset.taskId);
-      else if(action==="delete-task"){const task=agentState.tasks.find(x=>x.id===control.dataset.taskId);if(task&&confirm("¿Borrar la tarea «"+task.title+"» y su historial?")){await window.qbitPC.deleteAgentTask(task.id);await loadAgents();}}
+      else if(action==="delete-task"){const task=agentState.tasks.find(x=>x.id===control.dataset.taskId);if(task&&await agentConfirm("Borrar tarea","¿Borrar «"+task.title+"» y su historial?")){await window.qbitPC.deleteAgentTask(task.id);await loadAgents();}}
       else if(action==="run-task"){const taskId=control.dataset.taskId;const task=agentState.tasks.find(x=>x.id===taskId);if(task?.status!=="active")await window.qbitPC.setAgentTaskState(taskId,"active");await window.qbitPC.runAgentTask(taskId);await loadAgents();}
       else if(action==="pause-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"paused");await loadAgents();}
       else if(action==="resume-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"active");await loadAgents();}
