@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   updateAgentBot: (id, patch) => ipcRenderer.invoke("qbit:agents-update-bot", id, patch),
   deleteAgentBot: id => ipcRenderer.invoke("qbit:agents-delete-bot", id),
   createAgentTask: input => ipcRenderer.invoke("qbit:agents-create-task", input),
+  updateAgentTask: (id, patch) => ipcRenderer.invoke("qbit:agents-update-task", id, patch),
+  deleteAgentTask: id => ipcRenderer.invoke("qbit:agents-delete-task", id),
   setAgentTaskState: (id, state) => ipcRenderer.invoke("qbit:agents-task-state", id, state),
   runAgentTask: id => ipcRenderer.invoke("qbit:agents-run-task", id),
   completeAgentAction: (id, result) => ipcRenderer.invoke("qbit:agents-action-result", id, result),
