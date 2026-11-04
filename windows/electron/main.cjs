@@ -41,6 +41,36 @@ function startConnectorServer(){if(connectorServer)return Promise.resolve({ok:tr
 function stopConnectorServer(){for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("El conector se desconectó."));connectorPending.delete(id);}if(connectorSocket){try{connectorSocket.close(1000,"Desconectado desde QBIT");}catch{}connectorSocket=null;}if(connectorServer){try{connectorServer.close();}catch{}connectorServer=null;}return {ok:true};}
 function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));if(!connectorConnected())return Promise.reject(new Error("La extensión no está conectada. Iniciá el conector y tocá Conectar en el icono de QBIT Extension."));const id=require("node:crypto").randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}});}
 
+async function runComputerUse(payload) {
+  const action = String(payload?.call?.artifact || "");
+  const args = payload?.call?.args && typeof payload.call.args === "object" ? payload.call.args : {};
+  const allowed = new Set(["computer_observe","computer_click","computer_type","computer_key"]);
+  if (!allowed.has(action)) throw new Error("Herramienta Computer Use desconocida.");
+  const mode = action.slice("computer_".length);
+  const target = mode === "click" ? String(args.target || "").slice(0, 160) : mode === "key" ? String(args.key || "").slice(0, 20) : "";
+  const value = mode === "type" ? String(args.text || "").slice(0, 2000) : "";
+  if (mode === "click" && !target.trim()) throw new Error("Falta el nombre o AutomationId del control.");
+  const script = app.isPackaged
+    ? path.join(process.resourcesPath, "app.asar.unpacked", "windows", "scripts", "qbit-computer-use.ps1")
+    : path.join(__dirname, "..", "scripts", "qbit-computer-use.ps1");
+  if (!fs.existsSync(script)) throw new Error("No se encontró el motor local de Computer Use.");
+  return await new Promise((resolve, reject) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", mode, "-Target", target, "-Text", value], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "";
+    const timer = setTimeout(() => { child.kill(); reject(new Error("Computer Use tardó demasiado y se detuvo.")); }, 15000);
+    child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
+    child.stdout.on("data", chunk => { stdout = (stdout + chunk).slice(-30000); });
+    child.stderr.on("data", chunk => { stderr = (stderr + chunk).slice(-4000); });
+    child.once("error", error => { clearTimeout(timer); reject(error); });
+    child.once("close", code => {
+      clearTimeout(timer);
+      let result;
+      try { result = JSON.parse(stdout.trim()); } catch { reject(new Error(stderr.trim() || "Windows UI Automation no devolvió una respuesta válida.")); return; }
+      if (code !== 0 || result.ok === false) { reject(new Error(result.error || stderr.trim() || "La acción de Computer Use falló.")); return; }
+      resolve(mode === "observe" ? JSON.stringify(result).slice(0, 18000) : (result.message || "Acción realizada."));
+    });
+  });
+}
 function dispatchAgentArtifact(payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error("Abrí QBIT para autorizar la acción del agente."));
   if (!mainWindow.isVisible()) mainWindow.show();
@@ -57,7 +87,7 @@ function initializeAgentEngine() {
   agentEngine = new AgentEngine({
     dataPath: path.join(app.getPath("userData"), "agents", "state.json"),
     runAI: prompt => askBrowserAI(prompt),
-    onAction: payload => dispatchAgentArtifact(payload),
+    onAction: payload => String(payload?.call?.artifact || "").startsWith("computer_") ? runComputerUse(payload) : dispatchAgentArtifact(payload),
     notify: ({ title, body }) => { try { if (Notification.isSupported()) new Notification({ title, body }).show(); } catch {} },
     onUpdate: state => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:agents-updated", state);
