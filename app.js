@@ -312,10 +312,10 @@
         }));
         addAction(chat.pinned?"☆  Quitar de fijados":"★  Fijar chat",()=>{chat.pinned=!chat.pinned;saveHistory();renderHistory();});
         addAction("✎  Cambiar nombre",()=>{
-          const title=prompt("Nuevo nombre para este chat:",chat.title||"Nuevo chat");
+          const title=await agentDialog("Cambiar nombre del chat",[{name:"title",label:"Nombre del chat",value:chat.title||"Nuevo chat",required:true}]);
           if(title===null)return;
           const clean=title.trim();
-          if(!clean){alert("El nombre no puede estar vacío.");return;}
+          if(!clean){notice("El nombre no puede estar vacío.",true);return;}
           chat.title=clean.slice(0,80);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();
         });
         addAction(isArchived?"↩  Restaurar chat":"▣  Archivar chat",()=>{
@@ -477,7 +477,7 @@
       else if(action==="pause-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"paused");await loadAgents();}
       else if(action==="resume-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"active");await loadAgents();}
       else if(action==="stop-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"stopped");await loadAgents();}
-    }catch(error){const message=error?.message||"No se pudo completar la acción.";const status=$("agentEngineStatus");if(status)status.textContent="Error: "+message;else alert(message);}
+    }catch(error){const message=error?.message||"No se pudo completar la acción.";const status=$("agentEngineStatus");if(status)status.textContent="Error: "+message;}
     finally{if(control.isConnected)control.disabled=false;}
   });
   const originalActivateTab = null;
