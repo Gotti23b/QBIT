@@ -299,3 +299,8 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .agent-log-time{font-size:9px;color:var(--muted-2)}.agent-log-message{font-size:10px;color:#bdc9d2;white-space:pre-wrap;overflow-wrap:anywhere}
 @media(max-width:900px){.agents-layout{grid-template-columns:1fr}.agents-bot-list{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 @media(max-width:620px){.agents-page{padding:12px}.agents-heading{align-items:flex-start}.agents-heading h2{font-size:17px}.agent-log-item{grid-template-columns:1fr;gap:4px}}
+
+/* Ensure BOTS controls remain interactive above dashboard layers */
+#agentsView,.agents-page,.agents-page button{pointer-events:auto;}
+#agentsView .agents-heading button,#agentsView .agent-task-actions button,#agentsView .agent-bot-item{position:relative;z-index:1;}
+#agentsView button:disabled{opacity:.55;cursor:wait;}
