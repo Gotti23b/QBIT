@@ -373,7 +373,7 @@
       const meta=task.trigger==="interval"?"Cada "+task.intervalMinutes+" min":"Ejecución manual";
       card.append(node("small","agent-task-meta",meta+(task.nextRunAt?" · Próxima: "+new Date(task.nextRunAt).toLocaleString("es-AR"):"")));
       const actions=node("div","agent-task-actions");
-      actions.append(btn("▶ Ejecutar","small",async()=>{try{await window.qbitPC.runAgentTask(task.id);await loadAgents();}catch(e){alert(e.message||"No se pudo iniciar la tarea.");}}));
+      actions.append(btn("▶ Ejecutar","small",async()=>{try{if(task.status!=="active")await window.qbitPC.setAgentTaskState(task.id,"active");await window.qbitPC.runAgentTask(task.id);await loadAgents();}catch(e){alert(e.message||"No se pudo iniciar la tarea.");}}));
       if(task.status==="active")actions.append(btn("Ⅱ Pausar","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"paused");await loadAgents();}));
       else if(task.status==="paused")actions.append(btn("▶ Reanudar","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"active");await loadAgents();}));
       if(task.status!=="stopped")actions.append(btn("■ Detener","small",async()=>{await window.qbitPC.setAgentTaskState(task.id,"stopped");await loadAgents();}));
