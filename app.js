@@ -396,6 +396,43 @@
     try{agentState=await window.qbitPC.getAgents();if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();$("agentEngineStatus").textContent="Motor activo · "+agentState.bots.length+" bots · "+agentState.tasks.filter(t=>t.status==="active").length+" tareas activas.";}
     catch(e){$("agentEngineStatus").textContent="No pude cargar los agentes: "+(e.message||e);}
   }
+  function agentDialog(title,fields){
+    return new Promise(resolve=>{
+      const overlay=node("div","qbit-modal-overlay"),box=node("form","qbit-modal card");
+      box.setAttribute("role","dialog");box.setAttribute("aria-modal","true");
+      box.append(node("h3","",title));
+      const values={},inputs={};
+      fields.forEach(field=>{
+        const wrap=node("div","agent-dialog-field"),label=node("label","",field.label);
+        let input=field.type==="textarea"?document.createElement("textarea"):field.type==="select"?document.createElement("select"):document.createElement("input");
+        if(field.type==="select")field.options.forEach(o=>{const opt=document.createElement("option");opt.value=o.value;opt.textContent=o.label;input.append(opt);});
+        else if(field.type!=="textarea")input.type=field.type||"text";
+        input.id="agent-"+field.name;input.value=field.value||"";label.htmlFor=input.id;
+        if(field.required)input.required=true;if(field.min!==undefined)input.min=field.min;if(field.max!==undefined)input.max=field.max;
+        wrap.append(label,input);box.append(wrap);inputs[field.name]=input;
+      });
+      const actions=node("div","qbit-modal-actions"),cancel=btn("Cancelar","",()=>finish(null)),save=btn("Guardar","primary",null);
+      cancel.type="button";save.type="submit";actions.append(cancel,save);box.append(actions);
+      function finish(v){overlay.remove();document.removeEventListener("keydown",key);resolve(v);}
+      function key(e){if(e.key==="Escape")finish(null);}
+      box.addEventListener("submit",e=>{e.preventDefault();for(const k in inputs)values[k]=inputs[k].value;finish(values);});
+      overlay.addEventListener("click",e=>{if(e.target===overlay)finish(null);});
+      document.addEventListener("keydown",key);overlay.append(box);document.body.append(overlay);
+      Object.values(inputs)[0]?.focus();
+    });
+  }
+  function agentMessage(message){const status=$("agentEngineStatus");if(status)status.textContent=String(message);}
+  function agentConfirm(title,message){
+    return new Promise(resolve=>{
+      const overlay=node("div","qbit-modal-overlay"),box=node("div","qbit-modal card");
+      box.append(node("h3","",title),node("p","",message));
+      const actions=node("div","qbit-modal-actions"),cancel=btn("Cancelar","",()=>finish(false)),yes=btn("Borrar","danger",()=>finish(true));
+      cancel.type="button";yes.type="button";actions.append(cancel,yes);box.append(actions);overlay.append(box);document.body.append(overlay);
+      function finish(v){overlay.remove();document.removeEventListener("keydown",key);resolve(v);}
+      function key(e){if(e.key==="Escape")finish(false);}
+      document.addEventListener("keydown",key);yes.focus();
+    });
+  }
   async function createAgentBot(){
     const name=prompt("Nombre del nuevo bot:","Nuevo bot");if(name===null)return;
     const instructions=prompt("Instrucciones propias del bot:","");if(instructions===null)return;
