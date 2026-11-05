@@ -38,7 +38,7 @@ jobs:
         run: |
           mkdir -p config/www
           cp index.html app.js styles.css mascot.css mascot.js qbit-icon.svg config/www/
-          printf '%s\\n' '{"appId":"com.gotti23b.qbit","appName":"QBIT","webDir":"www","server":{"androidScheme":"https"}}' > config/capacitor.config.json
+          printf '%s\n' '{"appId":"com.gotti23b.qbit","appName":"QBIT","webDir":"www","server":{"androidScheme":"https"}}' > config/capacitor.config.json
 
       - name: Generate Android project
         working-directory: config
@@ -51,9 +51,9 @@ jobs:
           sudo apt-get install -y librsvg2-bin
           mkdir -p config/resources
           rsvg-convert -w 1024 -h 1024 qbit-icon.svg -o config/resources/icon-only.png
-          sed '/<rect width="64" height="64" rx="15" fill="#07111f"\\/>/d' qbit-icon.svg > /tmp/qbit-foreground.svg
+          sed '/<rect width="64" height="64" rx="15" fill="#07111f"\/>/d' qbit-icon.svg > /tmp/qbit-foreground.svg
           rsvg-convert -w 1024 -h 1024 /tmp/qbit-foreground.svg -o config/resources/icon-foreground.png
-          printf '%s\\n' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#07111f"/></svg>' > /tmp/qbit-background.svg
+          printf '%s\n' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#07111f"/></svg>' > /tmp/qbit-background.svg
           rsvg-convert -w 1024 -h 1024 /tmp/qbit-background.svg -o config/resources/icon-background.png
 
       - name: Apply QBIT version
@@ -65,8 +65,8 @@ jobs:
           let gradle = fs.readFileSync(gradlePath, 'utf8');
           const [major, minor, patch] = pkg.version.split('.').map(Number);
           const versionCode = major * 1000000 + minor * 1000 + patch;
-          gradle = gradle.replace(/versionCode\\s+\\d+/, 'versionCode ' + versionCode);
-          gradle = gradle.replace(/versionName\\s+"[^"]+"/, 'versionName "' + pkg.version + '"');
+          gradle = gradle.replace(/versionCode\s+\d+/, 'versionCode ' + versionCode);
+          gradle = gradle.replace(/versionName\s+"[^"]+"/, 'versionName "' + pkg.version + '"');
           fs.writeFileSync(gradlePath, gradle);
           console.log('Building QBIT ' + pkg.version + ' (versionCode ' + versionCode + ')');
           NODE
