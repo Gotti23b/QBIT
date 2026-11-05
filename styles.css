@@ -338,3 +338,14 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .cloud-history-item p{font-size:11px;margin:4px 0 0;overflow-wrap:anywhere}
 #cloudView .item-head{align-items:center}
 #cloudView .item{margin-bottom:10px}
+
+/* QBIT Devices: diagnóstico y control remoto */
+#cloudView>.card{padding:clamp(16px,3vw,28px)}
+#cloudView h2{margin-bottom:6px}
+#cloudView .cloud-device-hint{font-size:11px;margin:8px 0 2px;line-height:1.5}
+#cloudView .cloud-section-label{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--muted);margin-top:14px}
+#cloudView .cloud-actions button:disabled{opacity:.42;cursor:not-allowed}
+#cloudView .cloud-actions button.danger{border-color:#70434a;color:#ffb1b9;background:#291b20}
+#cloudView .cloud-actions button.danger:disabled{opacity:.4}
+#cloudDeviceList>.item{padding:15px;border:1px solid var(--line-soft);border-radius:14px;background:linear-gradient(145deg,rgba(255,255,255,.025),rgba(255,255,255,.008));margin:12px 0}
+#cloudCommandHistory{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 18px}
