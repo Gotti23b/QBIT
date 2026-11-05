@@ -1,0 +1,97 @@
+name: Build QBIT Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Capacitor
+        run: |
+          mkdir -p config
+          npm --prefix config init -y
+          npm --prefix config install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Prepare QBIT web app
+        run: |
+          mkdir -p config/www
+          cp index.html app.js styles.css mascot.css mascot.js qbit-icon.svg config/www/
+          printf '%s\\n' '{"appId":"com.gotti23b.qbit","appName":"QBIT","webDir":"www","server":{"androidScheme":"https"}}' > config/capacitor.config.json
+
+      - name: Generate Android project
+        working-directory: config
+        run: npx cap add android
+
+      - name: Generate QBIT app icons
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          mkdir -p config/resources
+          rsvg-convert -w 1024 -h 1024 qbit-icon.svg -o config/resources/icon-only.png
+          sed '/<rect width="64" height="64" rx="15" fill="#07111f"\\/>/d' qbit-icon.svg > /tmp/qbit-foreground.svg
+          rsvg-convert -w 1024 -h 1024 /tmp/qbit-foreground.svg -o config/resources/icon-foreground.png
+          printf '%s\\n' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#07111f"/></svg>' > /tmp/qbit-background.svg
+          rsvg-convert -w 1024 -h 1024 /tmp/qbit-background.svg -o config/resources/icon-background.png
+
+      - name: Apply QBIT version
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = require('./package.json');
+          const gradlePath = 'config/android/app/build.gradle';
+          let gradle = fs.readFileSync(gradlePath, 'utf8');
+          const [major, minor, patch] = pkg.version.split('.').map(Number);
+          const versionCode = major * 1000000 + minor * 1000 + patch;
+          gradle = gradle.replace(/versionCode\\s+\\d+/, 'versionCode ' + versionCode);
+          gradle = gradle.replace(/versionName\\s+"[^"]+"/, 'versionName "' + pkg.version + '"');
+          fs.writeFileSync(gradlePath, gradle);
+          console.log('Building QBIT ' + pkg.version + ' (versionCode ' + versionCode + ')');
+          NODE
+
+      - name: Generate Android launcher icons
+        working-directory: config
+        run: npx --yes @capacitor/assets generate --android --assetPath resources --androidProject android
+
+      - name: Sync web app
+        working-directory: config
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: config/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Rename APK
+        run: cp config/android/app/build/outputs/apk/debug/app-debug.apk "QBIT-Android-${{ github.sha }}.apk"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: QBIT-Android-v${{ github.sha }}
+          path: QBIT-Android-${{ github.sha }}.apk
+          if-no-files-found: error
+          retention-days: 30
