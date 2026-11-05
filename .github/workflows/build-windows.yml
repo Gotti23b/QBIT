@@ -24,6 +24,15 @@ jobs:
         run: node windows/scripts/create-windows-icon.cjs
       - name: Check JavaScript syntax
         run: npm run check
+      - name: Run agent tests
+        run: npm test
+      - name: Validate Computer Use PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("windows/scripts/qbit-computer-use.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) { $errors | Format-List; exit 1 }
       - name: Build NSIS installer (sin publicar)
         if: github.ref != 'refs/heads/main' || github.event_name == 'pull_request'
         run: npm run dist
