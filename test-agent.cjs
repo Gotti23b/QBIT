@@ -172,6 +172,51 @@ test("L: pausar a mitad de ejecución la cancela; estado persiste y se recarga",
   const again = new AgentEngine({ dataPath: eng.file, runAI() {}, onAction() {} });
   assert.equal(again.state.tasks[0].status, "paused");
 });
+
+test("M: Computer Use permite observar, desplazar y hacer clic por coordenadas solo si está activado", async () => {
+  const seen = [];
+  const answers = [
+    '{"tool":"computer_observe","args":{}}',
+    '{"tool":"computer_scroll","args":{"direction":"down","amount":2}}',
+    '{"tool":"computer_click_at","args":{"x":420,"y":260}}',
+    '{"fin":"hecho","resumen":"Interacción terminada"}'
+  ];
+  const { eng, calls, bot } = make({
+    runAI: async () => ({ answer: answers[seen.length++] }),
+    onAction: async ({ call }) => { calls.act.push(call); return call.artifact + " OK"; }
+  });
+  eng.updateBot(bot.id, { computerUse: true });
+  const task = eng.createTask({ botId: bot.id, title: "computer use", objective: "interactuar con la ventana", trigger: "auto" });
+  eng.start(); await until(() => task.status === "completed"); eng.stop();
+  assert.deepEqual(calls.act.map(x => x.artifact), ["computer_observe","computer_scroll","computer_click_at"]);
+  assert.equal(calls.act[1].args.amount, 2);
+  assert.equal(calls.act[2].args.x, 420);
+});
+test("N: Computer Use sigue bloqueado cuando el bot no tiene permiso", async () => {
+  const seen = [];
+  const answers = ['{"tool":"computer_scroll","args":{"direction":"down"}}','{"fin":"hecho","resumen":"ok"}'];
+  const { eng, calls, bot } = make({ runAI: async p => { seen.push(p); return { answer: answers[seen.length - 1] }; } });
+  const task = eng.createTask({ botId: bot.id, title: "bloqueo", objective: "no debe manejar el PC", trigger: "auto" });
+  eng.start(); await until(() => task.status === "completed"); eng.stop();
+  assert.equal(calls.act.length, 0);
+  assert.match(seen[1], /BLOQUEADO: activá Computer Use/);
+});
+
+
+test("O: computer_observe conserva suficiente información de controles y coordenadas", async () => {
+  const seen = [];
+  const { eng, bot } = make({
+    onAction: async () => JSON.stringify({ ok: true, controls: Array.from({length:45},(_,i)=>({name:"Control "+i,rect:{x:i*10,y:i*5,width:120,height:30}})) }),
+    runAI: async p => { seen.push(p); return { answer: seen.length === 1 ? '{"tool":"computer_observe","args":{}}' : '{"fin":"hecho","resumen":"observación revisada"}' }; }
+  });
+  eng.updateBot(bot.id, { computerUse: true });
+  const task = eng.createTask({ botId: bot.id, title: "observar", objective: "leer los controles de la pantalla", trigger: "auto" });
+  eng.start(); await until(() => task.status === "completed"); eng.stop();
+  assert.match(seen[1], /Control 0/);
+  assert.match(seen[1], /rect/);
+  assert.ok(seen[1].length > 1500, "la observación de pantalla no debe truncarse al límite genérico");
+});
+
 (async () => {
   let fail = 0;
   for (const [name, fn] of T) { try { await fn(); console.log("✔", name); } catch (e) { fail++; console.log("✘", name, "\n   ", e.message); } }
