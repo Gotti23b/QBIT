@@ -327,3 +327,14 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .desktop-control-toggle.is-on{border-color:#276d62;background:#102b29;color:#8ee6c7}
 .desktop-control-toggle:disabled{opacity:.7;cursor:default}
 @media(max-width:760px){.desktop-control-status{display:none}.top{padding:0 10px}.desktop-control-toggle{font-size:10px;padding:5px 7px}}
+
+.cloud-state{font-size:11px;border-radius:20px;padding:4px 9px;border:1px solid #46515c;color:#aab7c2;white-space:nowrap}
+.cloud-state.online{border-color:#286b59;color:#8ee6c7;background:#102b25}
+.cloud-state.offline{border-color:#5b4c38;color:#d7bd8c;background:#2a2115}
+.cloud-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.cloud-history-item{padding:8px 0;border-bottom:1px solid var(--line-soft)}
+.cloud-history-item:last-child{border-bottom:0}
+.cloud-history-item strong{font-size:12px}
+.cloud-history-item p{font-size:11px;margin:4px 0 0;overflow-wrap:anywhere}
+#cloudView .item-head{align-items:center}
+#cloudView .item{margin-bottom:10px}
