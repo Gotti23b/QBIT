@@ -21,6 +21,32 @@ test("parser acepta JSON puro, con fence y rodeado de texto", () => {
   assert.equal(parseAgentJSON('Voy a hacerlo {"artifact":"volume","args":{"action":"up"}} listo').tool, "volume");
   assert.equal(parseAgentJSON("sin json"), null);
 });
+test("M: bloquea herramientas inexistentes sin ejecutarlas", async () => {
+  let calls = 0, prompts = [];
+  const { eng, bot } = make({ runAI: async p => {
+    prompts.push(p);
+    return { answer: prompts.length === 1
+      ? '{"tool":"delete_everything","args":{}}'
+      : '{"fin":"hecho","resumen":"Detecté una herramienta inválida y no la ejecuté."}' };
+  }, onAction: async () => { calls++; return "ejecutada"; } });
+  const t = eng.createTask({ botId: bot.id, title: "validar", objective: "probar catálogo", trigger: "auto" });
+  eng.start(); await until(() => t.status === "completed"); eng.stop();
+  assert.equal(calls, 0);
+  assert.match(prompts[1], /BLOQUEADO: la herramienta no existe en el catálogo/);
+});
+test("N: detecta acciones repetidas aunque cambie el orden de las claves", async () => {
+  let n = 0, actions = 0;
+  const { eng, bot } = make({ runAI: async () => ({
+    answer: ++n === 1
+      ? '{"tool":"time_date","args":{"alpha":1,"beta":2}}'
+      : '{"tool":"time_date","args":{"beta":2,"alpha":1}}'
+  }), onAction: async () => { actions++; return "ok"; } });
+  const t = eng.createTask({ botId: bot.id, title: "detectar loop", objective: "probar repetición", trigger: "auto" });
+  eng.start(); await until(() => !!t.wakeAt); eng.stop();
+  assert.equal(actions, 1, "la misma herramienta y argumentos se ejecutan una sola vez");
+  assert.equal(n, 4, "tres repeticiones consecutivas activan la pausa protectora");
+  assert.match(t.lastSummary, /Repetía la misma acción/);
+});
 test("isPrivateHost", () => {
   for (const h of ["localhost", "127.0.0.1", "192.168.1.5", "10.0.0.1", "172.20.0.1", "169.254.1.1", "[::1]", "foo.local"]) assert.ok(isPrivateHost(h), h);
   for (const h of ["example.com", "fcbarcelona.com", "8.8.8.8", "172.32.0.1"]) assert.ok(!isPrivateHost(h), h);
