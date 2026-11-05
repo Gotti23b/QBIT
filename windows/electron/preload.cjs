@@ -66,7 +66,11 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   writeClipboard: text => ipcRenderer.invoke("qbit:clipboard-write", text),
   checkForUpdates: () => ipcRenderer.invoke("qbit:update-check"),
   getAppVersion: () => ipcRenderer.invoke("qbit:app-version"),
-  onUpdateState: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:update-state", (_event, state) => callback(state)); },
+  onUpdateState: callback => {
+    if (typeof callback !== "function") return;
+    ipcRenderer.on("qbit:update-state", (_event, state) => callback(state));
+    ipcRenderer.invoke("qbit:update-state-get").then(callback).catch(error => console.warn("[QBIT updater] No se pudo recuperar el estado:", error?.message || error));
+  },
   onPetMessage: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:pet-message", (_event, message) => callback(message)); },
   sendPetReply: message => ipcRenderer.send("qbit:pet-reply", String(message).slice(0, 2000)),
   getPetSettings: () => ipcRenderer.invoke("qbit:pet-settings-get"),
