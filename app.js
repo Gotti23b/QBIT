@@ -944,8 +944,10 @@
       if(existing){cloudDeviceId=existing.id;await db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);}
       else{
         const platform=cloudPlatform();
-        const name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
-        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        let name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
+        if(platform==="windows"&&window.qbitPC?.getStatus){try{const info=await window.qbitPC.getStatus();if(info?.computer)name="QBIT Windows · "+String(info.computer).slice(0,55);}catch{}}
+        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.22";
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.22",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
       if(cloudTimer)clearInterval(cloudTimer);
@@ -964,7 +966,7 @@
     const claim=await db.from("qbit_device_commands").update({status:"running",started_at:new Date().toISOString()}).eq("id",c.id).eq("status","pending").select("id").maybeSingle();
     if(claim.error||!claim.data)return;
     try{
-      if(!window.confirm("QBIT Web solicita una acción en esta PC: "+c.command+". ¿La permitís?")){
+      if(!window.confirm("QBIT solicita una acción en este dispositivo: "+c.command+". ¿La permitís?")){
         await db.from("qbit_device_commands").update({status:"cancelled",completed_at:new Date().toISOString()}).eq("id",c.id);return;
       }
       let result;
