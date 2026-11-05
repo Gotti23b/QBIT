@@ -4,6 +4,24 @@
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
+  let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
+  let desktopExtensionConnected = false;
+  function renderDesktopControlStatus(){
+    const toggle=$("desktopControlToggle"),status=$("desktopControlStatus");
+    if(toggle){toggle.textContent="Control PC · "+(desktopControlEnabled?"ON":"OFF");toggle.setAttribute("aria-pressed",String(desktopControlEnabled));toggle.classList.toggle("is-on",desktopControlEnabled);}
+    if(status)status.textContent=desktopExtensionConnected?"Desktop conectado":desktopControlEnabled?"Desktop desconectado":"Control desactivado";
+  }
+  function publishDesktopControlSetting(){renderDesktopControlStatus();window.postMessage({source:"QBIT_WEB",type:"DESKTOP_CONTROL_TOGGLE",enabled:desktopControlEnabled},location.origin);}
+  window.addEventListener("message",event=>{
+    if(event.source!==window||event.origin!==location.origin||event.data?.source!=="QBIT_EXTENSION")return;
+    if(event.data.type==="DESKTOP_CONTROL_STATUS"){
+      desktopExtensionConnected=!!event.data.connected;
+      if(typeof event.data.enabled==="boolean"&&event.data.enabled!==desktopControlEnabled){desktopControlEnabled=event.data.enabled;try{localStorage.setItem("qbit-desktop-control-enabled",String(desktopControlEnabled));}catch{}}
+      renderDesktopControlStatus();
+    }
+  });
+  $("desktopControlToggle")?.addEventListener("click",()=>{desktopControlEnabled=!desktopControlEnabled;try{localStorage.setItem("qbit-desktop-control-enabled",String(desktopControlEnabled));}catch{}publishDesktopControlSetting();});
+  setTimeout(publishDesktopControlSetting,500);
   async function executeDesktopArtifact(name,args={}){
     const pc=window.qbitPC;
     if(!pc?.isDesktop)throw new Error("Este Artifact solo está disponible en QBIT Desktop para Windows.");
@@ -454,6 +472,10 @@
     if(!v)return;v.intervalMinutes=Number(v.intervalMinutes);if(v.trigger==="once"&&v.scheduledAt)v.scheduledAt=new Date(v.scheduledAt).toISOString();
     try{await window.qbitPC.updateAgentTask(taskId,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
   }
+  window.qbitPC?.onWebArtifactRequest?.(async payload=>{
+    try{const result=await runArtifactBlock(JSON.stringify(payload?.call||{}));await window.qbitPC.completeWebArtifact(payload.id,result);}
+    catch(error){try{await window.qbitPC.completeWebArtifact(payload.id,"No se pudo ejecutar el Artifact: "+(error?.message||error));}catch{}}
+  });
   window.qbitPC?.onAgentsUpdated?.(state=>{agentState=state;if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();});
   window.qbitPC?.onAgentAction?.(async payload=>{
     try{const result=await runArtifactBlock(JSON.stringify(payload.call||{}));await window.qbitPC.completeAgentAction(payload.id,result);}
@@ -619,6 +641,7 @@
   function resetResponse(){$("responseId").value="";$("responseCommand").value="";$("responseContent").value="";$("responsePriority").value="1";$("responseActive").checked=true;$("cancelResponse").classList.add("hidden");}
   $("loginForm").addEventListener("submit",async e=>{e.preventDefault();say("loginMsg","Iniciando sesión…");const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){say("loginMsg","No se pudo iniciar sesión. Revisá los datos. "+error.message,true);return;}$("password").value="";session(data.user);await refresh();});
   $("logoutBtn").onclick=async()=>{await db.auth.signOut();session(null);};
+  renderDesktopControlStatus();
   $("presetCommandsToggle")?.addEventListener("change",async e=>{
     try{localStorage.setItem(PRESET_COMMANDS_KEY,String(e.target.checked));}catch{}
     if(e.target.checked){notice("Activando los comandos predeterminados…");await addStarterCommands();}
