@@ -11,6 +11,17 @@ const MAX_OBS = 1500;              // caracteres de cada observación enviada a 
 const NO_LIMITS = { maxSteps: Infinity, maxRunMs: Infinity, maxContinuations: Infinity, maxFailures: Infinity };
 const TASK_STATUSES = ["active", "paused", "stopped", "completed", "failed"];
 const TRIGGERS = ["manual", "interval", "once", "auto"];
+const AGENT_TOOLS = new Set([
+  ...CATALOG.split(";").map(item => item.trim().match(/^([a-z][a-z0-9_]*)/)?.[1]).filter(Boolean),
+  "fetch_url", "remember", "notify"
+]);
+function stableStringify(value) {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + stableStringify(value[key])).join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const ts = v => (v ? Date.parse(v) : NaN);
 
@@ -295,8 +306,16 @@ class AgentEngine {
         step--; continue;
       }
       if (typeof msg.fin === "string") return msg;
-      const args = msg.args && typeof msg.args === "object" ? msg.args : {};
-      const key = msg.tool + JSON.stringify(args);
+      if (!AGENT_TOOLS.has(msg.tool)) {
+        history.push({ call: { tool: msg.tool, args: msg.args }, obs: "BLOQUEADO: la herramienta no existe en el catálogo de QBIT. Elegí una herramienta permitida o terminá la tarea." });
+        continue;
+      }
+      if (msg.args !== undefined && (!msg.args || typeof msg.args !== "object" || Array.isArray(msg.args))) {
+        history.push({ call: { tool: msg.tool, args: msg.args }, obs: "ERROR: args debe ser un objeto JSON. Reintentá con argumentos válidos." });
+        continue;
+      }
+      const args = msg.args || {};
+      const key = msg.tool + stableStringify(args);
       if (key === lastKey) {
         // No corta la tarea: avisa a la IA y, si insiste, pausa 5 min para no quemar mensajes del chat en vano.
         if (++repeats >= 3) return { fin: "esperar", minutos: 5, resumen: "Repetía la misma acción (" + msg.tool + "); pauso 5 min y retomo con otro enfoque." };
