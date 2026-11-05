@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   openExtensionFolder: () => ipcRenderer.invoke("qbit:connector-open-folder"),
   openChromeExtensions: () => ipcRenderer.invoke("qbit:connector-open-chrome"),
   askBrowserAI: message => ipcRenderer.invoke("qbit:connector-ask", String(message).slice(0,12000)),
+  onWebArtifactRequest: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:web-artifact-request", (_event, payload) => callback(payload)); },
+  completeWebArtifact: (id, result) => ipcRenderer.invoke("qbit:web-artifact-result", String(id), String(result ?? "")),
   getAgents: () => ipcRenderer.invoke("qbit:agents-get"),
   createAgentBot: input => ipcRenderer.invoke("qbit:agents-create-bot", input),
   updateAgentBot: (id, patch) => ipcRenderer.invoke("qbit:agents-update-bot", id, patch),
