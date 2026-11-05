@@ -1,5 +1,7 @@
 name: Build QBIT Android APK
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -8,6 +10,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -23,13 +26,17 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Install dependencies
-        run: npm --prefix config install
+      - name: Install Capacitor for Android
+        run: |
+          mkdir -p config
+          npm --prefix config init -y
+          npm --prefix config install @capacitor/core @capacitor/cli @capacitor/android
 
       - name: Prepare web app for Android
         run: |
           mkdir -p config/www
-          cp index.html app.js styles.css qbit-icon.svg config/www/
+          cp index.html app.js styles.css mascot.css mascot.js qbit-icon.svg config/www/
+          printf '%s\n' '{"appId":"com.gotti23b.qbit","appName":"QBIT","webDir":"www","server":{"androidScheme":"https"}}' > config/capacitor.config.json
 
       - name: Generate Android project
         working-directory: config
@@ -41,16 +48,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y librsvg2-bin
           mkdir -p config/resources
-          # Full square icon for older Android launchers.
           rsvg-convert -w 1024 -h 1024 qbit-icon.svg -o config/resources/icon-only.png
-          # Adaptive icon foreground: keep the cyan QBIT cube transparent around it.
           sed '/<rect width="64" height="64" rx="15" fill="#07111f"\/>/d' qbit-icon.svg > /tmp/qbit-foreground.svg
           rsvg-convert -w 1024 -h 1024 /tmp/qbit-foreground.svg -o config/resources/icon-foreground.png
-          # Adaptive icon background layer.
           printf '%s\n' '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#07111f"/></svg>' > /tmp/qbit-background.svg
           rsvg-convert -w 1024 -h 1024 /tmp/qbit-background.svg -o config/resources/icon-background.png
 
-      - name: Generate Android app icons from QBIT logo
+      - name: Generate QBIT Android icons
         working-directory: config
         run: npx --yes @capacitor/assets generate --android --assetPath resources --androidProject android
 
@@ -70,4 +74,4 @@ jobs:
           name: QBIT-Android-APK
           path: config/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
