@@ -505,8 +505,8 @@
   const originalActivateTab = null;
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","agentsView","connectorView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
-    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="agentsView")void loadAgents();
+    ["chatView","agentsView","connectorView","cloudView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="agentsView")void loadAgents();if(id==="cloudView")void refreshCloudDevices();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
@@ -537,7 +537,7 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){const changed=user?.id!==u?.id;user=u;syncPresetToggle();$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}}
+  function session(u){const changed=user?.id!==u?.id;user=u;syncPresetToggle();$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();else void stopCloudPresence();}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -931,6 +931,95 @@
     try{await window.qbitPC.resetPetPosition();$("petVisible").checked=true;petSettingsMessage("¡Mascota devuelta a la esquina inferior derecha!");}
     catch(e){petSettingsMessage("No pude restablecer la posición: "+(e?.message||"error desconocido"),true);}
   });
+
+  // QBIT Cloud: registro, presencia y cola de acciones remotas con confirmación local.
+  let cloudDeviceId=null,cloudTimer=null,cloudBusy=false,cloudPollBusy=false;
+  function cloudPlatform(){if(window.qbitPC?.isDesktop)return "windows";try{if(window.Capacitor?.getPlatform?.()==="android")return "android";}catch{}return "web";}
+  async function startCloudPresence(){
+    if(!user||cloudBusy)return;cloudBusy=true;
+    try{
+      const key="qbit-cloud-device-id";let saved=null;try{saved=localStorage.getItem(key);}catch{}
+      let existing=null;
+      if(saved){const q=await db.from("qbit_devices").select("id").eq("id",saved).eq("user_id",user.id).maybeSingle();if(q.data)existing=q.data;}
+      if(existing){cloudDeviceId=existing.id;await db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);}
+      else{
+        const platform=cloudPlatform();
+        const name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
+      }
+      if(cloudTimer)clearInterval(cloudTimer);
+      cloudTimer=setInterval(()=>{if(user&&cloudDeviceId){void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);if(cloudPlatform()==="windows")void pollCloudCommands();}},15000);
+      if(cloudPlatform()==="windows")void pollCloudCommands();
+    }catch(e){console.warn("[QBIT Cloud]",e?.message||e);const s=$("cloudStatus");if(s)s.textContent="No se pudo conectar: "+(e?.message||"error");}
+    finally{cloudBusy=false;}
+  }
+  async function stopCloudPresence(){
+    if(cloudTimer){clearInterval(cloudTimer);cloudTimer=null;}
+    if(cloudDeviceId&&user)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",user.id);
+    cloudDeviceId=null;
+  }
+  async function processCloudCommand(c){
+    if(!window.qbitPC?.isDesktop||!user)return;
+    const claim=await db.from("qbit_device_commands").update({status:"running",started_at:new Date().toISOString()}).eq("id",c.id).eq("status","pending").select("id").maybeSingle();
+    if(claim.error||!claim.data)return;
+    try{
+      if(!window.confirm("QBIT Web solicita una acción en esta PC: "+c.command+". ¿La permitís?")){
+        await db.from("qbit_device_commands").update({status:"cancelled",completed_at:new Date().toISOString()}).eq("id",c.id);return;
+      }
+      let result;
+      if(c.command==="get_system_info")result=await executeDesktopArtifact("system_info");
+      else if(c.command==="get_battery_info")result=await executeDesktopArtifact("battery_info");
+      else if(c.command==="get_network_info")result=await executeDesktopArtifact("network_info");
+      else if(c.command==="get_display_info")result=await executeDesktopArtifact("display_info");
+      else if(c.command==="lock_pc")result=await executeDesktopArtifact("lock_pc");
+      else throw new Error("Acción todavía no implementada en este cliente.");
+      await db.from("qbit_device_commands").update({status:"completed",result:{message:String(result?.message||JSON.stringify(result)||"Completado").slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);
+    }catch(e){await db.from("qbit_device_commands").update({status:"failed",error_message:String(e?.message||e).slice(0,500),result:{message:String(e?.message||e).slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);}
+  }
+  async function pollCloudCommands(){
+    if(cloudPollBusy||!user||!cloudDeviceId||cloudPlatform()!=="windows")return;cloudPollBusy=true;
+    try{
+      const q=await db.from("qbit_device_commands").select("id,command,payload,status").eq("device_id",cloudDeviceId).eq("status","pending").gt("expires_at",new Date().toISOString()).order("created_at",{ascending:true}).limit(5);
+      if(q.error)throw q.error;for(const c of q.data||[])await processCloudCommand(c);
+    }catch(e){console.warn("[QBIT Cloud] Cola:",e?.message||e);}finally{cloudPollBusy=false;}
+  }
+  async function refreshCloudDevices(){
+    if(!user)return;const list=$("cloudDeviceList"),status=$("cloudStatus");if(!list)return;list.replaceChildren();
+    const q=await db.from("qbit_devices").select("id,name,platform,app_version,is_online,last_seen_at").order("last_seen_at",{ascending:false});
+    if(q.error){status.textContent="Error: "+q.error.message;return;}
+    status.textContent=(q.data||[]).length+" dispositivo(s) vinculados.";
+    if(!q.data?.length){list.textContent="Todavía no hay dispositivos vinculados.";return;}
+    for(const d of q.data){
+      const item=document.createElement("div");item.className="item";
+      const head=document.createElement("div");head.className="item-head";
+      const name=document.createElement("strong");name.textContent=d.name;
+      const state=document.createElement("span");state.className="cloud-state "+(d.is_online?"online":"offline");state.textContent=d.is_online?"En línea":"Desconectado";
+      head.append(name,state);item.append(head);
+      const meta=document.createElement("p");meta.className="muted";meta.textContent=d.platform.toUpperCase()+" · "+(d.last_seen_at?"Última conexión: "+new Date(d.last_seen_at).toLocaleString("es-AR"):"Sin registro");item.append(meta);
+      if(d.platform==="windows"){
+        const actions=document.createElement("div");actions.className="cloud-actions";
+        [["get_system_info","Información"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"],["lock_pc","Bloquear PC"]].forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!d.is_online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));actions.append(b);});
+        item.append(actions);
+      }else{
+        const note=document.createElement("p");note.className="muted";note.textContent=d.platform==="android"?"Android se registra y sincroniza presencia; las acciones nativas remotas aún no están implementadas.":"El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
+      }
+      list.append(item);
+    }
+    const history=$("cloudCommandHistory");if(history){
+      history.replaceChildren();const h=await db.from("qbit_device_commands").select("command,status,result,error_message,created_at").order("created_at",{ascending:false}).limit(10);
+      for(const c of h.data||[]){const row=document.createElement("div");row.className="cloud-history-item";const strong=document.createElement("strong");strong.textContent=c.command+" · "+c.status;const p=document.createElement("p");p.className="muted";p.textContent=c.error_message||c.result?.message||new Date(c.created_at).toLocaleString("es-AR");row.append(strong,p);history.append(row);}
+      if(!h.data?.length)history.textContent="Todavía no hay acciones.";
+    }
+  }
+  async function sendCloudCommand(deviceId,command){
+    if(!user)return;const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{}});
+    if(error){alert("No se pudo enviar: "+error.message);return;}
+    $("cloudStatus").textContent="Acción enviada. Windows debe estar encendido y QBIT abierto.";await refreshCloudDevices();
+  }
+  $("cloudRefresh")?.addEventListener("click",()=>void refreshCloudDevices());
+  setInterval(()=>{if(user&&$("cloudView")&&!$("cloudView").classList.contains("hidden"))void refreshCloudDevices();},10000);
+
   db.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")session(null);});
   async function addStarterCommands(){
     if(!user)return;
