@@ -10,7 +10,7 @@
   function renderDesktopControlStatus(){
     const toggle=$("desktopControlToggle"),status=$("desktopControlStatus");
     if(toggle){toggle.textContent="Control PC · "+(desktopControlEnabled?"ON":"OFF");toggle.setAttribute("aria-pressed",String(desktopControlEnabled));toggle.classList.toggle("is-on",desktopControlEnabled);}
-    if(status)status.textContent=desktopExtensionConnected?"Desktop conectado":desktopControlEnabled?"Desktop desconectado":"Control desactivado";
+    if(status)status.textContent=desktopControlEnabled?(desktopExtensionConnected?"Extensión conectada · Control remoto ON":"Control remoto ON"):"Control remoto OFF";
   }
   function publishDesktopControlSetting(){renderDesktopControlStatus();window.postMessage({source:"QBIT_WEB",type:"DESKTOP_CONTROL_TOGGLE",enabled:desktopControlEnabled},location.origin);}
   window.addEventListener("message",event=>{
@@ -989,6 +989,21 @@
       }else if(c.command==="lock_pc"){
         if(cloudPlatform()!=="windows")throw new Error("El bloqueo remoto solo está disponible en Windows.");
         result=await executeDesktopArtifact("lock_pc");
+      }else if(c.command==="volume_up"){
+        if(cloudPlatform()!=="windows")throw new Error("El volumen remoto solo está disponible en Windows.");
+        result=await executeDesktopArtifact("volume",{action:"up"});
+      }else if(c.command==="volume_down"){
+        if(cloudPlatform()!=="windows")throw new Error("El volumen remoto solo está disponible en Windows.");
+        result=await executeDesktopArtifact("volume",{action:"down"});
+      }else if(c.command==="volume_mute"){
+        if(cloudPlatform()!=="windows")throw new Error("El audio remoto solo está disponible en Windows.");
+        result=await executeDesktopArtifact("volume",{action:"mute"});
+      }else if(c.command==="brightness_up"){
+        if(cloudPlatform()!=="windows")throw new Error("El brillo remoto solo está disponible en Windows.");
+        result=await executeDesktopArtifact("brightness_up");
+      }else if(c.command==="brightness_down"){
+        if(cloudPlatform()!=="windows")throw new Error("El brillo remoto solo está disponible en Windows.");
+        result=await executeDesktopArtifact("brightness_down");
       }
       else throw new Error("Acción todavía no implementada en este cliente.");
       await db.from("qbit_device_commands").update({status:"completed",result:{message:String(result?.message||JSON.stringify(result)||"Completado").slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);
@@ -1013,13 +1028,23 @@
       const name=document.createElement("strong");name.textContent=d.name;
       const online=!!d.is_online&&!!d.last_seen_at&&(Date.now()-new Date(d.last_seen_at).getTime()<45000);const state=document.createElement("span");state.className="cloud-state "+(online?"online":"offline");state.textContent=online?"En línea":"Desconectado";
       head.append(name,state);item.append(head);
-      const meta=document.createElement("p");meta.className="muted";meta.textContent=d.platform.toUpperCase()+" · "+(d.last_seen_at?"Última conexión: "+new Date(d.last_seen_at).toLocaleString("es-AR"):"Sin registro");item.append(meta);
+      const meta=document.createElement("p");meta.className="muted";meta.textContent=d.platform.toUpperCase()+" · QBIT "+(d.app_version||"versión desconocida")+" · "+(d.last_seen_at?"Última conexión: "+new Date(d.last_seen_at).toLocaleString("es-AR"):"Sin registro");item.append(meta);
       if(d.platform==="windows"||d.platform==="android"){
-        const actions=document.createElement("div");actions.className="cloud-actions";
-        const options=[["get_system_info","Información"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"]];
-        if(d.platform==="windows")options.push(["lock_pc","Bloquear PC"]);
-        options.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));actions.append(b);});
-        item.append(actions);
+        const infoTitle=document.createElement("div");infoTitle.className="cloud-section-label";infoTitle.textContent="DIAGNÓSTICO";item.append(infoTitle);
+        const infoActions=document.createElement("div");infoActions.className="cloud-actions";
+        const infoOptions=[["get_system_info","Sistema"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"]];
+        infoOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));infoActions.append(b);});
+        item.append(infoActions);
+        if(d.platform==="windows"){
+          const controlTitle=document.createElement("div");controlTitle.className="cloud-section-label";controlTitle.textContent="CONTROL REMOTO";item.append(controlTitle);
+          const controlActions=document.createElement("div");controlActions.className="cloud-actions";
+          const controlOptions=[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]];
+          controlOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className=cmd==="lock_pc"?"small danger":"small";b.textContent=label;b.disabled=!online||!desktopControlEnabled;b.title=!desktopControlEnabled?"Activá Control PC arriba para habilitar estas acciones":!online?"El dispositivo está desconectado":"";b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));controlActions.append(b);});
+          item.append(controlActions);
+          const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent=desktopControlEnabled?"Control remoto habilitado. El equipo va a pedir confirmación antes de ejecutar cada acción.":"Activá «Control PC» en la barra superior para habilitar estas acciones.";item.append(hint);
+        }else{
+          const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Android permite consultar datos compatibles del dispositivo. El control nativo remoto todavía no está implementado.";item.append(note);
+        }
       }else{
         const note=document.createElement("p");note.className="muted";note.textContent=d.platform==="android"?"Android se registra y sincroniza presencia; las acciones nativas remotas aún no están implementadas.":"El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
       }
@@ -1032,9 +1057,15 @@
     }
   }
   async function sendCloudCommand(deviceId,command){
-    if(!user)return;const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{}});
+    if(!user)return;
+    const remoteActions=new Set(["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]);
+    if(remoteActions.has(command)&&!desktopControlEnabled){alert("Activá Control PC en la barra superior antes de enviar acciones remotas.");return;}
+    const labels={get_system_info:"consultar información del sistema",get_battery_info:"consultar la batería",get_network_info:"consultar la red",get_display_info:"consultar las pantallas",volume_up:"subir el volumen",volume_down:"bajar el volumen",volume_mute:"silenciar el audio",brightness_up:"subir el brillo",brightness_down:"bajar el brillo",lock_pc:"bloquear la PC"};
+    if(!window.confirm("¿Enviar a este dispositivo la acción: "+(labels[command]||command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
+    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
-    $("cloudStatus").textContent="Acción enviada. Windows debe estar encendido y QBIT abierto.";await refreshCloudDevices();
+    $("cloudStatus").textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener QBIT abierto.";
+    await refreshCloudDevices();
   }
   $("cloudRefresh")?.addEventListener("click",()=>void refreshCloudDevices());
   setInterval(()=>{if(user&&$("cloudView")&&!$("cloudView").classList.contains("hidden"))void refreshCloudDevices();},10000);
