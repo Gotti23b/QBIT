@@ -1,15 +1,14 @@
 {
   "manifest_version": 3,
   "name": "QBIT Extension",
-  "version": "0.4.0",
-  "description": "Conecta el chat de QBIT con chats de IA abiertos en el navegador mediante QBIT Console.",
+  "version": "1.5.16",
+  "description": "Conecta QBIT Web con QBIT Desktop y con proveedores de IA del navegador.",
   "permissions": [
     "clipboardRead",
     "storage",
     "tabs"
   ],
   "host_permissions": [
-    "https://gotti23b.github.io/QBIT/*",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://arena.ai/*",
@@ -20,7 +19,10 @@
     "https://www.meta.ai/*",
     "https://meta.ai/*",
     "http://127.0.0.1/*",
-    "ws://127.0.0.1/*"
+    "ws://127.0.0.1/*",
+    "https://gotti23b.github.io/QBIT/*",
+    "https://qbit.uno/*",
+    "https://www.qbit.uno/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -31,7 +33,9 @@
   "content_scripts": [
     {
       "matches": [
-        "https://gotti23b.github.io/QBIT/*"
+        "https://gotti23b.github.io/QBIT/*",
+        "https://qbit.uno/*",
+        "https://www.qbit.uno/*"
       ],
       "js": [
         "qbit-page-main.js"
@@ -41,7 +45,9 @@
     },
     {
       "matches": [
-        "https://gotti23b.github.io/QBIT/*"
+        "https://gotti23b.github.io/QBIT/*",
+        "https://qbit.uno/*",
+        "https://www.qbit.uno/*"
       ],
       "js": [
         "qbit-page.js"
