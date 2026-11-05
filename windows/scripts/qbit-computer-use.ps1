@@ -29,7 +29,7 @@ public static class QbitInput {
   if ($Action -eq "observe") {
     $items = @()
     $nodes = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
-    $limit = [Math]::Min($nodes.Count, 220)
+    $limit = [Math]::Min($nodes.Count, 80)
     for ($i=0; $i -lt $limit; $i++) {
       try {
         $n = $nodes.Item($i); $c = $n.Current
