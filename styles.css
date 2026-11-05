@@ -349,3 +349,97 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 #cloudView .cloud-actions button.danger:disabled{opacity:.4}
 #cloudDeviceList>.item{padding:15px;border:1px solid var(--line-soft);border-radius:14px;background:linear-gradient(145deg,rgba(255,255,255,.025),rgba(255,255,255,.008));margin:12px 0}
 #cloudCommandHistory{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 18px}
+
+
+/* QBIT Android: navegación y composición móvil nativas */
+.mobile-nav,.mobile-new-chat{display:none}
+@media(max-width:620px){
+  html,body{min-height:100%;min-height:100dvh}
+  body{overflow-x:hidden}
+  .top{position:sticky;top:0;z-index:120;height:58px;min-height:58px;padding:0 13px;gap:8px;background:rgba(10,15,21,.96);backdrop-filter:blur(16px)}
+  .brand{gap:8px}
+  .brand .logo{width:32px;height:32px}
+  .brand h1{font-size:16px}
+  .mobile-new-chat{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;margin-left:auto;padding:0;border:1px solid #285665;border-radius:12px;background:#112b35;color:var(--cyan);font-size:25px;line-height:1}
+  #updateBar{margin-left:0}
+  #updateBar button{min-height:36px;padding:5px 8px;font-size:10px}
+  #userBar{gap:5px!important}
+  #userEmail,#desktopControlToggle,#logoutBtn{display:none!important}
+  #appView{min-height:calc(100dvh - 58px)}
+  .app-shell{display:block;min-height:calc(100dvh - 58px)}
+  .sidebar{display:none!important}
+  .mobile-nav{position:fixed;z-index:200;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:7px 5px calc(7px + env(safe-area-inset-bottom));border-top:1px solid #263642;background:rgba(10,16,23,.97);backdrop-filter:blur(18px)}
+  .mobile-nav button{display:flex;min-width:0;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 1px;border:1px solid transparent;border-radius:10px;background:transparent;color:#8999a7}
+  .mobile-nav button>span{font-size:18px;line-height:1.15}
+  .mobile-nav button>small{font-size:9px;line-height:1.2;white-space:nowrap}
+  .mobile-nav button.active{border-color:#254a57;background:#142a33;color:#8ceafa}
+  .workspace{display:flex;min-height:calc(100dvh - 58px);padding-bottom:calc(69px + env(safe-area-inset-bottom));overflow:visible}
+  .workspace>section{min-height:0}
+  #chatView .layout{display:flex;min-height:calc(100dvh - 145px);height:auto;flex-direction:column;gap:10px;padding:12px 12px 10px}
+  .chat-surface{min-height:calc(100dvh - 160px);padding:0;gap:0}
+  .chat-topline{padding:2px 1px 12px}
+  .chat-topline h2{font-size:18px}
+  .eyebrow{font-size:8px}
+  .connection-pill{padding:4px 7px;font-size:9px}
+  .chat-intro{gap:10px;margin:13px 0 5px;padding:12px;border-radius:13px}
+  .intro-orb{width:35px;height:35px;flex-basis:35px}
+  .chat-intro p{font-size:11px}
+  .chatbox{flex:1;min-height:180px;gap:11px;padding:13px 1px;overflow-y:auto}
+  .bubble{max-width:94%;padding:11px 12px;font-size:13px}
+  .composer-tools{margin:0 0 6px}
+  .attach-button{width:40px;height:40px}
+  .send{position:sticky;bottom:0;grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:7px;border-radius:13px;background:#111a22;box-shadow:0 -5px 20px #0003}
+  .send input{min-height:42px;padding:8px 7px;font-size:16px}
+  .send button.primary{min-height:42px;padding:8px 12px;gap:7px}
+  .composer-hint{font-size:9px;padding:6px 3px 0}
+  .workspace-panel,.desktop-dock{display:none!important}
+  .workspace section:not(#chatView){padding:14px 12px 20px;overflow:visible}
+  .workspace section:not(#chatView)>.card,.workspace section:not(#chatView) .card{margin:0 0 12px;padding:15px;border-radius:14px}
+  .workspace section:not(#chatView) h2{font-size:19px}
+  .workspace section:not(#chatView) h3{font-size:15px}
+  .workspace section:not(#chatView) .layout{grid-template-columns:minmax(0,1fr)}
+  .workspace section:not(#chatView) button{min-height:40px}
+  .workspace section:not(#chatView) input:not([type=checkbox]),.workspace section:not(#chatView) textarea,.workspace section:not(#chatView) select{min-height:43px;font-size:16px}
+  .agents-page{padding:0}
+  .agents-heading{align-items:flex-start;flex-wrap:wrap;gap:10px}
+  .agents-heading>div{min-width:0;flex:1 1 100%}
+  .agents-heading>button{width:100%}
+  .agents-layout{grid-template-columns:minmax(0,1fr);gap:10px;margin-top:12px}
+  .agents-bot-list{grid-template-columns:repeat(auto-fit,minmax(125px,1fr))}
+  .agent-detail-card .agents-heading{gap:7px}
+  .agent-detail-card .agents-heading button{flex:1 1 auto;width:auto}
+  .agent-task-head{align-items:flex-start;flex-wrap:wrap}
+  .agent-task-actions button{min-height:40px}
+  #cloudView>.card{padding:15px}
+  #cloudView .agents-heading{align-items:flex-start}
+  #cloudView .agents-heading>button{width:auto;flex:0 0 auto}
+  #cloudDeviceList>.item{padding:12px}
+  #cloudCommandHistory{grid-template-columns:minmax(0,1fr)}
+  .connector-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+  .connector-actions button{width:100%;text-align:left}
+  .connector-card ol{padding-left:19px;font-size:12px}
+  .connector-providers{gap:6px}
+  .connector-providers span{font-size:10px}
+  #petSettingsForm .row{display:grid;grid-template-columns:1fr}
+  #petSettingsForm .row>*{width:100%}
+  .preset-setting{align-items:flex-start;padding:12px}
+  .formgrid{grid-template-columns:minmax(0,1fr)}
+  .full{grid-column:auto}
+  .item-actions{gap:7px}
+  .item-actions button{min-height:40px}
+  .qbit-modal-overlay{align-items:end;padding:10px}
+  .qbit-modal{max-height:85dvh;border-radius:18px 18px 12px 12px}
+  footer{display:none}
+}
+@media(max-width:370px){
+  .mobile-nav{padding-left:3px;padding-right:3px}
+  .mobile-nav button>small{font-size:8px}
+  .mobile-nav button>span{font-size:17px}
+  .chat-top-actions{gap:5px}
+  .connection-pill{font-size:8px}
+}
+@media(orientation:landscape) and (max-height:500px) and (max-width:900px){
+  .mobile-nav{position:sticky;bottom:auto;grid-template-columns:repeat(6,minmax(0,1fr))}
+  .workspace{padding-bottom:0}
+  #chatView .layout,.chat-surface{min-height:calc(100dvh - 135px)}
+}
