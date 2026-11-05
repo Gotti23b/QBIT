@@ -12,7 +12,7 @@
     if(toggle){toggle.textContent="Control PC · "+(desktopControlEnabled?"ON":"OFF");toggle.setAttribute("aria-pressed",String(desktopControlEnabled));toggle.classList.toggle("is-on",desktopControlEnabled);}
     if(status)status.textContent=desktopControlEnabled?(desktopExtensionConnected?"Extensión conectada · Control remoto ON":"Control remoto ON"):"Control remoto OFF";
   }
-  function publishDesktopControlSetting(){renderDesktopControlStatus();window.postMessage({source:"QBIT_WEB",type:"DESKTOP_CONTROL_TOGGLE",enabled:desktopControlEnabled},location.origin);}
+  function publishDesktopControlSetting(){renderDesktopControlStatus();window.postMessage({source:"QBIT_WEB",type:"DESKTOP_CONTROL_TOGGLE",enabled:desktopControlEnabled},location.origin);if(user&&$("cloudView")&&!$("cloudView").classList.contains("hidden"))void refreshCloudDevices();}
   window.addEventListener("message",event=>{
     if(event.source!==window||event.origin!==location.origin||event.data?.source!=="QBIT_EXTENSION")return;
     if(event.data.type==="DESKTOP_CONTROL_STATUS"){
