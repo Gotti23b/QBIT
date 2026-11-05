@@ -49,18 +49,24 @@ function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||me
 async function runComputerUse(payload) {
   const action = String(payload?.call?.artifact || "");
   const args = payload?.call?.args && typeof payload.call.args === "object" ? payload.call.args : {};
-  const allowed = new Set(["computer_observe","computer_click","computer_type","computer_key"]);
+  const allowed = new Set(["computer_observe","computer_click","computer_click_at","computer_scroll","computer_type","computer_key"]);
   if (!allowed.has(action)) throw new Error("Herramienta Computer Use desconocida.");
   const mode = action.slice("computer_".length);
-  const target = mode === "click" ? String(args.target || "").slice(0, 160) : mode === "key" ? String(args.key || "").slice(0, 20) : "";
+  const target = ["click","key","scroll"].includes(mode) ? String(mode === "key" ? args.key || "" : args.target || "").slice(0, 160) : "";
   const value = mode === "type" ? String(args.text || "").slice(0, 2000) : "";
+  const direction = mode === "scroll" ? String(args.direction || "").toLowerCase() : "";
+  const amount = mode === "scroll" ? Math.max(1, Math.min(10, Math.round(Number(args.amount) || 1))) : 1;
+  const x = mode === "click_at" ? Number(args.x) : -1;
+  const y = mode === "click_at" ? Number(args.y) : -1;
   if (mode === "click" && !target.trim()) throw new Error("Falta el nombre o AutomationId del control.");
+  if (mode === "click_at" && (!Number.isInteger(x) || !Number.isInteger(y))) throw new Error("computer_click_at necesita coordenadas x e y enteras.");
+  if (mode === "scroll" && !["up","down","left","right"].includes(direction)) throw new Error("Dirección de desplazamiento no válida.");
   const script = app.isPackaged
     ? path.join(process.resourcesPath, "app.asar.unpacked", "windows", "scripts", "qbit-computer-use.ps1")
     : path.join(__dirname, "..", "scripts", "qbit-computer-use.ps1");
   if (!fs.existsSync(script)) throw new Error("No se encontró el motor local de Computer Use.");
   return await new Promise((resolve, reject) => {
-    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", mode, "-Target", target, "-Text", value], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", mode, "-Target", target, "-Text", value, "-Direction", direction, "-Amount", String(amount), "-X", String(x), "-Y", String(y)], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "", stderr = "";
     const timer = setTimeout(() => { child.kill(); reject(new Error("Computer Use tardó demasiado y se detuvo.")); }, 15000);
     child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
