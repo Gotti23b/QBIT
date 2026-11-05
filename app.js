@@ -247,8 +247,11 @@
     const bar=document.getElementById("updateBar"),label=document.getElementById("updateVersion"),status=document.getElementById("updateStatus"),button=document.getElementById("updateBtn");
     if(!bar)return;bar.classList.remove("hidden");
     try{label.textContent="v"+await pc.getAppVersion();}catch{}
-    const show=s=>{if(!s)return;status.textContent=s.message||"";status.className=s.status==="error"?"error":"muted";button.textContent="";
-      button.append(document.createTextNode(s.status==="ready"?"⬆ Actualizar a v"+s.version+" ":"⟳ "),Object.assign(document.createElement("span"),{id:"updateVersion",textContent:"v"+(s.current||label.textContent.replace(/^v/,""))}));
+    const show=s=>{if(!s)return;status.textContent=s.message||"";status.className=s.status==="error"?"error":"muted";status.title=s.message||"";button.textContent="";
+      const actionLabel=s.status==="ready"?"⬆ Actualizar a v"+s.version+" ":s.status==="error"?"↻ Reintentar ":"⟳ ";
+      button.append(document.createTextNode(actionLabel),Object.assign(document.createElement("span"),{id:"updateVersion",textContent:"v"+(s.current||label.textContent.replace(/^v/,""))}));
+      button.title=s.status==="error"?"Ver el error y reintentar la actualización: "+(s.message||""):"Buscar actualizaciones de QBIT";
+      button.setAttribute("aria-label",button.title);
       if(s.status==="latest")setTimeout(()=>{if(status.textContent===s.message)status.textContent="";},6000);};
     pc.onUpdateState(show);
     button.addEventListener("click",async()=>{try{show(await pc.checkForUpdates());}catch(e){show({status:"error",message:e?.message||"No pude buscar actualizaciones."});}});
