@@ -802,7 +802,7 @@
   $("attachFilesInput")?.addEventListener("change",async e=>{await addSelectedFiles(e.target.files,"file");e.target.value="";});
   $("attachFolderInput")?.addEventListener("change",async e=>{await addSelectedFiles(e.target.files,"folder");e.target.value="";});
   function extractQbitFileOutputs(answer){
-    const outputs=[];const clean=String(answer||"").replace(/```qbit-file\\s+([^\\r\\n]+)\\r?\\n([\\s\\S]*?)```/gi,(_match,name,content)=>{const safe=String(name).trim().replace(/[\\\\/:*?"<>|]/g,"_").replace(/^\\.+/,"").slice(0,100)||"archivo-corregido.txt";if(content.length<=200000)outputs.push({name:safe,content});return "";}).trim();
+    const outputs=[];const clean=String(answer||"").replace(/```qbit-file\s+([^\r\n]+)\r?\n([\s\S]*?)```/gi,(_match,name,content)=>{const safe=String(name).trim().replace(/[\\\\/:*?"<>|]/g,"_").replace(/^\\.+/,"").slice(0,100)||"archivo-corregido.txt";if(content.length<=200000)outputs.push({name:safe,content});return "";}).trim();
     return {clean,outputs};
   }
   function showQbitFileOutput(output){
