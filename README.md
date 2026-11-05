@@ -40,3 +40,18 @@ Funciones incluidas:
 Las tareas automáticas funcionan mientras QBIT Desktop esté abierto, incluso si la ventana principal está minimizada en la bandeja. Al salir completamente de QBIT, el temporizador se detiene y el estado queda guardado.
 
 **Límites de esta versión:** la programación por intervalo y fecha/hora ya está disponible, pero todavía no hay detectores específicos de eventos externos (por ejemplo, vigilar automáticamente las novedades de Classroom o detectar que un video se publicó), observación continua de pantalla/Computer Use autónomo ni colaboración coordinada entre varios bots. Esas capacidades requieren integraciones adicionales y no se presentan como terminadas.
+
+
+## Controlar QBIT Desktop desde QBIT Web
+
+La extensión permite que QBIT Web ejecute los Artifacts de QBIT Desktop:
+
+1. Abrí QBIT Desktop; el puente local se inicia automáticamente.
+2. Cargá la carpeta `extension` desde `chrome://extensions` con el modo de desarrollador.
+3. Abrí QBIT Web e iniciá sesión.
+4. Activá **Control PC** en la barra superior.
+5. Dejá abierta una pestaña con sesión iniciada en ChatGPT, Gemini, Claude, DeepSeek, Qwen, Arena.ai o Meta AI. QBIT la usa como proveedor de IA.
+
+Las acciones que requieren autorización siguen mostrando la confirmación de QBIT Desktop. Si Desktop está cerrado o la extensión no está conectada, el control aparece desconectado y no se ejecutan acciones.
+
+Dominios compatibles: `gotti23b.github.io/QBIT`, `qbit.uno` y `www.qbit.uno`.
