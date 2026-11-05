@@ -8,7 +8,7 @@ const CATALOG = [
   'search_files {"query"}', 'clipboard_write {"text"}', 'get_processes {}', 'cpu_usage {}', 'ram_usage {}', 'disk_usage {}',
   'focus_app {"query"}', 'close_window {"query"}', 'open_file_location {"query"}', 'get_file_info {"query"}',
   'zip_files {"query"}', 'unzip_file {"query"}', 'read_text_file {"query"}', 'show_notification {"title","message"}',
-  'set_timer {"seconds","label"}', 'open_calculator {}', 'open_notepad {}', 'volume_info {}', 'volume_set {"level"}', 'computer_observe {}', 'computer_click {"target":"nombre o AutomationId"}', 'computer_type {"text":"texto"}', 'computer_key {"key":"ENTER|TAB|ESCAPE|BACKSPACE|DELETE|UP|DOWN|LEFT|RIGHT|CTRL+A|CTRL+C|CTRL+V"}'
+  'set_timer {"seconds","label"}', 'open_calculator {}', 'open_notepad {}', 'volume_info {}', 'volume_set {"level"}', 'computer_observe {}', 'computer_click {"target":"nombre o AutomationId"}', 'computer_click_at {"x":0,"y":0} (coordenadas de computer_observe)', 'computer_scroll {"direction":"up|down|left|right","amount":1-10,"target":"opcional"}', 'computer_type {"text":"texto"}', 'computer_key {"key":"ENTER|TAB|ESCAPE|BACKSPACE|DELETE|UP|DOWN|LEFT|RIGHT|HOME|END|PAGEUP|PAGEDOWN|SPACE|CTRL+A|CTRL+C|CTRL+V|CTRL+Z|CTRL+Y|F5"}'
 ].join("; ");
 
 // Herramientas de solo lectura: se pueden usar como fuente de "vigilar" sin pedir permiso en cada consulta.
