@@ -994,12 +994,12 @@
       const item=document.createElement("div");item.className="item";
       const head=document.createElement("div");head.className="item-head";
       const name=document.createElement("strong");name.textContent=d.name;
-      const state=document.createElement("span");state.className="cloud-state "+(d.is_online?"online":"offline");state.textContent=d.is_online?"En línea":"Desconectado";
+      const online=!!d.is_online&&!!d.last_seen_at&&(Date.now()-new Date(d.last_seen_at).getTime()<45000);const state=document.createElement("span");state.className="cloud-state "+(online?"online":"offline");state.textContent=online?"En línea":"Desconectado";
       head.append(name,state);item.append(head);
       const meta=document.createElement("p");meta.className="muted";meta.textContent=d.platform.toUpperCase()+" · "+(d.last_seen_at?"Última conexión: "+new Date(d.last_seen_at).toLocaleString("es-AR"):"Sin registro");item.append(meta);
       if(d.platform==="windows"){
         const actions=document.createElement("div");actions.className="cloud-actions";
-        [["get_system_info","Información"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"],["lock_pc","Bloquear PC"]].forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!d.is_online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));actions.append(b);});
+        [["get_system_info","Información"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"],["lock_pc","Bloquear PC"]].forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));actions.append(b);});
         item.append(actions);
       }else{
         const note=document.createElement("p");note.className="muted";note.textContent=d.platform==="android"?"Android se registra y sincroniza presencia; las acciones nativas remotas aún no están implementadas.":"El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
