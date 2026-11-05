@@ -309,3 +309,10 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 #agentToggleBot,#agentDeleteBot{margin-left:6px}
 
 .agent-dialog-field{display:grid;gap:6px;margin:12px 0}.agent-dialog-field label{font-size:11px;color:#aebbc6}.agent-dialog-field input,.agent-dialog-field textarea,.agent-dialog-field select{width:100%;box-sizing:border-box;background:#0b1218;border:1px solid #30404d;border-radius:7px;color:#e5edf4;padding:9px 10px;font:12px inherit}.agent-dialog-field textarea{resize:vertical;min-height:90px}.agent-dialog-field input:focus,.agent-dialog-field textarea:focus,.agent-dialog-field select:focus{outline:1px solid #64d8ec;border-color:#64d8ec}.qbit-modal{max-height:90vh;overflow-y:auto}.qbit-modal button.danger{border-color:#653e46;color:#ffaaaa;background:#25171c}.qbit-modal button.danger:hover{background:#3a2028}
+
+/* Control de QBIT Desktop desde QBIT Web */
+.desktop-control-status{font-size:10px;color:var(--muted);white-space:nowrap}
+.desktop-control-toggle{white-space:nowrap;border-color:#34414d;background:#111820;color:#9aa8b5}
+.desktop-control-toggle.is-on{border-color:#276d62;background:#102b29;color:#8ee6c7}
+.desktop-control-toggle:disabled{opacity:.7;cursor:default}
+@media(max-width:760px){.desktop-control-status{display:none}.top{padding:0 10px}.desktop-control-toggle{font-size:10px;padding:5px 7px}}
