@@ -154,6 +154,20 @@ function bundledExtensionVersion() {
 }
 let updateState = { status: "idle", version: null, message: "" };
 let updatePromptOpen = false;
+function writeUpdaterLog(error, context = "Actualizador") {
+  const detail = error instanceof Error ? (error.stack || error.message) : String(error ?? "Error desconocido");
+  try {
+    const dir = path.join(app.getPath("userData"), "logs");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, "updater.log"), "[" + new Date().toISOString() + "] " + context + ": " + detail + "\n\n", "utf8");
+  } catch (logError) { console.warn("[QBIT updater] No se pudo guardar el registro:", logError?.message || logError); }
+}
+function reportUpdateError(error, context = "actualización") {
+  writeUpdaterLog(error, context);
+  const message = error?.message || String(error || "Error desconocido");
+  const code = error?.code ? " (" + error.code + ")" : "";
+  sendUpdateState({ status: "error", message: "Error al actualizar QBIT: " + message + code, detail: context });
+}
 function sendUpdateState(patch) {
   updateState = { ...updateState, ...patch, current: app.getVersion() };
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:update-state", updateState);
@@ -182,21 +196,32 @@ async function askToRestart(info) {
 function setupAutoUpdater() {
   if (!autoUpdater || !app.isPackaged) return;
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = false; // solo se instala si vos elegís "Reiniciar y actualizar"
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.on("checking-for-update", () => sendUpdateState({ status: "checking", message: "Buscando actualizaciones…" }));
   autoUpdater.on("update-available", info => sendUpdateState({ status: "downloading", version: info.version, message: "Descargando la versión " + info.version + "…" }));
   autoUpdater.on("update-not-available", () => sendUpdateState({ status: "latest", version: null, message: "Tenés la última versión (" + app.getVersion() + ")." }));
   autoUpdater.on("download-progress", p => sendUpdateState({ status: "downloading", message: "Descargando actualización… " + Math.round(p.percent || 0) + "%" }));
   autoUpdater.on("update-downloaded", info => { sendUpdateState({ status: "ready", version: info.version, message: "La versión " + info.version + " está lista. Reiniciá cuando quieras." }); askToRestart(info); });
-  autoUpdater.on("error", err => sendUpdateState({ status: "error", message: "No pude buscar actualizaciones: " + (err?.message || err) }));
-  setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
+  autoUpdater.on("error", err => reportUpdateError(err, "Evento del actualizador"));
+  setTimeout(() => {
+    Promise.resolve().then(() => autoUpdater.checkForUpdates()).catch(err => reportUpdateError(err, "Búsqueda automática"));
+  }, 5000);
 }
+ipcMain.handle("qbit:update-state-get", e => {
+  if (!mainWindow || e.sender !== mainWindow.webContents) throw new Error("No autorizado.");
+  return { ...updateState, current: app.getVersion() };
+});
 ipcMain.handle("qbit:update-check", async e => {
   if (!mainWindow || e.sender !== mainWindow.webContents) throw new Error("No autorizado.");
   if (!autoUpdater || !app.isPackaged) return { status: "dev", current: app.getVersion(), message: "Estás usando QBIT en modo desarrollo (" + app.getVersion() + "). Las actualizaciones funcionan en la versión instalada." };
   if (updateState.status === "ready") { askToRestart({ version: updateState.version }); return { ...updateState, current: app.getVersion() }; }
-  autoUpdater.checkForUpdates().catch(err => sendUpdateState({ status: "error", message: "No pude buscar actualizaciones: " + (err?.message || err) }));
-  return { status: "checking", current: app.getVersion(), message: "Buscando actualizaciones…" };
+  sendUpdateState({ status: "checking", message: "Buscando actualizaciones…" });
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    reportUpdateError(error, "Búsqueda manual");
+  }
+  return { ...updateState, current: app.getVersion() };
 });
 ipcMain.handle("qbit:app-version", () => app.getVersion());
 
