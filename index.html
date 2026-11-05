@@ -16,6 +16,7 @@
 <div class="wrap">
 <header class="top">
   <div class="brand"><img class="logo" src="qbit-icon.svg" alt="" aria-hidden="true"><div><h1 class="brand-title">QBIT</h1><p>Tu asistente personal</p></div></div>
+  <button id="mobileNewChat" class="mobile-new-chat" type="button" aria-label="Nueva sesión" title="Nueva sesión">＋</button>
   <div id="updateBar" class="update-bar hidden"><button id="updateBtn" class="small" type="button" title="Buscar actualizaciones de QBIT">⟳ <span id="updateVersion">v…</span></button><span id="updateStatus" class="muted" aria-live="polite"></span></div>
   <div id="userBar" class="row hidden" style="flex:0 1 auto"><span id="userEmail" class="muted"></span><span id="desktopControlStatus" class="desktop-control-status" aria-live="polite">Extensión no detectada</span><button id="desktopControlToggle" class="small desktop-control-toggle" type="button" aria-pressed="false">Control PC · OFF</button><button id="logoutBtn" class="small">Cerrar sesión</button></div>
 </header>
@@ -70,9 +71,17 @@
       <div class="sidebar-bottom">
         <span class="status-dot"></span>
         <span><strong>QBIT Extension</strong><small>Entorno de escritorio</small></span>
-        <span class="sidebar-version">1.5.26</span>
+        <span class="sidebar-version">1.5.27</span>
       </div>
     </aside>
+    <nav class="mobile-nav" aria-label="Navegación principal">
+      <button class="active" data-tab="chatView" type="button"><span>⌂</span><small>Chat</small></button>
+      <button data-tab="agentsView" type="button"><span>🤖</span><small>Bots</small></button>
+      <button data-tab="cloudView" type="button"><span>▣</span><small>Equipos</small></button>
+      <button data-tab="connectorView" type="button"><span>⌁</span><small>Conector</small></button>
+      <button data-tab="mascotSettingsView" type="button"><span>◇</span><small>Mascota</small></button>
+      <button data-tab="adminView" type="button"><span>⚙</span><small>Admin</small></button>
+    </nav>
     <main class="workspace">
   <section id="chatView"><div class="layout">
     <div class="chat-surface">
@@ -153,7 +162,7 @@
   </section>
       <div class="desktop-dock" aria-label="Estado de QBIT">
         <div class="dock-left"><span class="dock-prompt">›_</span><strong>ACTIVIDAD</strong><span class="dock-muted">No hay procesos en ejecución</span></div>
-        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.26</span></div>
+        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.27</span></div>
       </div>
     </main>
   </div>
