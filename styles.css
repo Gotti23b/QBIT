@@ -364,7 +364,8 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   #updateBar{margin-left:0}
   #updateBar button{min-height:36px;padding:5px 8px;font-size:10px}
   #userBar{gap:5px!important}
-  #userEmail,#desktopControlToggle,#logoutBtn{display:none!important}
+  #userEmail,#desktopControlToggle{display:none!important}
+  #logoutBtn{display:inline-flex;min-height:36px;padding:6px 8px;font-size:10px}
   #appView{min-height:calc(100dvh - 58px)}
   .app-shell{display:block;min-height:calc(100dvh - 58px)}
   .sidebar{display:none!important}
