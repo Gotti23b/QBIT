@@ -16,7 +16,6 @@
     if(event.source!==window||event.origin!==location.origin||event.data?.source!=="QBIT_EXTENSION")return;
     if(event.data.type==="DESKTOP_CONTROL_STATUS"){
       desktopExtensionConnected=!!event.data.connected;
-      if(typeof event.data.enabled==="boolean"&&event.data.enabled!==desktopControlEnabled){desktopControlEnabled=event.data.enabled;try{localStorage.setItem("qbit-desktop-control-enabled",String(desktopControlEnabled));}catch{}}
       renderDesktopControlStatus();
     }
   });
