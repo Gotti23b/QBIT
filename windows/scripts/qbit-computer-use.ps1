@@ -119,7 +119,7 @@ public static class QbitInput {
     exit
   }
   if ($Action -eq "scroll") {
-    if (-not @("up","down","left","right").Contains($Direction.ToLowerInvariant())) { throw "Dirección no válida. Usá up, down, left o right." }
+    if ($Direction.ToLowerInvariant() -notin @("up","down","left","right")) { throw "Dirección no válida. Usá up, down, left o right." }
     $Amount=[Math]::Max(1,[Math]::Min(10,$Amount))
     $element=$null
     if ($Target) {
