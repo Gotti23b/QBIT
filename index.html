@@ -69,7 +69,7 @@
       <div class="sidebar-bottom">
         <span class="status-dot"></span>
         <span><strong>QBIT Extension</strong><small>Entorno de escritorio</small></span>
-        <span class="sidebar-version">1.5.11</span>
+        <span class="sidebar-version">1.5.20</span>
       </div>
     </aside>
     <main class="workspace">
@@ -81,8 +81,18 @@
       </div>
       <div class="chat-intro"><div class="intro-orb"><img src="qbit-icon.svg" alt=""></div><div><strong>¿En qué trabajamos?</strong><p>Escribile a QBIT. Podés pedir ayuda, consultar a tu IA conectada o ejecutar acciones desde el agente.</p></div></div>
       <div id="chatbox" class="chatbox" aria-live="polite"><div class="bubble bot"><small>QBIT</small>¡Hola! Soy QBIT. Agregá comandos y respuestas en el panel de administración para empezar. ✨</div></div>
+      <div id="attachmentPreview" class="attachment-preview hidden" aria-live="polite"></div>
+      <div class="composer-tools">
+        <button id="attachMenuToggle" class="attach-button" type="button" aria-label="Adjuntar archivos o carpeta" title="Adjuntar">＋</button>
+        <div id="attachMenu" class="attach-menu hidden">
+          <button id="attachFilesBtn" type="button">📄 Adjuntar archivos</button>
+          <button id="attachFolderBtn" type="button">📁 Elegir carpeta</button>
+        </div>
+      </div>
+      <input id="attachFilesInput" class="hidden" type="file" multiple accept=".txt,.md,.csv,.json,.log,.ini,.html,.htm,.css,.js,.cjs,.mjs,.ts,.tsx,.jsx,.py,.ps1,.bat,.cmd,.xml,.yml,.yaml,.sql,.java,.c,.cpp,.h,.hpp,.sh,.toml,.env">
+      <input id="attachFolderInput" class="hidden" type="file" webkitdirectory directory multiple>
       <form id="sendForm" class="send">
-        <input id="chatInput" placeholder="Escribí un mensaje o una instrucción…" autocomplete="off" required>
+        <input id="chatInput" placeholder="Escribí un mensaje o una instrucción…" autocomplete="off">
         <button class="primary" type="submit"><span>Enviar</span><span>↑</span></button>
       </form>
       <div class="composer-hint"><span>QBIT puede cometer errores. Revisá las acciones antes de confirmarlas.</span><span>ENTER ↵</span></div>
@@ -141,7 +151,7 @@
   </section>
       <div class="desktop-dock" aria-label="Estado de QBIT">
         <div class="dock-left"><span class="dock-prompt">›_</span><strong>ACTIVIDAD</strong><span class="dock-muted">No hay procesos en ejecución</span></div>
-        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.11</span></div>
+        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.20</span></div>
       </div>
     </main>
   </div>
