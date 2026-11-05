@@ -325,7 +325,7 @@ class AgentEngine {
       repeats = 0; lastKey = key;
       let obs;
       try { obs = await this.callTool(bot, task, msg.tool, args); } catch (e) { obs = "ERROR: " + (e?.message || e); }
-      obs = String(obs).slice(0, MAX_OBS);
+      obs = String(obs).slice(0, msg.tool === "computer_observe" ? 6500 : MAX_OBS);
       history.push({ call: { tool: msg.tool, args }, obs });
       this.log(bot.id, task.id, "info", `Paso ${step}: ${msg.tool} ${JSON.stringify(args).slice(0, 200)} → ${obs.slice(0, 300)}`);
     }
