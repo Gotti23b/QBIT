@@ -24,6 +24,8 @@ jobs:
         run: node windows/scripts/create-windows-icon.cjs
       - name: Check JavaScript syntax
         run: npm run check
+      - name: Run agent tests
+        run: npm test
       - name: Build NSIS installer (sin publicar)
         if: github.ref != 'refs/heads/main' || github.event_name == 'pull_request'
         run: npm run dist
