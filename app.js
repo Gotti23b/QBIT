@@ -537,7 +537,7 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){const changed=user?.id!==u?.id;user=u;syncPresetToggle();$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();else void stopCloudPresence();}
+  function session(u){const changed=user?.id!==u?.id;if(!u&&cloudDeviceId)void stopCloudPresence();user=u;syncPresetToggle();$("loginView").classList.toggle("hidden",!!u);$("appView").classList.toggle("hidden",!u);$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?u.email:"";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -640,7 +640,7 @@
   function resetCommand(){$("commandId").value="";$("commandName").value="";$("commandTrigger").value="";$("commandCategory").value="";$("cancelCommand").classList.add("hidden");}
   function resetResponse(){$("responseId").value="";$("responseCommand").value="";$("responseContent").value="";$("responsePriority").value="1";$("responseActive").checked=true;$("cancelResponse").classList.add("hidden");}
   $("loginForm").addEventListener("submit",async e=>{e.preventDefault();say("loginMsg","Iniciando sesión…");const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){say("loginMsg","No se pudo iniciar sesión. Revisá los datos. "+error.message,true);return;}$("password").value="";session(data.user);await refresh();});
-  $("logoutBtn").onclick=async()=>{await db.auth.signOut();session(null);};
+  $("logoutBtn").onclick=async()=>{await stopCloudPresence();await db.auth.signOut();session(null);};
   renderDesktopControlStatus();
   $("presetCommandsToggle")?.addEventListener("change",async e=>{
     try{localStorage.setItem(PRESET_COMMANDS_KEY,String(e.target.checked));}catch{}
