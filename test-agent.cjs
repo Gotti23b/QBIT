@@ -202,6 +202,21 @@ test("N: Computer Use sigue bloqueado cuando el bot no tiene permiso", async () 
   assert.match(seen[1], /BLOQUEADO: activá Computer Use/);
 });
 
+
+test("O: computer_observe conserva suficiente información de controles y coordenadas", async () => {
+  const seen = [];
+  const { eng, bot } = make({
+    onAction: async () => JSON.stringify({ ok: true, controls: Array.from({length:45},(_,i)=>({name:"Control "+i,rect:{x:i*10,y:i*5,width:120,height:30}})) }),
+    runAI: async p => { seen.push(p); return { answer: seen.length === 1 ? '{"tool":"computer_observe","args":{}}' : '{"fin":"hecho","resumen":"observación revisada"}' }; }
+  });
+  eng.updateBot(bot.id, { computerUse: true });
+  const task = eng.createTask({ botId: bot.id, title: "observar", objective: "leer los controles de la pantalla", trigger: "auto" });
+  eng.start(); await until(() => task.status === "completed"); eng.stop();
+  assert.match(seen[1], /Control 0/);
+  assert.match(seen[1], /rect/);
+  assert.ok(seen[1].length > 1500, "la observación de pantalla no debe truncarse al límite genérico");
+});
+
 (async () => {
   let fail = 0;
   for (const [name, fn] of T) { try { await fn(); console.log("✔", name); } catch (e) { fail++; console.log("✘", name, "\n   ", e.message); } }
