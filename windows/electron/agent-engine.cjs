@@ -11,6 +11,17 @@ const MAX_OBS = 1500;              // caracteres de cada observación enviada a 
 const NO_LIMITS = { maxSteps: Infinity, maxRunMs: Infinity, maxContinuations: Infinity, maxFailures: Infinity };
 const TASK_STATUSES = ["active", "paused", "stopped", "completed", "failed"];
 const TRIGGERS = ["manual", "interval", "once", "auto"];
+const AGENT_TOOLS = new Set([
+  ...CATALOG.split(";").map(item => item.trim().match(/^([a-z][a-z0-9_]*)/)?.[1]).filter(Boolean),
+  "fetch_url", "remember", "notify"
+]);
+function stableStringify(value) {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + stableStringify(value[key])).join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const ts = v => (v ? Date.parse(v) : NaN);
 
@@ -261,7 +272,7 @@ class AgentEngine {
         `"esperar" te vuelve a ejecutar en N minutos. "vigilar": QBIT consulta la fuente sin usar IA y te despierta cuando cambie o coincida; ` +
         `la fuente debe ser fetch_url (elegí páginas estables) o una herramienta de solo lectura (system_info, battery_info, network_info, get_processes, cpu_usage, ram_usage, disk_usage…). ` +
         `Podés trabajar todos los pasos que necesites. Si la meta es larga, guardá tu avance con remember: los pasos viejos del historial se recortan para que el mensaje entre. Si algo falló o no te autorizaron, no insistas con lo mismo.`,
-      `HERRAMIENTAS PC: ${CATALOG}\n` + (bot.computerUse === true ? `COMPUTER USE: computer_observe {}; computer_click {"target":"nombre o AutomationId"}; computer_type {"text":"texto"} (campo enfocado); computer_key {"key":"ENTER|TAB|ESCAPE|BACKSPACE|DELETE|UP|DOWN|LEFT|RIGHT|CTRL+A|CTRL+C|CTRL+V"}. Observá antes y verificá después. Solo controles accesibles por Windows UI Automation; no se envían capturas al modelo. No realices compras, pagos, envíos de mensajes ni acciones destructivas sin autorización explícita.\n` : "COMPUTER USE DESACTIVADO para este bot.\n") + `HERRAMIENTAS DEL AGENTE: fetch_url {"url"}; remember {"nota"} (reemplaza tu nota); notify {"title","message"}.`,
+      `HERRAMIENTAS PC: ${CATALOG}\n` + (bot.computerUse === true ? `COMPUTER USE: computer_observe {} devuelve ventana, monitores y controles visibles con tipo, estado, valor y rectángulo x/y/ancho/alto; computer_click {"target":"AutomationId o nombre único"}; computer_click_at {"x":0,"y":0} usa coordenadas obtenidas de la observación; computer_scroll {"direction":"up|down|left|right","amount":1-10,"target":"opcional"}; computer_type {"text":"texto"}; computer_key {"key":"ENTER|TAB|ESCAPE|BACKSPACE|DELETE|UP|DOWN|LEFT|RIGHT|HOME|END|PAGEUP|PAGEDOWN|SPACE|CTRL+A|CTRL+C|CTRL+V|CTRL+Z|CTRL+Y|F5"}. Observá antes y verificá después; si un nombre aparece varias veces, elegí un AutomationId o coordenadas. Usa solo controles visibles y coordenadas observadas. Funciona con accesibilidad de Windows y no envía capturas de pantalla al modelo. No realices compras, pagos, envíos de mensajes ni acciones destructivas sin autorización explícita.\n` : "COMPUTER USE DESACTIVADO para este bot.\n") + `HERRAMIENTAS DEL AGENTE: fetch_url {"url"}; remember {"nota"} (reemplaza tu nota); notify {"title","message"}.`,
       `INSTRUCCIONES DEL BOT:\n${String(bot.instructions || "Trabajá con cuidado.").slice(0, 1500)}`,
       `META:\n${String(task.objective).slice(0, 2000)}`,
       task.memory ? `TU NOTA GUARDADA:\n${task.memory.slice(0, 800)}` : "",
@@ -295,8 +306,16 @@ class AgentEngine {
         step--; continue;
       }
       if (typeof msg.fin === "string") return msg;
-      const args = msg.args && typeof msg.args === "object" ? msg.args : {};
-      const key = msg.tool + JSON.stringify(args);
+      if (!AGENT_TOOLS.has(msg.tool)) {
+        history.push({ call: { tool: msg.tool, args: msg.args }, obs: "BLOQUEADO: la herramienta no existe en el catálogo de QBIT. Elegí una herramienta permitida o terminá la tarea." });
+        continue;
+      }
+      if (msg.args !== undefined && (!msg.args || typeof msg.args !== "object" || Array.isArray(msg.args))) {
+        history.push({ call: { tool: msg.tool, args: msg.args }, obs: "ERROR: args debe ser un objeto JSON. Reintentá con argumentos válidos." });
+        continue;
+      }
+      const args = msg.args || {};
+      const key = msg.tool + stableStringify(args);
       if (key === lastKey) {
         // No corta la tarea: avisa a la IA y, si insiste, pausa 5 min para no quemar mensajes del chat en vano.
         if (++repeats >= 3) return { fin: "esperar", minutos: 5, resumen: "Repetía la misma acción (" + msg.tool + "); pauso 5 min y retomo con otro enfoque." };
@@ -306,7 +325,7 @@ class AgentEngine {
       repeats = 0; lastKey = key;
       let obs;
       try { obs = await this.callTool(bot, task, msg.tool, args); } catch (e) { obs = "ERROR: " + (e?.message || e); }
-      obs = String(obs).slice(0, MAX_OBS);
+      obs = String(obs).slice(0, msg.tool === "computer_observe" ? 6500 : MAX_OBS);
       history.push({ call: { tool: msg.tool, args }, obs });
       this.log(bot.id, task.id, "info", `Paso ${step}: ${msg.tool} ${JSON.stringify(args).slice(0, 200)} → ${obs.slice(0, 300)}`);
     }
