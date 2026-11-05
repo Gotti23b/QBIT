@@ -949,7 +949,7 @@
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
       if(cloudTimer)clearInterval(cloudTimer);
-      cloudTimer=setInterval(()=>{if(user&&cloudDeviceId){void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);if(cloudPlatform()==="windows")void pollCloudCommands();}},15000);
+      cloudTimer=setInterval(()=>{if(user&&cloudDeviceId){void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);if(["windows","android"].includes(cloudPlatform()))void pollCloudCommands();}},15000);
       if(cloudPlatform()==="windows")void pollCloudCommands();
     }catch(e){console.warn("[QBIT Cloud]",e?.message||e);const s=$("cloudStatus");if(s)s.textContent="No se pudo conectar: "+(e?.message||"error");}
     finally{cloudBusy=false;}
@@ -960,7 +960,7 @@
     cloudDeviceId=null;
   }
   async function processCloudCommand(c){
-    if(!window.qbitPC?.isDesktop||!user)return;
+    if(!user||!["windows","android"].includes(cloudPlatform()))return;
     const claim=await db.from("qbit_device_commands").update({status:"running",started_at:new Date().toISOString()}).eq("id",c.id).eq("status","pending").select("id").maybeSingle();
     if(claim.error||!claim.data)return;
     try{
@@ -968,17 +968,29 @@
         await db.from("qbit_device_commands").update({status:"cancelled",completed_at:new Date().toISOString()}).eq("id",c.id);return;
       }
       let result;
-      if(c.command==="get_system_info")result=await executeDesktopArtifact("system_info");
-      else if(c.command==="get_battery_info")result=await executeDesktopArtifact("battery_info");
-      else if(c.command==="get_network_info")result=await executeDesktopArtifact("network_info");
-      else if(c.command==="get_display_info")result=await executeDesktopArtifact("display_info");
-      else if(c.command==="lock_pc")result=await executeDesktopArtifact("lock_pc");
+      if(c.command==="get_system_info"){
+        if(cloudPlatform()==="windows")result=await executeDesktopArtifact("system_info");
+        else result={message:"Dispositivo Android · "+(navigator.platform||"plataforma móvil")+" · "+String(navigator.userAgent||"").slice(0,220)};
+      }else if(c.command==="get_battery_info"){
+        if(cloudPlatform()==="windows")result=await executeDesktopArtifact("battery_info");
+        else if(navigator.getBattery){const b=await navigator.getBattery();result={message:"Batería: "+Math.round(b.level*100)+"% · "+(b.charging?"cargando":"sin cargar")};}
+        else throw new Error("Este Android/WebView no expone el estado de batería.");
+      }else if(c.command==="get_network_info"){
+        if(cloudPlatform()==="windows")result=await executeDesktopArtifact("network_info");
+        else {const n=navigator.connection||navigator.mozConnection||navigator.webkitConnection;result={message:"Conexión: "+(navigator.onLine?"en línea":"sin conexión")+(n?" · "+(n.effectiveType||n.type||"tipo desconocido")+" · "+(n.downlink||"?")+" Mbps":" · detalles de red no disponibles")};}
+      }else if(c.command==="get_display_info"){
+        if(cloudPlatform()==="windows")result=await executeDesktopArtifact("display_info");
+        else result={message:"Pantalla: "+screen.width+" × "+screen.height+" · escala "+(window.devicePixelRatio||1)+"x"};
+      }else if(c.command==="lock_pc"){
+        if(cloudPlatform()!=="windows")throw new Error("El bloqueo remoto solo está disponible en Windows.");
+        result=await executeDesktopArtifact("lock_pc");
+      }
       else throw new Error("Acción todavía no implementada en este cliente.");
       await db.from("qbit_device_commands").update({status:"completed",result:{message:String(result?.message||JSON.stringify(result)||"Completado").slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);
     }catch(e){await db.from("qbit_device_commands").update({status:"failed",error_message:String(e?.message||e).slice(0,500),result:{message:String(e?.message||e).slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);}
   }
   async function pollCloudCommands(){
-    if(cloudPollBusy||!user||!cloudDeviceId||cloudPlatform()!=="windows")return;cloudPollBusy=true;
+    if(cloudPollBusy||!user||!cloudDeviceId||!["windows","android"].includes(cloudPlatform()))return;cloudPollBusy=true;
     try{
       const q=await db.from("qbit_device_commands").select("id,command,payload,status").eq("device_id",cloudDeviceId).eq("status","pending").gt("expires_at",new Date().toISOString()).order("created_at",{ascending:true}).limit(5);
       if(q.error)throw q.error;for(const c of q.data||[])await processCloudCommand(c);
@@ -997,9 +1009,11 @@
       const online=!!d.is_online&&!!d.last_seen_at&&(Date.now()-new Date(d.last_seen_at).getTime()<45000);const state=document.createElement("span");state.className="cloud-state "+(online?"online":"offline");state.textContent=online?"En línea":"Desconectado";
       head.append(name,state);item.append(head);
       const meta=document.createElement("p");meta.className="muted";meta.textContent=d.platform.toUpperCase()+" · "+(d.last_seen_at?"Última conexión: "+new Date(d.last_seen_at).toLocaleString("es-AR"):"Sin registro");item.append(meta);
-      if(d.platform==="windows"){
+      if(d.platform==="windows"||d.platform==="android"){
         const actions=document.createElement("div");actions.className="cloud-actions";
-        [["get_system_info","Información"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"],["lock_pc","Bloquear PC"]].forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));actions.append(b);});
+        const options=[["get_system_info","Información"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"]];
+        if(d.platform==="windows")options.push(["lock_pc","Bloquear PC"]);
+        options.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));actions.append(b);});
         item.append(actions);
       }else{
         const note=document.createElement("p");note.className="muted";note.textContent=d.platform==="android"?"Android se registra y sincroniza presencia; las acciones nativas remotas aún no están implementadas.":"El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
