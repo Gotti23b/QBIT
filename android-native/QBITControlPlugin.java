@@ -20,13 +20,6 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class QBITControlPlugin extends Plugin {
 
     @PluginMethod
-    public void getAppVersion(PluginCall call) {
-        JSObject result = new JSObject();
-        result.put("version", BuildConfig.VERSION_NAME);
-        call.resolve(result);
-    }
-
-    @PluginMethod
     public void downloadApk(PluginCall call) {
         String url = call.getString("url", "");
         String version = call.getString("version", "latest");
