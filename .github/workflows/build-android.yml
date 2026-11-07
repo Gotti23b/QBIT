@@ -131,8 +131,8 @@ jobs:
       - name: Read Android release version
         id: release_version
         run: |
-      VERSION=$(node -p "require('./package.json').version")
-      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK
         run: cp config/android/app/build/outputs/apk/debug/app-debug.apk "QBIT-Android-v${{ steps.release_version.outputs.version }}.apk"
