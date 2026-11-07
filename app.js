@@ -1228,7 +1228,7 @@
     const target=cloudDevicesCache.find(d=>d.id===deviceId),platform=String(target?.platform||"").toLowerCase();
     const skipConfirmation=(platform==="windows"||platform==="android")&&!remoteConfirmationRequired(platform);
     const labels={get_system_info:"consultar información del sistema",get_battery_info:"consultar la batería",get_network_info:"consultar la red",get_display_info:"consultar las pantallas",volume_up:"subir el volumen",volume_down:"bajar el volumen",volume_mute:"silenciar el audio",brightness_up:"subir el brillo",brightness_down:"bajar el brillo",lock_pc:"bloquear la PC"};
-    if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+(labels[command]||command)+"?\\n\\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
+    if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+(labels[command]||command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
     const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
     $("cloudStatus").textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener QBIT abierto.";
