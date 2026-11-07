@@ -444,3 +444,38 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .workspace{padding-bottom:0}
   #chatView .layout,.chat-surface{min-height:calc(100dvh - 135px)}
 }
+
+/* Dispositivos v1.5.28 */
+.cloud-page{overflow:hidden}
+.cloud-page-heading{align-items:flex-start;gap:14px}
+.cloud-summary-row,.cloud-history-title{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0}
+.cloud-summary-row>strong{font-size:13px;color:var(--text)}
+.cloud-live-indicator{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font-size:11px}
+.cloud-live-indicator i{width:7px;height:7px;border-radius:50%;background:#55d6a5;box-shadow:0 0 10px #55d6a566}
+.cloud-filter-bar{display:grid;grid-template-columns:minmax(180px,1fr) minmax(145px,.35fr) minmax(145px,.35fr);gap:9px;margin:14px 0}
+.cloud-filter-bar input,.cloud-filter-bar select{min-width:0;width:100%;background:#0b1520;border:1px solid var(--line-soft);color:var(--text);border-radius:10px;padding:10px 12px}
+.cloud-device-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:12px;margin:14px 0 24px}
+#cloudDeviceList>.cloud-device-card{min-width:0;padding:16px;border:1px solid var(--line-soft);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.008));margin:0}
+.cloud-device-heading,.cloud-device-identity,.cloud-history-heading{display:flex;align-items:center;gap:10px;min-width:0}
+.cloud-device-heading{justify-content:space-between}
+.cloud-device-identity{flex:1}
+.cloud-platform-icon{width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px;border:1px solid var(--line-soft);border-radius:11px;background:#102231;color:#8eddf0;font-size:20px}
+.cloud-device-name{display:block;overflow-wrap:anywhere;font-size:14px}
+.cloud-platform-name{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.cloud-last-seen{font-size:11px;color:var(--muted);margin:10px 0 2px}
+.cloud-history-section{border-top:1px solid var(--line-soft);padding-top:16px}
+.cloud-history-title{margin:0 0 8px}
+.cloud-history-title h3{margin:4px 0 0}
+.cloud-history-title>.muted{font-size:11px}
+.cloud-history-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:0 18px}
+.cloud-history-heading{justify-content:space-between}
+.cloud-history-heading strong{font-size:12px}
+.cloud-history-state{font-size:10px;border-radius:20px;padding:3px 8px;background:#18232d;color:#bdcbd6;white-space:nowrap}
+.cloud-history-state.completed{color:#8ee6c7;background:#102b25}
+.cloud-history-state.failed,.cloud-history-state.cancelled{color:#ffb1b9;background:#291b20}
+.cloud-history-state.running{color:#9dd6ff;background:#14273a}
+.cloud-history-item{padding:10px 0;border-bottom:1px solid var(--line-soft);min-width:0}
+.cloud-history-item p{overflow-wrap:anywhere}
+.cloud-empty{grid-column:1/-1;padding:18px;border:1px dashed var(--line-soft);border-radius:12px;text-align:center}
+@media(max-width:760px){.cloud-filter-bar{grid-template-columns:1fr 1fr}.cloud-filter-bar input{grid-column:1/-1}}
+@media(max-width:620px){.cloud-page-heading{align-items:flex-start}.cloud-filter-bar{grid-template-columns:1fr}.cloud-filter-bar input{grid-column:auto}.cloud-device-grid{grid-template-columns:minmax(0,1fr)}#cloudView .cloud-actions button{min-height:38px;flex:1 1 auto}.cloud-history-grid{grid-template-columns:minmax(0,1fr)}}
