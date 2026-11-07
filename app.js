@@ -972,6 +972,8 @@
       await control.openAccessibilitySettings();
       return {message:"Se abrieron los ajustes de Accesibilidad. Activá «QBIT Control» para habilitar navegación remota."};
     }
+    const settingsPages={android_open_wifi_settings:"wifi",android_open_bluetooth_settings:"bluetooth",android_open_display_settings:"display",android_open_sound_settings:"sound",android_open_battery_settings:"battery",android_open_app_settings:"apps"};
+    if(settingsPages[command])return await control.openSystemSettings({page:settingsPages[command]});
     if(command==="android_volume_up"||command==="android_volume_down"||command==="android_volume_mute"){
       const action=command==="android_volume_up"?"up":command==="android_volume_down"?"down":"mute";
       return await control.adjustVolume({action});
@@ -1051,7 +1053,7 @@
     return new Date(time).toLocaleString("es-AR");
   }
   function cloudCommandLabel(command){
-    return ({get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",brightness_up:"Subir brillo",brightness_down:"Bajar brillo",lock_pc:"Bloquear PC",android_open_accessibility_settings:"Configurar accesibilidad",android_back:"Atrás",android_home:"Inicio",android_notifications:"Abrir notificaciones",android_quick_settings:"Ajustes rápidos",android_lock_screen:"Bloquear teléfono",android_volume_up:"Subir volumen del teléfono",android_volume_down:"Bajar volumen del teléfono",android_volume_mute:"Silenciar teléfono",android_brightness_up:"Subir brillo del teléfono",android_brightness_down:"Bajar brillo del teléfono"})[command]||String(command||"Acción");
+    return ({get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",brightness_up:"Subir brillo",brightness_down:"Bajar brillo",lock_pc:"Bloquear PC",android_open_accessibility_settings:"Configurar accesibilidad",android_back:"Atrás",android_home:"Inicio",android_notifications:"Abrir notificaciones",android_quick_settings:"Ajustes rápidos",android_lock_screen:"Bloquear teléfono",android_volume_up:"Subir volumen del teléfono",android_volume_down:"Bajar volumen del teléfono",android_volume_mute:"Silenciar teléfono",android_brightness_up:"Subir brillo del teléfono",android_brightness_down:"Bajar brillo del teléfono",android_open_wifi_settings:"Abrir ajustes de Wi-Fi",android_open_bluetooth_settings:"Abrir ajustes de Bluetooth",android_open_display_settings:"Abrir ajustes de pantalla",android_open_sound_settings:"Abrir ajustes de sonido",android_open_battery_settings:"Abrir ajustes de batería",android_open_app_settings:"Abrir ajustes de QBIT"})[command]||String(command||"Acción");
   }
   function cloudStatusLabel(status){
     return ({pending:"En espera",running:"En ejecución",completed:"Completada",failed:"Falló",cancelled:"Cancelada",expired:"Vencida"})[status]||String(status||"Estado desconocido");
@@ -1099,7 +1101,8 @@
       detail.append(cloudDetailSection("Permisos", [["android_open_accessibility_settings","Configurar accesibilidad"]],d));
       detail.append(cloudDetailSection("Navegación", [["android_back","Atrás"],["android_home","Inicio"],["android_notifications","Notificaciones"],["android_quick_settings","Ajustes rápidos"],["android_lock_screen","Bloquear teléfono"]],d));
       detail.append(cloudDetailSection("Sonido", [["android_volume_up","Volumen +"],["android_volume_down","Volumen −"],["android_volume_mute","Silenciar"]],d));
-      detail.append(cloudDetailSection("Pantalla", [["android_brightness_up","Brillo +"],["android_brightness_down","Brillo −"]],d));
+      detail.append(cloudDetailSection("Pantalla", [["android_brightness_up","Brillo +"],["android_brightness_down","Brillo −"],["android_open_display_settings","Ajustes de pantalla"]],d));
+      detail.append(cloudDetailSection("Conexiones y sistema", [["android_open_wifi_settings","Wi-Fi"],["android_open_bluetooth_settings","Bluetooth"],["android_open_sound_settings","Sonido"],["android_open_battery_settings","Batería"],["android_open_app_settings","Ajustes de QBIT"]],d));
       const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Las acciones remotas requieren que QBIT esté abierto en el teléfono. La navegación usa el servicio de Accesibilidad de QBIT; volumen y brillo usan controles nativos de Android. Cada orden pide confirmación en el teléfono.";detail.append(note);
     }else{
       const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones del sistema.";detail.append(note);
