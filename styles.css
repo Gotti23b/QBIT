@@ -479,3 +479,19 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .cloud-empty{grid-column:1/-1;padding:18px;border:1px dashed var(--line-soft);border-radius:12px;text-align:center}
 @media(max-width:760px){.cloud-filter-bar{grid-template-columns:1fr 1fr}.cloud-filter-bar input{grid-column:1/-1}}
 @media(max-width:620px){.cloud-page-heading{align-items:flex-start}.cloud-filter-bar{grid-template-columns:1fr}.cloud-filter-bar input{grid-column:auto}.cloud-device-grid{grid-template-columns:minmax(0,1fr)}#cloudView .cloud-actions button{min-height:38px;flex:1 1 auto}.cloud-history-grid{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Vista individual de cada dispositivo */
+.cloud-device-open{display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer}
+.cloud-device-open:hover .cloud-open-label{color:var(--cyan)}
+.cloud-open-label{display:block;margin-top:13px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:11px;font-weight:700;color:#9bcbd8}
+.cloud-device-detail{padding:clamp(16px,3vw,28px);border:1px solid var(--line-soft);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.035),rgba(255,255,255,.008));margin:14px 0 22px}
+.cloud-back{margin-bottom:18px}
+.cloud-detail-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cloud-detail-heading>div{flex:1;min-width:120px}
+.cloud-detail-heading h2{margin:0;font-size:20px}
+.cloud-detail-heading p{margin:4px 0 0;font-size:11px}
+.cloud-detail-section{padding:15px 0;border-top:1px solid var(--line-soft)}
+.cloud-detail-section h3,.cloud-detail-section-title{margin:0 0 10px;font-size:13px}
+.cloud-controls-preview button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:620px){.cloud-device-detail{padding:14px}.cloud-detail-heading h2{font-size:18px}.cloud-detail-section .cloud-actions button{flex:1 1 42%}}
