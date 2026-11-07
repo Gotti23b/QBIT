@@ -3,6 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
+  const QBIT_VERSION = "1.5.31";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -508,8 +509,8 @@
   const originalActivateTab = null;
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","agentsView","connectorView","cloudView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
-    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="agentsView")void loadAgents();if(id==="cloudView")void refreshCloudDevices();
+    ["chatView","agentsView","connectorView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="agentsView")void loadAgents();if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
@@ -965,6 +966,28 @@
     if(cloudDeviceId&&user)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",user.id);
     cloudDeviceId=null;
   }
+
+  // Releases Android separadas de las releases existentes de Windows.
+  const ANDROID_RELEASES_API="https://api.github.com/repos/Gotti23b/QBIT/releases?per_page=50";
+  let androidReleasesCache=[],androidReleaseBusy=false;
+  function compareQbitVersions(a,b){const x=String(a||"0").replace(/^v/,"").split(".").map(Number),y=String(b||"0").replace(/^v/,"").split(".").map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const n=(x[i]||0)-(y[i]||0);if(n)return n;}return 0;}
+  function androidReleaseVersion(r){return String(r?.tag_name||"").replace(/^android-v/,"");}
+  function androidApkAsset(r){return (r?.assets||[]).find(a=>/\.apk$/i.test(a.name));}
+  async function getInstalledAndroidVersion(){try{const p=window.Capacitor?.Plugins?.QBITControl;if(p?.getAppVersion){const v=await p.getAppVersion();return v?.version||QBIT_VERSION;}}catch{}return QBIT_VERSION;}
+  function renderAndroidReleases(installed){
+    const list=$("androidReleaseList"),status=$("androidReleaseStatus"),update=$("androidUpdateButton");if(!list)return;list.replaceChildren();
+    const releases=androidReleasesCache.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a))),latest=releases[0],version=latest?androidReleaseVersion(latest):"";
+    if(status)status.textContent=latest?"Versión instalada: "+installed+" · Última APK: "+version:"Todavía no hay APK publicadas. La primera aparecerá al terminar una compilación Android.";
+    if(update){update.disabled=!latest;update.textContent=latest&&compareQbitVersions(version,installed)>0?"⬆ Actualizar a v"+version:"⟳ Buscar actualizaciones";update.dataset.needsUpdate=String(!!latest&&compareQbitVersions(version,installed)>0);}
+    if(!releases.length){list.append(node("div","android-release-empty","No hay releases Android publicadas todavía."));return;}
+    for(const r of releases){const asset=androidApkAsset(r),card=node("article","android-release-card"),head=node("div","android-release-heading"),title=node("strong","","QBIT Android v"+androidReleaseVersion(r)),date=node("span","muted",r.published_at?new Intl.DateTimeFormat("es-AR",{dateStyle:"medium"}).format(new Date(r.published_at)):"Fecha no disponible"),notes=node("p","muted android-release-notes",String(r.body||"Sin notas para esta versión.").slice(0,1200)),actions=node("div","android-release-actions");
+      head.append(title,date);const download=btn("⬇ Descargar APK","primary",()=>downloadAndroidAsset(asset,androidReleaseVersion(r)));const github=btn("Ver en GitHub","small",()=>window.open(r.html_url,"_blank","noopener"));actions.append(download,github);card.append(head,notes,actions);list.append(card);}
+  }
+  async function downloadAndroidAsset(asset,version){const p=window.Capacitor?.Plugins?.QBITControl,status=$("androidReleaseStatus");if(p?.downloadApk){try{const r=await p.downloadApk({url:asset.browser_download_url,version});if(status)status.textContent=r?.message||"Descarga iniciada. Cuando termine, abrí la notificación para instalar.";}catch(e){if(status)status.textContent="No se pudo descargar: "+(e?.message||e);}}else{const a=document.createElement("a");a.href=asset.browser_download_url;a.target="_blank";a.rel="noopener";a.download=asset.name;a.click();}}
+  async function loadAndroidReleases(){if(androidReleaseBusy)return;androidReleaseBusy=true;const s=$("androidReleaseStatus");if(s)s.textContent="Consultando las releases de GitHub…";try{const response=await fetch(ANDROID_RELEASES_API,{headers:{Accept:"application/vnd.github+json"}});if(!response.ok)throw new Error("GitHub respondió "+response.status);const r=await response.json();androidReleasesCache=(Array.isArray(r)?r:[]).filter(x=>String(x.tag_name||"").startsWith("android-v")&&!x.draft&&!x.prerelease);renderAndroidReleases(await getInstalledAndroidVersion());}catch(e){if(s)s.textContent="No pude consultar GitHub: "+(e?.message||e)+". Revisá la conexión e intentá de nuevo.";}finally{androidReleaseBusy=false;}}
+  $("androidReleaseRefresh")?.addEventListener("click",()=>void loadAndroidReleases());
+  $("androidUpdateButton")?.addEventListener("click",async()=>{if(!androidReleasesCache.length){await loadAndroidReleases();return;}const installed=await getInstalledAndroidVersion(),r=androidReleasesCache.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a)))[0];if(!r)return;const v=androidReleaseVersion(r);if(compareQbitVersions(v,installed)<=0){if($("androidReleaseStatus"))$("androidReleaseStatus").textContent="Ya tenés la última versión Android publicada (v"+installed+").";return;}await downloadAndroidAsset(androidApkAsset(r),v);});
+
   async function executeAndroidControlCommand(command){
     const control=window.Capacitor?.Plugins?.QBITControl;
     if(!control)throw new Error("Este APK todavía no incluye el módulo nativo de control. Actualizá QBIT Android.");
@@ -993,7 +1016,7 @@
     const claim=await db.from("qbit_device_commands").update({status:"running",started_at:new Date().toISOString()}).eq("id",c.id).eq("status","pending").select("id").maybeSingle();
     if(claim.error||!claim.data)return;
     try{
-      if(!window.confirm("QBIT solicita una acción en este dispositivo: "+c.command+". ¿La permitís?")){
+      if(c.payload?.skip_confirmation!==true&&!window.confirm("QBIT solicita una acción en este dispositivo: "+c.command+". ¿La permitís?")){
         await db.from("qbit_device_commands").update({status:"cancelled",completed_at:new Date().toISOString()}).eq("id",c.id);return;
       }
       let result;
@@ -1096,19 +1119,20 @@
     if(diagnostics.length)detail.append(cloudDetailSection("Diagnóstico",diagnostics,d));
     if(platform==="windows"){
       detail.append(cloudDetailSection("Control de Windows",[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]],d,desktopControlEnabled?"":"Activá «Control PC» en la barra superior."));
-      const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="Cada acción requiere confirmación en la web y en el equipo de destino.";detail.append(hint);
+      const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="La confirmación se configura por separado para Windows y Android en esta pantalla.";detail.append(hint);
     }else if(platform==="android"){
       detail.append(cloudDetailSection("Permisos", [["android_open_accessibility_settings","Configurar accesibilidad"]],d));
       detail.append(cloudDetailSection("Navegación", [["android_back","Atrás"],["android_home","Inicio"],["android_notifications","Notificaciones"],["android_quick_settings","Ajustes rápidos"],["android_lock_screen","Bloquear teléfono"]],d));
       detail.append(cloudDetailSection("Sonido", [["android_volume_up","Volumen +"],["android_volume_down","Volumen −"],["android_volume_mute","Silenciar"]],d));
       detail.append(cloudDetailSection("Pantalla", [["android_brightness_up","Brillo +"],["android_brightness_down","Brillo −"],["android_open_display_settings","Ajustes de pantalla"]],d));
       detail.append(cloudDetailSection("Conexiones y sistema", [["android_open_wifi_settings","Wi-Fi"],["android_open_bluetooth_settings","Bluetooth"],["android_open_sound_settings","Sonido"],["android_open_battery_settings","Batería"],["android_open_app_settings","Ajustes de QBIT"]],d));
-      const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Las acciones remotas requieren que QBIT esté abierto en el teléfono. La navegación usa el servicio de Accesibilidad de QBIT; volumen y brillo usan controles nativos de Android. Cada orden pide confirmación en el teléfono.";detail.append(note);
+      const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Las acciones remotas requieren que QBIT esté abierto en el teléfono. La navegación usa el servicio de Accesibilidad de QBIT; volumen y brillo usan controles nativos de Android. La confirmación se puede desactivar desde los toggles de esta pantalla; Android mantiene sus permisos del sistema.";detail.append(note);
     }else{
       const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones del sistema.";detail.append(note);
     }
   }
   function renderCloudDevices(){
+    syncRemoteConfirmationToggles();
     const list=$("cloudDeviceList"),summary=$("cloudSummary"),detail=$("cloudDeviceDetail");
     if(!list)return;
     const search=String($("cloudDeviceSearch")?.value||"").trim().toLocaleLowerCase("es");
@@ -1189,13 +1213,23 @@
   $("cloudDeviceSearch")?.addEventListener("input",renderCloudDevices);
   $("cloudPlatformFilter")?.addEventListener("change",renderCloudDevices);
   $("cloudStateFilter")?.addEventListener("change",renderCloudDevices);
+
+  const REMOTE_CONFIRM_KEYS={windows:"qbit-remote-confirm-windows",android:"qbit-remote-confirm-android"};
+  function remoteConfirmationRequired(platform){try{return localStorage.getItem(REMOTE_CONFIRM_KEYS[platform])!=="false";}catch{return true;}}
+  function syncRemoteConfirmationToggles(){const w=$("cloudConfirmWindows"),a=$("cloudConfirmAndroid");if(w)w.checked=remoteConfirmationRequired("windows");if(a)a.checked=remoteConfirmationRequired("android");}
+  $("cloudConfirmWindows")?.addEventListener("change",e=>{try{localStorage.setItem(REMOTE_CONFIRM_KEYS.windows,String(e.target.checked));}catch{}});
+  $("cloudConfirmAndroid")?.addEventListener("change",e=>{try{localStorage.setItem(REMOTE_CONFIRM_KEYS.android,String(e.target.checked));}catch{}});
+  syncRemoteConfirmationToggles();
+
   async function sendCloudCommand(deviceId,command){
     if(!user)return;
     const remoteActions=new Set(["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]);
     if(remoteActions.has(command)&&!desktopControlEnabled){alert("Activá Control PC en la barra superior antes de enviar acciones remotas.");return;}
+    const target=cloudDevicesCache.find(d=>d.id===deviceId),platform=String(target?.platform||"").toLowerCase();
+    const skipConfirmation=(platform==="windows"||platform==="android")&&!remoteConfirmationRequired(platform);
     const labels={get_system_info:"consultar información del sistema",get_battery_info:"consultar la batería",get_network_info:"consultar la red",get_display_info:"consultar las pantallas",volume_up:"subir el volumen",volume_down:"bajar el volumen",volume_mute:"silenciar el audio",brightness_up:"subir el brillo",brightness_down:"bajar el brillo",lock_pc:"bloquear la PC"};
-    if(!window.confirm("¿Enviar a este dispositivo la acción: "+(labels[command]||command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
-    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{}});
+    if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+(labels[command]||command)+"?\\n\\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
+    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
     $("cloudStatus").textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener QBIT abierto.";
     await refreshCloudDevices();
