@@ -1,10 +1,13 @@
 package com.gotti23b.qbit;
 
 import android.content.ComponentName;
+import android.app.DownloadManager;
+import android.content.Context;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.Settings;
 
 import com.getcapacitor.JSObject;
@@ -15,6 +18,44 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "QBITControl")
 public class QBITControlPlugin extends Plugin {
+
+    @PluginMethod
+    public void getAppVersion(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("version", BuildConfig.VERSION_NAME);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void downloadApk(PluginCall call) {
+        String url = call.getString("url", "");
+        String version = call.getString("version", "latest");
+        try {
+            Uri uri = Uri.parse(url);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) ||
+                !"github.com".equalsIgnoreCase(uri.getHost()) ||
+                !uri.getPath().contains("/releases/download/") ||
+                !uri.getPath().toLowerCase().endsWith(".apk")) {
+                call.reject("Solo se permiten APK publicadas en GitHub Releases.");
+                return;
+            }
+            DownloadManager manager = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager == null) { call.reject("El gestor de descargas de Android no está disponible."); return; }
+            String safeVersion = version.replaceAll("[^0-9A-Za-z.]+", "");
+            DownloadManager.Request request = new DownloadManager.Request(uri);
+            request.setTitle("QBIT Android v" + safeVersion);
+            request.setDescription("Descargando QBIT. Al terminar, abrí la notificación para instalar.");
+            request.setMimeType("application/vnd.android.package-archive");
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "QBIT-Android-v" + safeVersion + ".apk");
+            long id = manager.enqueue(request);
+            JSObject result = new JSObject();
+            result.put("downloadId", id);
+            result.put("message", "Descarga iniciada. Cuando termine, tocá la notificación de Android para abrir el instalador. La instalación siempre requiere confirmación del sistema.");
+            call.resolve(result);
+        } catch (Exception error) { call.reject("No se pudo iniciar la descarga de la APK.", error); }
+    }
+
     @PluginMethod
     public void isAccessibilityEnabled(PluginCall call) {
         JSObject result = new JSObject();
