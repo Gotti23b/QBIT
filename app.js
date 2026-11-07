@@ -950,8 +950,8 @@
         const platform=cloudPlatform();
         let name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
         if(platform==="windows"&&window.qbitPC?.getStatus){try{const info=await window.qbitPC.getStatus();if(info?.computer)name="QBIT Windows · "+String(info.computer).slice(0,55);}catch{}}
-        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.28";
-        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.28",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.29";
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.29",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
       if(cloudTimer)clearInterval(cloudTimer);
@@ -1033,65 +1033,93 @@
   function cloudStatusLabel(status){
     return ({pending:"En espera",running:"En ejecución",completed:"Completada",failed:"Falló",cancelled:"Cancelada",expired:"Vencida"})[status]||String(status||"Estado desconocido");
   }
+  let selectedCloudDeviceId=null;
+  function cloudDetailSection(title,options,device,disabledReason=""){
+    const section=document.createElement("section");section.className="cloud-detail-section";
+    const heading=document.createElement("h3");heading.textContent=title;section.append(heading);
+    const actions=document.createElement("div");actions.className="cloud-actions";
+    options.forEach(([command,label,available=true])=>{
+      const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;
+      b.disabled=!available||disabledReason||!deviceOnline(device);
+      b.title=disabledReason||(!deviceOnline(device)?"El dispositivo está desconectado":label);
+      if(!b.disabled)b.addEventListener("click",()=>sendCloudCommand(device.id,command));
+      actions.append(b);
+    });
+    section.append(actions);return section;
+  }
+  function deviceOnline(d){
+    const t=d?.last_seen_at?new Date(d.last_seen_at).getTime():0;
+    return !!d?.is_online&&Number.isFinite(t)&&t>0&&Date.now()-t<45000;
+  }
+  function renderCloudDeviceDetail(){
+    const detail=$("cloudDeviceDetail");if(!detail)return;
+    const d=cloudDevicesCache.find(x=>x.id===selectedCloudDeviceId);
+    if(!selectedCloudDeviceId||!d){selectedCloudDeviceId=null;detail.classList.add("hidden");return;}
+    detail.replaceChildren();detail.classList.remove("hidden");
+    const back=document.createElement("button");back.type="button";back.className="small cloud-back";back.textContent="← Todos los dispositivos";
+    back.addEventListener("click",()=>{selectedCloudDeviceId=null;renderCloudDevices();});detail.append(back);
+    const platform=String(d.platform||"unknown").toLowerCase(),onlineNow=deviceOnline(d);
+    const header=document.createElement("div");header.className="cloud-detail-heading";
+    const icon=document.createElement("span");icon.className="cloud-platform-icon";icon.textContent=platform==="windows"?"▣":platform==="android"?"▯":"◎";
+    const identity=document.createElement("div");const name=document.createElement("h2");name.textContent=d.name||"Dispositivo sin nombre";
+    const meta=document.createElement("p");meta.className="muted";meta.textContent=platform.toUpperCase()+" · QBIT "+(d.app_version||"versión desconocida");
+    identity.append(name,meta);const state=document.createElement("span");state.className="cloud-state "+(onlineNow?"online":"offline");state.textContent=onlineNow?"En línea":"Desconectado";
+    header.append(icon,identity,state);detail.append(header);
+    const last=document.createElement("p");last.className="muted cloud-last-seen";last.textContent="Última conexión: "+cloudTimeLabel(d.last_seen_at);detail.append(last);
+    const diagnostics=platform==="windows"||platform==="android"?
+      [["get_system_info","Sistema"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantalla"]]:[];
+    if(diagnostics.length)detail.append(cloudDetailSection("Diagnóstico",diagnostics,d));
+    if(platform==="windows"){
+      detail.append(cloudDetailSection("Control de Windows",[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]],d,desktopControlEnabled?"":"Activá «Control PC» en la barra superior."));
+      const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="Cada acción requiere confirmación en la web y en el equipo de destino.";detail.append(hint);
+    }else if(platform==="android"){
+      const title=document.createElement("h3");title.className="cloud-detail-section-title";title.textContent="Control del teléfono";detail.append(title);
+      const controls=[["android_back","Atrás"],["android_home","Inicio"],["android_notifications","Notificaciones"],["android_quick_settings","Ajustes rápidos"],["android_volume_up","Volumen +"],["android_volume_down","Volumen −"],["android_volume_mute","Silenciar"],["android_brightness_up","Brillo +"],["android_brightness_down","Brillo −"],["android_flashlight","Linterna"]];
+      const pending=cloudDetailSection("Accesibilidad y sistema",controls,d,"Requiere el servicio de control Android en una próxima versión del APK.");
+      pending.classList.add("cloud-controls-preview");detail.append(pending);
+      const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Los controles aparecen acá, pero todavía están desactivados: el APK actual solo recibe diagnósticos. La próxima parte es integrar el servicio de accesibilidad nativo, pedir el permiso en Android y ejecutar cada acción con confirmación en el teléfono.";detail.append(note);
+    }else{
+      const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones del sistema.";detail.append(note);
+    }
+  }
   function renderCloudDevices(){
-    const list=$("cloudDeviceList"),summary=$("cloudSummary");
+    const list=$("cloudDeviceList"),summary=$("cloudSummary"),detail=$("cloudDeviceDetail");
     if(!list)return;
     const search=String($("cloudDeviceSearch")?.value||"").trim().toLocaleLowerCase("es");
     const platformFilter=$("cloudPlatformFilter")?.value||"all";
     const stateFilter=$("cloudStateFilter")?.value||"all";
-    const now=Date.now();
-    const online=d=>{const t=d.last_seen_at?new Date(d.last_seen_at).getTime():0;return !!d.is_online&&Number.isFinite(t)&&t>0&&now-t<45000;};
-    const total=cloudDevicesCache.length,onlineCount=cloudDevicesCache.filter(online).length;
+    const total=cloudDevicesCache.length,onlineCount=cloudDevicesCache.filter(deviceOnline).length;
     if(summary)summary.textContent=total+" equipo(s) · "+onlineCount+" en línea · "+(total-onlineCount)+" desconectado(s)";
     const devices=cloudDevicesCache.filter(d=>{
-      const platform=String(d.platform||"unknown").toLowerCase();
-      const isOnline=online(d);
+      const platform=String(d.platform||"unknown").toLowerCase(),isOnline=deviceOnline(d);
       return (!search||(String(d.name||"").toLocaleLowerCase("es").includes(search)||platform.includes(search)))&&
         (platformFilter==="all"||platform===platformFilter)&&
         (stateFilter==="all"||(stateFilter==="online"&&isOnline)||(stateFilter==="offline"&&!isOnline));
     });
-    const fragment=document.createDocumentFragment();
+    list.replaceChildren();
     if(!devices.length){
       const empty=document.createElement("p");empty.className="muted cloud-empty";
       empty.textContent=total?"No hay dispositivos que coincidan con esos filtros.":"Todavía no hay dispositivos vinculados.";
-      fragment.append(empty);
+      list.append(empty);
     }
     for(const d of devices){
-      const item=document.createElement("article");item.className="item cloud-device-card";
-      const platform=String(d.platform||"unknown").toLowerCase();
-      const onlineNow=online(d);
-      const heading=document.createElement("div");heading.className="cloud-device-heading";
+      const platform=String(d.platform||"unknown").toLowerCase(),onlineNow=deviceOnline(d);
+      const card=document.createElement("article");card.className="item cloud-device-card";
+      const open=document.createElement("button");open.type="button";open.className="cloud-device-open";open.setAttribute("aria-label","Abrir controles de "+(d.name||"dispositivo"));
+      const head=document.createElement("div");head.className="cloud-device-heading";
       const identity=document.createElement("div");identity.className="cloud-device-identity";
       const glyph=document.createElement("span");glyph.className="cloud-platform-icon";glyph.textContent=platform==="windows"?"▣":platform==="android"?"▯":"◎";glyph.setAttribute("aria-hidden","true");
-      const titleWrap=document.createElement("div");
-      const name=document.createElement("strong");name.className="cloud-device-name";name.textContent=d.name||"Dispositivo sin nombre";
+      const titleWrap=document.createElement("div");const name=document.createElement("strong");name.className="cloud-device-name";name.textContent=d.name||"Dispositivo sin nombre";
       const platformName=document.createElement("span");platformName.className="cloud-platform-name";platformName.textContent=platform.toUpperCase()+" · QBIT "+(d.app_version||"versión desconocida");
       titleWrap.append(name,platformName);identity.append(glyph,titleWrap);
       const state=document.createElement("span");state.className="cloud-state "+(onlineNow?"online":"offline");state.textContent=onlineNow?"En línea":"Desconectado";
-      heading.append(identity,state);item.append(heading);
-      const last=document.createElement("p");last.className="cloud-last-seen";last.textContent="Última conexión: "+cloudTimeLabel(d.last_seen_at);item.append(last);
-      if(platform==="windows"||platform==="android"){
-        const infoTitle=document.createElement("div");infoTitle.className="cloud-section-label";infoTitle.textContent="DIAGNÓSTICO";item.append(infoTitle);
-        const infoActions=document.createElement("div");infoActions.className="cloud-actions";
-        const infoOptions=[["get_system_info","Sistema"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"]];
-        infoOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!onlineNow;b.title=!onlineNow?"El equipo está desconectado": "Consultar "+label.toLocaleLowerCase("es");b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));infoActions.append(b);});
-        item.append(infoActions);
-        if(platform==="windows"){
-          const controlTitle=document.createElement("div");controlTitle.className="cloud-section-label";controlTitle.textContent="CONTROL REMOTO";item.append(controlTitle);
-          const controlActions=document.createElement("div");controlActions.className="cloud-actions";
-          const controlOptions=[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]];
-          controlOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className=cmd==="lock_pc"?"small danger":"small";b.textContent=label;b.disabled=!onlineNow||!desktopControlEnabled;b.title=!desktopControlEnabled?"Activá Control PC arriba para habilitar estas acciones":!onlineNow?"El dispositivo está desconectado":label;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));controlActions.append(b);});
-          item.append(controlActions);
-          const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent=desktopControlEnabled?"El equipo de destino va a pedir confirmación antes de ejecutar cada acción.":"Activá «Control PC» en la barra superior para habilitar estas acciones.";item.append(hint);
-        }else{
-          const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Android permite diagnósticos compatibles. El control nativo remoto todavía no está implementado.";item.append(note);
-        }
-      }else{
-        const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
-      }
-      fragment.append(item);
+      head.append(identity,state);
+      const last=document.createElement("p");last.className="cloud-last-seen";last.textContent="Última conexión: "+cloudTimeLabel(d.last_seen_at);
+      const action=document.createElement("span");action.className="cloud-open-label";action.textContent="Ver controles →";
+      open.append(head,last,action);open.addEventListener("click",()=>{selectedCloudDeviceId=d.id;renderCloudDevices();});
+      card.append(open);list.append(card);
     }
-    list.replaceChildren(fragment);
+    if(detail){const hasSelection=!!selectedCloudDeviceId;list.classList.toggle("hidden",hasSelection);detail.classList.toggle("hidden",!hasSelection);if(hasSelection)renderCloudDeviceDetail();}
   }
   function renderCloudHistory(rows){
     const history=$("cloudCommandHistory");if(!history)return;
