@@ -44,6 +44,43 @@ jobs:
         working-directory: config
         run: npx cap add android
 
+      - name: Install QBIT Android control service
+        run: |
+          set -e
+          JAVA_DIR="config/android/app/src/main/java/com/gotti23b/qbit"
+          mkdir -p "$JAVA_DIR" config/android/app/src/main/res/xml
+          cp android-native/QBITControlPlugin.java "$JAVA_DIR/"
+          cp android-native/QBITAccessibilityService.java "$JAVA_DIR/"
+          cp android-native/qbit_accessibility_service.xml config/android/app/src/main/res/xml/
+          python3 <<'PY'
+          from pathlib import Path
+          main = Path("config/android/app/src/main/java/com/gotti23b/qbit/MainActivity.java")
+          source = main.read_text()
+          if "QBITControlPlugin" not in source:
+              source = source.replace("import com.getcapacitor.BridgeActivity;", "import com.getcapacitor.BridgeActivity;\nimport com.gotti23b.qbit.QBITControlPlugin;")
+              source = source.replace("public class MainActivity extends BridgeActivity {", "public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle savedInstanceState) {\n        registerPlugin(QBITControlPlugin.class);\n        super.onCreate(savedInstanceState);\n    }")
+              main.write_text(source)
+          manifest = Path("config/android/app/src/main/AndroidManifest.xml")
+          source = manifest.read_text()
+          service = """
+              <service
+                  android:name=".QBITAccessibilityService"
+                  android:label="QBIT Control"
+                  android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                  android:exported="true">
+                  <intent-filter>
+                      <action android:name="android.accessibilityservice.AccessibilityService" />
+                  </intent-filter>
+                  <meta-data
+                      android:name="android.accessibilityservice"
+                      android:resource="@xml/qbit_accessibility_service" />
+              </service>
+          """
+          if "QBITAccessibilityService" not in source:
+              source = source.replace("</application>", service + "\n    </application>")
+              manifest.write_text(source)
+          PY
+
       - name: Generate QBIT app icons
         run: |
           set -e
