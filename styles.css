@@ -509,3 +509,8 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .android-release-empty{grid-column:1/-1;padding:20px;text-align:center;border:1px dashed var(--line-soft);border-radius:12px;color:var(--muted)}.android-install-note{font-size:10px;margin-top:16px}
 @media(max-width:760px){.cloud-confirm-settings{grid-template-columns:1fr 1fr}.cloud-confirm-settings>div,.cloud-confirm-footnote{grid-column:1/-1}}
 @media(max-width:620px){.cloud-confirm-settings{grid-template-columns:1fr}.cloud-confirm-settings>div,.cloud-confirm-footnote{grid-column:auto}.android-update-panel{align-items:stretch}.android-update-panel button{width:100%}}
+
+/* Acceso automático de invitado */
+.guest-access-notice{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 13px;margin:0 0 12px;border:1px solid var(--line-soft);border-radius:10px;background:rgba(30,190,210,.055);color:var(--muted);font-size:11px}
+.guest-access-notice button{flex:0 0 auto}
+.guest-access-notice:empty{display:none}
