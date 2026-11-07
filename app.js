@@ -950,8 +950,8 @@
         const platform=cloudPlatform();
         let name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
         if(platform==="windows"&&window.qbitPC?.getStatus){try{const info=await window.qbitPC.getStatus();if(info?.computer)name="QBIT Windows · "+String(info.computer).slice(0,55);}catch{}}
-        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.29";
-        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.29",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.30";
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.30",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
       if(cloudTimer)clearInterval(cloudTimer);
@@ -964,6 +964,27 @@
     if(cloudTimer){clearInterval(cloudTimer);cloudTimer=null;}
     if(cloudDeviceId&&user)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",user.id);
     cloudDeviceId=null;
+  }
+  async function executeAndroidControlCommand(command){
+    const control=window.Capacitor?.Plugins?.QBITControl;
+    if(!control)throw new Error("Este APK todavía no incluye el módulo nativo de control. Actualizá QBIT Android.");
+    if(command==="android_open_accessibility_settings"){
+      await control.openAccessibilitySettings();
+      return {message:"Se abrieron los ajustes de Accesibilidad. Activá «QBIT Control» para habilitar navegación remota."};
+    }
+    if(command==="android_volume_up"||command==="android_volume_down"||command==="android_volume_mute"){
+      const action=command==="android_volume_up"?"up":command==="android_volume_down"?"down":"mute";
+      return await control.adjustVolume({action});
+    }
+    if(command==="android_brightness_up"||command==="android_brightness_down"){
+      return await control.adjustBrightness({direction:command==="android_brightness_up"?"up":"down"});
+    }
+    const actions={android_back:"back",android_home:"home",android_notifications:"notifications",android_quick_settings:"quick_settings",android_lock_screen:"lock_screen"};
+    const action=actions[command];
+    if(!action)throw new Error("Control Android desconocido.");
+    const state=await control.isAccessibilityEnabled();
+    if(!state?.enabled)throw new Error("Primero habilitá «QBIT Control» en Ajustes → Accesibilidad. Podés usar el botón «Configurar accesibilidad» de este panel.");
+    return await control.performSystemAction({action});
   }
   async function processCloudCommand(c){
     if(!user||!["windows","android"].includes(cloudPlatform()))return;
@@ -987,6 +1008,8 @@
       }else if(c.command==="get_display_info"){
         if(cloudPlatform()==="windows")result=await executeDesktopArtifact("display_info");
         else result={message:"Pantalla: "+screen.width+" × "+screen.height+" · escala "+(window.devicePixelRatio||1)+"x"};
+      }else if(cloudPlatform()==="android"&&c.command.startsWith("android_")){
+        result=await executeAndroidControlCommand(c.command);
       }else if(c.command==="lock_pc"){
         if(cloudPlatform()!=="windows")throw new Error("El bloqueo remoto solo está disponible en Windows.");
         result=await executeDesktopArtifact("lock_pc");
@@ -1028,7 +1051,7 @@
     return new Date(time).toLocaleString("es-AR");
   }
   function cloudCommandLabel(command){
-    return ({get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",brightness_up:"Subir brillo",brightness_down:"Bajar brillo",lock_pc:"Bloquear PC"})[command]||String(command||"Acción");
+    return ({get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",brightness_up:"Subir brillo",brightness_down:"Bajar brillo",lock_pc:"Bloquear PC",android_open_accessibility_settings:"Configurar accesibilidad",android_back:"Atrás",android_home:"Inicio",android_notifications:"Abrir notificaciones",android_quick_settings:"Ajustes rápidos",android_lock_screen:"Bloquear teléfono",android_volume_up:"Subir volumen del teléfono",android_volume_down:"Bajar volumen del teléfono",android_volume_mute:"Silenciar teléfono",android_brightness_up:"Subir brillo del teléfono",android_brightness_down:"Bajar brillo del teléfono"})[command]||String(command||"Acción");
   }
   function cloudStatusLabel(status){
     return ({pending:"En espera",running:"En ejecución",completed:"Completada",failed:"Falló",cancelled:"Cancelada",expired:"Vencida"})[status]||String(status||"Estado desconocido");
@@ -1073,11 +1096,11 @@
       detail.append(cloudDetailSection("Control de Windows",[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]],d,desktopControlEnabled?"":"Activá «Control PC» en la barra superior."));
       const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="Cada acción requiere confirmación en la web y en el equipo de destino.";detail.append(hint);
     }else if(platform==="android"){
-      const title=document.createElement("h3");title.className="cloud-detail-section-title";title.textContent="Control del teléfono";detail.append(title);
-      const controls=[["android_back","Atrás"],["android_home","Inicio"],["android_notifications","Notificaciones"],["android_quick_settings","Ajustes rápidos"],["android_volume_up","Volumen +"],["android_volume_down","Volumen −"],["android_volume_mute","Silenciar"],["android_brightness_up","Brillo +"],["android_brightness_down","Brillo −"],["android_flashlight","Linterna"]];
-      const pending=cloudDetailSection("Accesibilidad y sistema",controls,d,"Requiere el servicio de control Android en una próxima versión del APK.");
-      pending.classList.add("cloud-controls-preview");detail.append(pending);
-      const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Los controles aparecen acá, pero todavía están desactivados: el APK actual solo recibe diagnósticos. La próxima parte es integrar el servicio de accesibilidad nativo, pedir el permiso en Android y ejecutar cada acción con confirmación en el teléfono.";detail.append(note);
+      detail.append(cloudDetailSection("Permisos", [["android_open_accessibility_settings","Configurar accesibilidad"]],d));
+      detail.append(cloudDetailSection("Navegación", [["android_back","Atrás"],["android_home","Inicio"],["android_notifications","Notificaciones"],["android_quick_settings","Ajustes rápidos"],["android_lock_screen","Bloquear teléfono"]],d));
+      detail.append(cloudDetailSection("Sonido", [["android_volume_up","Volumen +"],["android_volume_down","Volumen −"],["android_volume_mute","Silenciar"]],d));
+      detail.append(cloudDetailSection("Pantalla", [["android_brightness_up","Brillo +"],["android_brightness_down","Brillo −"]],d));
+      const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Las acciones remotas requieren que QBIT esté abierto en el teléfono. La navegación usa el servicio de Accesibilidad de QBIT; volumen y brillo usan controles nativos de Android. Cada orden pide confirmación en el teléfono.";detail.append(note);
     }else{
       const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones del sistema.";detail.append(note);
     }
