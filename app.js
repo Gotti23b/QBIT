@@ -950,8 +950,8 @@
         const platform=cloudPlatform();
         let name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
         if(platform==="windows"&&window.qbitPC?.getStatus){try{const info=await window.qbitPC.getStatus();if(info?.computer)name="QBIT Windows · "+String(info.computer).slice(0,55);}catch{}}
-        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.26";
-        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.26",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.28";
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.28",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
       if(cloudTimer)clearInterval(cloudTimer);
@@ -1017,73 +1017,124 @@
       if(q.error)throw q.error;for(const c of q.data||[])await processCloudCommand(c);
     }catch(e){console.warn("[QBIT Cloud] Cola:",e?.message||e);}finally{cloudPollBusy=false;}
   }
+  let cloudDevicesCache=[];
+  function cloudTimeLabel(value){
+    const time=value?new Date(value).getTime():0;
+    if(!Number.isFinite(time)||time<=0)return "Nunca se conectó";
+    const delta=Math.max(0,Date.now()-time);
+    if(delta<60000)return "Hace menos de un minuto";
+    if(delta<3600000)return "Hace "+Math.floor(delta/60000)+" min";
+    if(delta<86400000)return "Hace "+Math.floor(delta/3600000)+" h";
+    return new Date(time).toLocaleString("es-AR");
+  }
+  function cloudCommandLabel(command){
+    return ({get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",brightness_up:"Subir brillo",brightness_down:"Bajar brillo",lock_pc:"Bloquear PC"})[command]||String(command||"Acción");
+  }
+  function cloudStatusLabel(status){
+    return ({pending:"En espera",running:"En ejecución",completed:"Completada",failed:"Falló",cancelled:"Cancelada",expired:"Vencida"})[status]||String(status||"Estado desconocido");
+  }
+  function renderCloudDevices(){
+    const list=$("cloudDeviceList"),summary=$("cloudSummary");
+    if(!list)return;
+    const search=String($("cloudDeviceSearch")?.value||"").trim().toLocaleLowerCase("es");
+    const platformFilter=$("cloudPlatformFilter")?.value||"all";
+    const stateFilter=$("cloudStateFilter")?.value||"all";
+    const now=Date.now();
+    const online=d=>{const t=d.last_seen_at?new Date(d.last_seen_at).getTime():0;return !!d.is_online&&Number.isFinite(t)&&t>0&&now-t<45000;};
+    const total=cloudDevicesCache.length,onlineCount=cloudDevicesCache.filter(online).length;
+    if(summary)summary.textContent=total+" equipo(s) · "+onlineCount+" en línea · "+(total-onlineCount)+" desconectado(s)";
+    const devices=cloudDevicesCache.filter(d=>{
+      const platform=String(d.platform||"unknown").toLowerCase();
+      const isOnline=online(d);
+      return (!search||(String(d.name||"").toLocaleLowerCase("es").includes(search)||platform.includes(search)))&&
+        (platformFilter==="all"||platform===platformFilter)&&
+        (stateFilter==="all"||(stateFilter==="online"&&isOnline)||(stateFilter==="offline"&&!isOnline));
+    });
+    const fragment=document.createDocumentFragment();
+    if(!devices.length){
+      const empty=document.createElement("p");empty.className="muted cloud-empty";
+      empty.textContent=total?"No hay dispositivos que coincidan con esos filtros.":"Todavía no hay dispositivos vinculados.";
+      fragment.append(empty);
+    }
+    for(const d of devices){
+      const item=document.createElement("article");item.className="item cloud-device-card";
+      const platform=String(d.platform||"unknown").toLowerCase();
+      const onlineNow=online(d);
+      const heading=document.createElement("div");heading.className="cloud-device-heading";
+      const identity=document.createElement("div");identity.className="cloud-device-identity";
+      const glyph=document.createElement("span");glyph.className="cloud-platform-icon";glyph.textContent=platform==="windows"?"▣":platform==="android"?"▯":"◎";glyph.setAttribute("aria-hidden","true");
+      const titleWrap=document.createElement("div");
+      const name=document.createElement("strong");name.className="cloud-device-name";name.textContent=d.name||"Dispositivo sin nombre";
+      const platformName=document.createElement("span");platformName.className="cloud-platform-name";platformName.textContent=platform.toUpperCase()+" · QBIT "+(d.app_version||"versión desconocida");
+      titleWrap.append(name,platformName);identity.append(glyph,titleWrap);
+      const state=document.createElement("span");state.className="cloud-state "+(onlineNow?"online":"offline");state.textContent=onlineNow?"En línea":"Desconectado";
+      heading.append(identity,state);item.append(heading);
+      const last=document.createElement("p");last.className="cloud-last-seen";last.textContent="Última conexión: "+cloudTimeLabel(d.last_seen_at);item.append(last);
+      if(platform==="windows"||platform==="android"){
+        const infoTitle=document.createElement("div");infoTitle.className="cloud-section-label";infoTitle.textContent="DIAGNÓSTICO";item.append(infoTitle);
+        const infoActions=document.createElement("div");infoActions.className="cloud-actions";
+        const infoOptions=[["get_system_info","Sistema"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"]];
+        infoOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!onlineNow;b.title=!onlineNow?"El equipo está desconectado": "Consultar "+label.toLocaleLowerCase("es");b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));infoActions.append(b);});
+        item.append(infoActions);
+        if(platform==="windows"){
+          const controlTitle=document.createElement("div");controlTitle.className="cloud-section-label";controlTitle.textContent="CONTROL REMOTO";item.append(controlTitle);
+          const controlActions=document.createElement("div");controlActions.className="cloud-actions";
+          const controlOptions=[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]];
+          controlOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className=cmd==="lock_pc"?"small danger":"small";b.textContent=label;b.disabled=!onlineNow||!desktopControlEnabled;b.title=!desktopControlEnabled?"Activá Control PC arriba para habilitar estas acciones":!onlineNow?"El dispositivo está desconectado":label;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));controlActions.append(b);});
+          item.append(controlActions);
+          const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent=desktopControlEnabled?"El equipo de destino va a pedir confirmación antes de ejecutar cada acción.":"Activá «Control PC» en la barra superior para habilitar estas acciones.";item.append(hint);
+        }else{
+          const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Android permite diagnósticos compatibles. El control nativo remoto todavía no está implementado.";item.append(note);
+        }
+      }else{
+        const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
+      }
+      fragment.append(item);
+    }
+    list.replaceChildren(fragment);
+  }
+  function renderCloudHistory(rows){
+    const history=$("cloudCommandHistory");if(!history)return;
+    const fragment=document.createDocumentFragment();
+    for(const c of rows||[]){
+      const row=document.createElement("article");row.className="cloud-history-item";
+      const top=document.createElement("div");top.className="cloud-history-heading";
+      const strong=document.createElement("strong");strong.textContent=cloudCommandLabel(c.command);
+      const state=document.createElement("span");state.className="cloud-history-state "+String(c.status||"").toLowerCase();state.textContent=cloudStatusLabel(c.status);
+      top.append(strong,state);
+      const p=document.createElement("p");p.className="muted";p.textContent=c.error_message||c.result?.message||cloudTimeLabel(c.created_at);
+      row.append(top,p);fragment.append(row);
+    }
+    if(!rows?.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="Todavía no hay acciones.";fragment.append(empty);}
+    history.replaceChildren(fragment);
+  }
   async function refreshCloudDevices(){
     if(!user||cloudRefreshBusy)return;
-    const list=$("cloudDeviceList"),status=$("cloudStatus");
+    const list=$("cloudDeviceList"),status=$("cloudStatus"),button=$("cloudRefresh");
     if(!list)return;
     cloudRefreshBusy=true;
+    if(button){button.disabled=true;button.textContent="↻ Actualizando…";}
     try{
-      const q=await db.from("qbit_devices").select("id,name,platform,app_version,is_online,last_seen_at").order("last_seen_at",{ascending:false});
-      if(q.error)throw q.error;
-      const devices=q.data||[];
-      status.textContent=devices.length+" dispositivo(s) vinculados.";
-      const deviceFragment=document.createDocumentFragment();
-      if(!devices.length){
-        const empty=document.createElement("p");empty.className="muted";empty.textContent="Todavía no hay dispositivos vinculados.";deviceFragment.append(empty);
-      }
-      for(const d of devices){
-        const item=document.createElement("div");item.className="item";
-        const head=document.createElement("div");head.className="item-head";
-        const name=document.createElement("strong");name.textContent=d.name||"Dispositivo sin nombre";
-        const lastSeen=d.last_seen_at?new Date(d.last_seen_at).getTime():0;
-        const online=!!d.is_online&&Number.isFinite(lastSeen)&&lastSeen>0&&(Date.now()-lastSeen<45000);
-        const state=document.createElement("span");state.className="cloud-state "+(online?"online":"offline");state.textContent=online?"En línea":"Desconectado";
-        head.append(name,state);item.append(head);
-        const platform=String(d.platform||"unknown").toLowerCase();
-        const meta=document.createElement("p");meta.className="muted";meta.textContent=platform.toUpperCase()+" · QBIT "+(d.app_version||"versión desconocida")+" · "+(d.last_seen_at?"Última conexión: "+new Date(d.last_seen_at).toLocaleString("es-AR"):"Sin registro");item.append(meta);
-        if(platform==="windows"||platform==="android"){
-          const infoTitle=document.createElement("div");infoTitle.className="cloud-section-label";infoTitle.textContent="DIAGNÓSTICO";item.append(infoTitle);
-          const infoActions=document.createElement("div");infoActions.className="cloud-actions";
-          const infoOptions=[["get_system_info","Sistema"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantallas"]];
-          infoOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;b.disabled=!online;b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));infoActions.append(b);});
-          item.append(infoActions);
-          if(platform==="windows"){
-            const controlTitle=document.createElement("div");controlTitle.className="cloud-section-label";controlTitle.textContent="CONTROL REMOTO";item.append(controlTitle);
-            const controlActions=document.createElement("div");controlActions.className="cloud-actions";
-            const controlOptions=[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]];
-            controlOptions.forEach(([cmd,label])=>{const b=document.createElement("button");b.type="button";b.className=cmd==="lock_pc"?"small danger":"small";b.textContent=label;b.disabled=!online||!desktopControlEnabled;b.title=!desktopControlEnabled?"Activá Control PC arriba para habilitar estas acciones":!online?"El dispositivo está desconectado":"";b.addEventListener("click",()=>sendCloudCommand(d.id,cmd));controlActions.append(b);});
-            item.append(controlActions);
-            const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent=desktopControlEnabled?"Control remoto habilitado. El equipo va a pedir confirmación antes de ejecutar cada acción.":"Activá «Control PC» en la barra superior para habilitar estas acciones.";item.append(hint);
-          }else{
-            const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="Android permite consultar datos compatibles del dispositivo. El control nativo remoto todavía no está implementado.";item.append(note);
-          }
-        }else{
-          const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones de escritorio.";item.append(note);
-        }
-        deviceFragment.append(item);
-      }
-      list.replaceChildren(deviceFragment);
-      const history=$("cloudCommandHistory");
-      if(history){
-        const h=await db.from("qbit_device_commands").select("command,status,result,error_message,created_at").order("created_at",{ascending:false}).limit(10);
-        if(h.error)throw h.error;
-        const historyFragment=document.createDocumentFragment();
-        for(const c of h.data||[]){
-          const row=document.createElement("div");row.className="cloud-history-item";
-          const strong=document.createElement("strong");strong.textContent=c.command+" · "+c.status;
-          const p=document.createElement("p");p.className="muted";p.textContent=c.error_message||c.result?.message||new Date(c.created_at).toLocaleString("es-AR");
-          row.append(strong,p);historyFragment.append(row);
-        }
-        if(!h.data?.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="Todavía no hay acciones.";historyFragment.append(empty);}
-        history.replaceChildren(historyFragment);
-      }
+      const [q,h]=await Promise.all([
+        db.from("qbit_devices").select("id,name,platform,app_version,is_online,last_seen_at").order("last_seen_at",{ascending:false}),
+        db.from("qbit_device_commands").select("command,status,result,error_message,created_at").order("created_at",{ascending:false}).limit(10)
+      ]);
+      if(q.error)throw q.error;if(h.error)throw h.error;
+      cloudDevicesCache=q.data||[];
+      renderCloudDevices();renderCloudHistory(h.data||[]);
+      const onlineCount=cloudDevicesCache.filter(d=>{const t=d.last_seen_at?new Date(d.last_seen_at).getTime():0;return !!d.is_online&&Number.isFinite(t)&&t>0&&Date.now()-t<45000;}).length;
+      if(status)status.textContent=cloudDevicesCache.length+" dispositivo(s) vinculados · "+onlineCount+" en línea · actualizado "+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
     }catch(e){
       console.warn("[QBIT Cloud] Actualización:",e?.message||e);
-      status.textContent="No se pudieron actualizar los dispositivos: "+(e?.message||"error desconocido");
+      if(status)status.textContent="No se pudieron actualizar los dispositivos: "+(e?.message||"error desconocido");
     }finally{
       cloudRefreshBusy=false;
+      if(button){button.disabled=false;button.textContent="↻ Actualizar";}
     }
   }
+  $("cloudDeviceSearch")?.addEventListener("input",renderCloudDevices);
+  $("cloudPlatformFilter")?.addEventListener("change",renderCloudDevices);
+  $("cloudStateFilter")?.addEventListener("change",renderCloudDevices);
   async function sendCloudCommand(deviceId,command){
     if(!user)return;
     const remoteActions=new Set(["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]);
