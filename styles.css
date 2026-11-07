@@ -433,7 +433,7 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   footer{display:none}
 }
 @media(max-width:370px){
-  .mobile-nav{padding-left:3px;padding-right:3px}
+  .mobile-nav{padding-left:3px;padding-right:3px;grid-template-columns:repeat(7,minmax(0,1fr))}
   .mobile-nav button>small{font-size:8px}
   .mobile-nav button>span{font-size:17px}
   .chat-top-actions{gap:5px}
@@ -495,3 +495,17 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .cloud-detail-section h3,.cloud-detail-section-title{margin:0 0 10px;font-size:13px}
 .cloud-controls-preview button:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:620px){.cloud-device-detail{padding:14px}.cloud-detail-heading h2{font-size:18px}.cloud-detail-section .cloud-actions button{flex:1 1 42%}}
+
+/* Releases Android y preferencias de confirmación remota v1.5.31 */
+.cloud-confirm-settings{display:grid;grid-template-columns:minmax(180px,1fr) repeat(2,minmax(180px,.7fr));gap:12px;align-items:center;padding:14px;margin:14px 0;border:1px solid var(--line-soft);border-radius:13px;background:rgba(255,255,255,.018)}
+.cloud-confirm-settings>div strong{font-size:13px}.cloud-confirm-settings>div p,.cloud-confirm-footnote{font-size:10px;margin:5px 0 0}
+.cloud-confirm-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line-soft);border-radius:10px;background:#0b1520;font-size:11px;color:var(--text)}
+.cloud-confirm-toggle input{width:18px;height:18px;accent-color:var(--cyan);flex:0 0 auto}.cloud-confirm-footnote{grid-column:1/-1}
+.android-releases-page{overflow:hidden}.android-update-panel{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:15px;margin:16px 0;border:1px solid var(--line-soft);border-radius:13px;background:linear-gradient(145deg,rgba(30,190,210,.09),rgba(255,255,255,.01))}
+.android-update-panel strong{font-size:14px}.android-update-panel p{margin:5px 0 0;font-size:11px}.android-release-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}
+.android-release-card{min-width:0;padding:15px;border:1px solid var(--line-soft);border-radius:13px;background:rgba(255,255,255,.018)}
+.android-release-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.android-release-heading strong{font-size:14px}.android-release-heading span{font-size:10px}
+.android-release-notes{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:120px;overflow:auto}.android-release-actions{display:flex;gap:8px;flex-wrap:wrap}.android-release-actions button{flex:1}
+.android-release-empty{grid-column:1/-1;padding:20px;text-align:center;border:1px dashed var(--line-soft);border-radius:12px;color:var(--muted)}.android-install-note{font-size:10px;margin-top:16px}
+@media(max-width:760px){.cloud-confirm-settings{grid-template-columns:1fr 1fr}.cloud-confirm-settings>div,.cloud-confirm-footnote{grid-column:1/-1}}
+@media(max-width:620px){.cloud-confirm-settings{grid-template-columns:1fr}.cloud-confirm-settings>div,.cloud-confirm-footnote{grid-column:auto}.android-update-panel{align-items:stretch}.android-update-panel button{width:100%}}
