@@ -18,18 +18,12 @@
   <div class="brand"><img class="logo" src="qbit-icon.svg" alt="" aria-hidden="true"><div><h1 class="brand-title">QBIT</h1><p>Tu asistente personal</p></div></div>
   <button id="mobileNewChat" class="mobile-new-chat" type="button" aria-label="Nueva sesión" title="Nueva sesión">＋</button>
   <div id="updateBar" class="update-bar hidden"><button id="updateBtn" class="small" type="button" title="Buscar actualizaciones de QBIT">⟳ <span id="updateVersion">v…</span></button><span id="updateStatus" class="muted" aria-live="polite"></span></div>
-  <div id="userBar" class="row hidden" style="flex:0 1 auto"><span id="userEmail" class="muted"></span><span id="desktopControlStatus" class="desktop-control-status" aria-live="polite">Extensión no detectada</span><button id="desktopControlToggle" class="small desktop-control-toggle" type="button" aria-pressed="false">Control PC · OFF</button><button id="logoutBtn" class="small">Cerrar sesión</button></div>
+  <div id="userBar" class="row hidden" style="flex:0 1 auto"><span id="userEmail" class="muted"></span><span id="desktopControlStatus" class="desktop-control-status" aria-live="polite">Extensión no detectada</span><button id="desktopControlToggle" class="small desktop-control-toggle" type="button" aria-pressed="false">Control PC · OFF</button></div>
 </header>
-<section id="loginView" class="card login">
-  <h2>Hola 👋</h2><p class="muted">Entrá a tu espacio privado de QBIT.</p>
-  <form id="loginForm" class="stack">
-    <div><label for="email">Correo electrónico</label><input id="email" type="email" autocomplete="username" required></div>
-    <div><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password" required></div>
-    <button class="primary" type="submit">Iniciar sesión</button><p id="loginMsg" class="muted" aria-live="polite"></p>
-  </form>
-</section>
+<section id="loginView" class="card login hidden" aria-hidden="true"></section>
 <section id="appView" class="hidden">
   <div class="app-shell">
+    <div id="guestAccessNotice" class="guest-access-notice" role="status"><span id="guestAccessStatus">Conectando con QBIT…</span><button id="guestRetryBtn" class="small" type="button">Reintentar</button></div>
     <aside class="sidebar" aria-label="Navegación principal">
       <div class="sidebar-brand">
         <img src="qbit-icon.svg" alt="">
