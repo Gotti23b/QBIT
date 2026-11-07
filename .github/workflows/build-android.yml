@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: qbit-android-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-apk:
     name: Build installable Android APK
@@ -126,7 +130,9 @@ jobs:
 
       - name: Read Android release version
         id: release_version
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+      VERSION=$(node -p "require('./package.json').version")
+      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Rename APK
         run: cp config/android/app/build/outputs/apk/debug/app-debug.apk "QBIT-Android-v${{ steps.release_version.outputs.version }}.apk"
