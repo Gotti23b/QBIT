@@ -440,7 +440,7 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .connection-pill{font-size:8px}
 }
 @media(orientation:landscape) and (max-height:500px) and (max-width:900px){
-  .mobile-nav{position:sticky;bottom:auto;grid-template-columns:repeat(6,minmax(0,1fr))}
+  .mobile-nav{position:sticky;bottom:auto;grid-template-columns:repeat(7,minmax(0,1fr))}
   .workspace{padding-bottom:0}
   #chatView .layout,.chat-surface{min-height:calc(100dvh - 135px)}
 }
