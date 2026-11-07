@@ -62,6 +62,49 @@ public class QBITControlPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void openSystemSettings(PluginCall call) {
+        String page = call.getString("page", "");
+        Intent intent;
+        switch (page) {
+            case "wifi":
+                intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+                break;
+            case "bluetooth":
+                intent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
+                break;
+            case "display":
+                intent = new Intent(Settings.ACTION_DISPLAY_SETTINGS);
+                break;
+            case "sound":
+                intent = new Intent(Settings.ACTION_SOUND_SETTINGS);
+                break;
+            case "battery":
+                intent = new Intent("android.settings.BATTERY_SAVER_SETTINGS");
+                break;
+            case "apps":
+                intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getContext().getPackageName()));
+                break;
+            default:
+                call.reject("Sección de Ajustes no permitida.");
+                return;
+        }
+        try {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (intent.resolveActivity(getContext().getPackageManager()) == null) {
+                call.reject("Android no ofrece esta pantalla de Ajustes.");
+                return;
+            }
+            getActivity().startActivity(intent);
+            JSObject result = new JSObject();
+            result.put("message", "Se abrieron los ajustes de " + page + ".");
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("No se pudieron abrir los ajustes solicitados.", error);
+        }
+    }
+
+    @PluginMethod
     public void adjustVolume(PluginCall call) {
         String action = call.getString("action", "");
         AudioManager audio = (AudioManager) getContext().getSystemService(android.content.Context.AUDIO_SERVICE);
