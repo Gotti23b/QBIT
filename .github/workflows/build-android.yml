@@ -76,9 +76,11 @@ jobs:
                       android:resource="@xml/qbit_accessibility_service" />
               </service>
           """
+          if "android.permission.WRITE_SETTINGS" not in source:
+              source = source.replace("<application", '<uses-permission android:name="android.permission.WRITE_SETTINGS" />\n    <application', 1)
           if "QBITAccessibilityService" not in source:
               source = source.replace("</application>", service + "\n    </application>")
-              manifest.write_text(source)
+          manifest.write_text(source)
           PY
 
       - name: Generate QBIT app icons
