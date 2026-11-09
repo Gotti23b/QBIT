@@ -63,6 +63,10 @@ button,input,.no-drag{-webkit-app-region:no-drag}
 .state-actions button[aria-pressed="true"]{border-color:var(--cyan);color:var(--cyan);background:#10394a;box-shadow:0 0 14px #22d3ee12}
 .state-actions button:hover,.quick-actions button:hover,.icon-button:hover{border-color:var(--cyan);background:#153348}
 .quick-actions button:first-child{background:#103344;border-color:#24738a;color:var(--ice)}
+.voice-actions{display:flex;gap:8px;margin-top:10px}
+.voice-actions button{flex:1;min-width:0;min-height:36px;padding:7px 9px;border:1px solid #28536a;border-radius:11px;background:#102338;color:#b9eaf4;font-size:11px;font-weight:700;cursor:pointer}
+.voice-actions button[aria-pressed="true"]{border-color:var(--cyan);background:#10394a;color:var(--ice);box-shadow:0 0 14px #22d3ee16}
+.voice-actions button:disabled{opacity:.5;cursor:not-allowed}
 .pet-form{display:grid;grid-template-columns:minmax(0,1fr) 42px;gap:8px;margin-top:14px}
 .pet-form input{width:100%;min-width:0;min-height:42px;padding:10px 12px;border:1px solid #29485d;border-radius:12px;outline:none;background:#06111e;color:var(--text);-webkit-app-region:no-drag}
 .pet-form input::placeholder{color:#718da0}
