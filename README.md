@@ -24,24 +24,6 @@ QBIT Desktop y la consola de PowerShell usan el mismo puerto (`127.0.0.1:17614`)
 La consola de PowerShell solo reenvía texto: no ejecuta comandos ni lo que escribe la IA.
 
 
-## BOTS y automatizaciones (QBIT Desktop 1.5.9)
-
-La sección **BOTS** permite crear agentes persistentes que trabajan con la IA conectada mediante QBIT Extension y ejecutan los Artifacts de escritorio existentes, respetando sus permisos y confirmaciones.
-
-Funciones incluidas:
-- Crear, configurar, activar, pausar y borrar bots.
-- Asignar a cada bot tareas manuales, recurrentes por intervalo o programadas para una fecha y hora.
-- Editar y borrar tareas; ejecutarlas ahora, pausarlas, reanudarlas o detenerlas.
-- Reintentar tareas programadas que fallen: el motor vuelve a intentarlo al minuto siguiente.
-- Guardar bots, tareas, próximas ejecuciones y hasta 500 registros de actividad en la carpeta de datos de QBIT.
-- Reanudar las tareas activas al abrir QBIT. El motor solo consulta a la IA cuando una tarea se ejecuta; el temporizador local revisa vencimientos cada cinco segundos.
-- Enviar los bloques `qbit` devueltos por la IA al ejecutor de Artifacts de QBIT, que conserva las confirmaciones y permisos configurados.
-
-Las tareas automáticas funcionan mientras QBIT Desktop esté abierto, incluso si la ventana principal está minimizada en la bandeja. Al salir completamente de QBIT, el temporizador se detiene y el estado queda guardado.
-
-**Límites de esta versión:** la programación por intervalo y fecha/hora ya está disponible, pero todavía no hay detectores específicos de eventos externos (por ejemplo, vigilar automáticamente las novedades de Classroom o detectar que un video se publicó), observación continua de pantalla/Computer Use autónomo ni colaboración coordinada entre varios bots. Esas capacidades requieren integraciones adicionales y no se presentan como terminadas.
-
-
 ## Controlar QBIT Desktop desde QBIT Web
 
 La extensión permite que QBIT Web ejecute los Artifacts de QBIT Desktop:
