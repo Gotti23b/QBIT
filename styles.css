@@ -289,41 +289,6 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .agents-heading h2{margin:4px 0;font-size:21px}
 .agents-heading h3{margin:3px 0;font-size:16px}
 .agents-heading p{margin:4px 0 0;font-size:11px}
-.agents-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;margin-top:18px;align-items:start}
-.agents-list-card,.agent-detail-card,.agent-tasks-card,.agent-logs-card{min-width:0;background:#101820!important}
-.agents-bot-list{display:grid;gap:6px;margin-top:12px}
-.agent-bot-item{display:flex;align-items:center;gap:9px;width:100%;padding:10px;border:1px solid transparent;border-radius:8px;background:#0d141b;text-align:left;color:var(--text)}
-.agent-bot-item:hover,.agent-bot-item.active{border-color:#2b5967;background:#132832}
-.agent-bot-avatar{font-size:17px}.agent-bot-name{flex:1;font-size:12px;font-weight:650}.agent-bot-state{font-size:10px;color:var(--green)}
-.agents-main{display:grid;gap:14px;min-width:0}
-.agent-controls{margin-top:12px}.agent-controls .notice{margin:0;font-size:11px}
-.agent-tasks-card,.agent-logs-card{margin:0!important}
-.agents-task-list,.agents-log-list{display:grid;gap:8px;margin-top:14px}
-.agent-task-item{padding:12px;border:1px solid var(--line);border-radius:9px;background:#0d141b}
-.agent-task-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.agent-task-head strong{font-size:12px}
-.agent-task-status{padding:3px 7px;border:1px solid var(--line);border-radius:99px;font-size:9px;letter-spacing:.5px;color:var(--muted)}
-.agent-task-status.active{border-color:#285d4b;color:#7ee0ae}.agent-task-status.paused{border-color:#705d35;color:#f1cf7b}.agent-task-status.stopped{color:#a1aab4}
-.agent-task-item p{margin:8px 0;color:#aebbc6;font-size:11px;line-height:1.5;white-space:pre-wrap}
-.agent-task-meta{display:block;color:var(--muted-2);font-size:10px}
-.agent-task-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.agent-task-actions button{flex:0 0 auto}
-.agent-log-item{display:grid;grid-template-columns:145px minmax(0,1fr);gap:10px;padding:8px 10px;border-left:2px solid #40505c;background:#0d141b;border-radius:0 7px 7px 0}
-.agent-log-item.success{border-color:#3d9c70}.agent-log-item.error{border-color:#bd6262}
-.agent-log-time{font-size:9px;color:var(--muted-2)}.agent-log-message{font-size:10px;color:#bdc9d2;white-space:pre-wrap;overflow-wrap:anywhere}
-@media(max-width:900px){.agents-layout{grid-template-columns:1fr}.agents-bot-list{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
-@media(max-width:620px){.agents-page{padding:12px}.agents-heading{align-items:flex-start}.agents-heading h2{font-size:17px}.agent-log-item{grid-template-columns:1fr;gap:4px}}
-
-/* Ensure BOTS controls remain interactive above dashboard layers */
-#agentsView,.agents-page,.agents-page button{pointer-events:auto;}
-#agentsView .agents-heading button,#agentsView .agent-task-actions button,#agentsView .agent-bot-item{position:relative;z-index:1;}
-#agentsView button:disabled{opacity:.55;cursor:wait;}
-
-.agent-task-status.completed{border-color:#285d4b;color:#7ee0ae}.agent-task-actions .danger{color:#ffaaaa;border-color:#603b43}.agent-task-actions .danger:hover{background:#351d24}
-#agentToggleBot,#agentDeleteBot{margin-left:6px}
-
-.agent-dialog-field{display:grid;gap:6px;margin:12px 0}.agent-dialog-field label{font-size:11px;color:#aebbc6}.agent-dialog-field input,.agent-dialog-field textarea,.agent-dialog-field select{width:100%;box-sizing:border-box;background:#0b1218;border:1px solid #30404d;border-radius:7px;color:#e5edf4;padding:9px 10px;font:12px inherit}.agent-dialog-field textarea{resize:vertical;min-height:90px}.agent-dialog-field input:focus,.agent-dialog-field textarea:focus,.agent-dialog-field select:focus{outline:1px solid #64d8ec;border-color:#64d8ec}.qbit-modal{max-height:90vh;overflow-y:auto}.qbit-modal button.danger{border-color:#653e46;color:#ffaaaa;background:#25171c}.qbit-modal button.danger:hover{background:#3a2028}
-
 /* Control de QBIT Desktop desde QBIT Web */
 .desktop-control-status{font-size:10px;color:var(--muted);white-space:nowrap}
 .desktop-control-toggle{white-space:nowrap;border-color:#34414d;background:#111820;color:#9aa8b5}
@@ -372,7 +337,7 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   #appView{min-height:calc(100dvh - 58px)}
   .app-shell{display:block;min-height:calc(100dvh - 58px)}
   .sidebar{display:none!important}
-  .mobile-nav{position:fixed;z-index:200;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding:7px 5px calc(7px + env(safe-area-inset-bottom));border-top:1px solid #263642;background:rgba(10,16,23,.97);backdrop-filter:blur(18px)}
+  .mobile-nav{position:fixed;z-index:200;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:7px 5px calc(7px + env(safe-area-inset-bottom));border-top:1px solid #263642;background:rgba(10,16,23,.97);backdrop-filter:blur(18px)}
   .mobile-nav button{display:flex;min-width:0;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 1px;border:1px solid transparent;border-radius:10px;background:transparent;color:#8999a7}
   .mobile-nav button>span{font-size:18px;line-height:1.15}
   .mobile-nav button>small{font-size:9px;line-height:1.2;white-space:nowrap}
