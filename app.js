@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.34";
+  const QBIT_VERSION = "1.5.35";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -437,9 +437,21 @@
       Object.values(inputs)[0]?.focus();
     });
   }
+  function setMobileSidebarOpen(open){
+    const sidebar=$("mainSidebar"),toggle=$("mobileSidebarToggle"),backdrop=$("mobileSidebarBackdrop");
+    if(!sidebar||!toggle||!backdrop)return;
+    const visible=!!open&&window.matchMedia("(max-width: 620px)").matches;
+    sidebar.classList.toggle("is-open",visible);
+    backdrop.classList.toggle("is-visible",visible);
+    document.body.classList.toggle("sidebar-open",visible);
+    toggle.setAttribute("aria-expanded",String(visible));
+    toggle.setAttribute("aria-label",visible?"Cerrar menú":"Abrir menú");
+    toggle.textContent=visible?"×":"☰";
+  }
   function activateTab(id){
-    document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
+    document.querySelectorAll("[data-tab]").forEach(x=>{const active=x.dataset.tab===id;x.classList.toggle("active",active);x.setAttribute("aria-current",active?"page":"false");});
     ["chatView","connectorView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    setMobileSidebarOpen(false);
     if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
   }
   function solveMathQuestion(message){
@@ -471,7 +483,7 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){const changed=user?.id!==u?.id;if(!u&&cloudDeviceId)void stopCloudPresence();user=u;syncPresetToggle();$("loginView")?.classList.add("hidden");$("appView").classList.remove("hidden");$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?(u.is_anonymous?"Invitado":(u.email||"Cuenta QBIT")):"Modo sin conexión";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();}
+  function session(u){const changed=user?.id!==u?.id;if(!u&&cloudDeviceId)void stopCloudPresence();user=u;syncPresetToggle();$("loginView")?.classList.add("hidden");$("appView").classList.remove("hidden");$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?(u.is_anonymous?"Invitado":(u.email||"Cuenta QBIT")):"Modo sin conexión";const accountName=$("sidebarAccountName"),accountDetail=$("sidebarAccountDetail");if(accountName)accountName.textContent=u?(u.is_anonymous?"Invitado":(u.email||"Mi cuenta")):"Sin conexión";if(accountDetail)accountDetail.textContent=u?"Cuenta QBIT":"Revisá tu conexión";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -837,8 +849,12 @@
   };
   window.qbitPC?.onPetMessage?.(message=>{const input=$("chatInput");if(!input)return;petMessagePending=true;input.value=String(message||"").slice(0,500);$("sendForm").requestSubmit();});
   $("clearChat").onclick=()=>newChat();
-  $("newChatSidebar")?.addEventListener("click",()=>newChat());
+  $("newChatSidebar")?.addEventListener("click",()=>{newChat();setMobileSidebarOpen(false);});
   $("mobileNewChat")?.addEventListener("click",()=>newChat());
+  $("mobileSidebarToggle")?.addEventListener("click",()=>setMobileSidebarOpen(!$("mainSidebar")?.classList.contains("is-open")));
+  $("mobileSidebarBackdrop")?.addEventListener("click",()=>setMobileSidebarOpen(false));
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")setMobileSidebarOpen(false);});
+  window.addEventListener("resize",()=>{if(!window.matchMedia("(max-width: 620px)").matches)setMobileSidebarOpen(false);});
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
 
   function connectorNotice(message,error=false){const el=$("connectorStatus");if(el){el.textContent=message;el.className=error?"notice error":"notice";}}
@@ -915,7 +931,7 @@
   async function downloadAndroidAsset(asset,version){const p=window.Capacitor?.Plugins?.QBITControl,status=$("androidReleaseStatus");if(p?.downloadApk){try{const r=await p.downloadApk({url:asset.browser_download_url,version});if(status)status.textContent=r?.message||"Descarga iniciada. Cuando termine, abrí la notificación para instalar.";}catch(e){if(status)status.textContent="No se pudo descargar: "+(e?.message||e);}}else{const a=document.createElement("a");a.href=asset.browser_download_url;a.target="_blank";a.rel="noopener";a.download=asset.name;a.click();}}
   async function loadAndroidReleases(){if(androidReleaseBusy)return;androidReleaseBusy=true;const s=$("androidReleaseStatus");if(s)s.textContent="Consultando las releases de GitHub…";try{const response=await fetch(ANDROID_RELEASES_API,{headers:{Accept:"application/vnd.github+json"}});if(!response.ok)throw new Error("GitHub respondió "+response.status);const r=await response.json();androidReleasesCache=(Array.isArray(r)?r:[]).filter(x=>String(x.tag_name||"").startsWith("android-v")&&!x.draft&&!x.prerelease);renderAndroidReleases(await getInstalledAndroidVersion());}catch(e){if(s)s.textContent="No pude consultar GitHub: "+(e?.message||e)+". Revisá la conexión e intentá de nuevo.";}finally{androidReleaseBusy=false;}}
   $("androidReleaseRefresh")?.addEventListener("click",()=>void loadAndroidReleases());
-  $("androidUpdateButton")?.addEventListener("click",async()=>{if(!androidReleasesCache.length){await loadAndroidReleases();return;}const installed=await getInstalledAndroidVersion(),r=androidReleasesCache.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a)))[0];if(!r)return;const v=androidReleaseVersion(r);if(compareQbitVersions(v,installed)<=0){if($("androidReleaseStatus"))$("androidReleaseStatus").textContent="Ya tenés la última versión Android publicada (v"+installed+").";return;}await downloadAndroidAsset(androidApkAsset(r),v);});
+  $("androidUpdateButton")?.addEventListener("click",async()=>{const button=$("androidUpdateButton");if(button){button.disabled=true;button.textContent="⟳ Buscando…";}try{if(!androidReleasesCache.length)await loadAndroidReleases();const installed=await getInstalledAndroidVersion(),r=androidReleasesCache.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a)))[0];if(!r){if($("androidReleaseStatus")&&androidReleaseStatusText()==="")$("androidReleaseStatus").textContent="No se encontró una APK publicada.";return;}const v=androidReleaseVersion(r);if(compareQbitVersions(v,installed)<=0){if($("androidReleaseStatus"))$("androidReleaseStatus").textContent="Ya tenés la última versión (v"+installed+").";return;}if(button)button.textContent="⬇ Descargar v"+v;await downloadAndroidAsset(androidApkAsset(r),v);}finally{if(button){button.disabled=false;if(button.textContent==="⟳ Buscando…")button.textContent="⟳ Buscar actualizaciones";}}});
 
   async function executeAndroidControlCommand(command){
     const control=window.Capacitor?.Plugins?.QBITControl;
