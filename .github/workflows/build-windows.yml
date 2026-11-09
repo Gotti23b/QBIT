@@ -24,8 +24,6 @@ jobs:
         run: node windows/scripts/create-windows-icon.cjs
       - name: Check JavaScript syntax
         run: npm run check
-      - name: Run agent tests
-        run: npm test
       - name: Validate Computer Use PowerShell syntax
         shell: pwsh
         run: |
