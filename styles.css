@@ -496,7 +496,7 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .brand .logo{width:31px;height:31px}
   #mobileNewChat{flex:0 0 36px}
   .app-shell{position:relative;display:block;min-height:calc(100dvh - 52px)}
-  .sidebar{position:fixed!important;z-index:505;top:52px;bottom:0;left:0;width:min(86vw,330px);height:auto;max-height:none;min-height:0;display:flex!important;flex-direction:column;gap:17px;padding:17px 13px calc(16px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;border:0;border-right:1px solid #2b3b47;background:#0d131a;box-shadow:18px 0 50px #0008;transform:translateX(-105%);transition:transform .22s ease}
+  .sidebar{position:fixed!important;z-index:505;top:58px;bottom:0;left:0;width:min(86vw,330px);height:auto;max-height:none;min-height:0;display:flex!important;flex-direction:column;gap:17px;padding:17px 13px calc(16px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;border:0;border-right:1px solid #2b3b47;background:#0d131a;box-shadow:18px 0 50px #0008;transform:translateX(-105%);transition:transform .22s ease}
   .sidebar.is-open{transform:translateX(0)}
   .sidebar-brand,.sidebar-pinned,.sidebar-bottom,.sidebar-label{display:initial}
   .sidebar-brand{display:flex}
@@ -512,10 +512,10 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .nav-arrow{display:inline;margin-left:auto}
   .sidebar-chat-list{max-height:150px;overflow-y:auto}
   .sidebar-archived .sidebar-chat-list{max-height:100px}
-  .mobile-sidebar-backdrop.is-visible{position:fixed;z-index:500;inset:52px 0 0;display:block;width:100%;height:calc(100dvh - 52px);padding:0;border:0;border-radius:0;background:#0009;backdrop-filter:blur(2px)}
+  .mobile-sidebar-backdrop.is-visible{position:fixed;z-index:500;inset:58px 0 0;display:block;width:100%;height:calc(100dvh - 58px);padding:0;border:0;border-radius:0;background:#0009;backdrop-filter:blur(2px)}
   body.sidebar-open{overflow:hidden}
-  .workspace{min-height:calc(100dvh - 52px);padding-bottom:env(safe-area-inset-bottom)}
-  #chatView .layout{min-height:calc(100dvh - 105px);padding:12px 10px}
+  .workspace{min-height:calc(100dvh - 58px);padding-bottom:env(safe-area-inset-bottom)}
+  #chatView .layout{min-height:calc(100dvh - 112px);padding:12px 10px}
   .workspace section:not(#chatView){padding:12px}
   .desktop-dock{display:none}
   .mobile-nav{display:none!important}
