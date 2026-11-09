@@ -286,9 +286,9 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 
 /* Workspace de agentes persistentes */
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
-.agents-heading h2{margin:4px 0;font-size:21px}
-.agents-heading h3{margin:3px 0;font-size:16px}
-.agents-heading p{margin:4px 0 0;font-size:11px}
+.section-heading h2{margin:4px 0;font-size:21px}
+.section-heading h3{margin:3px 0;font-size:16px}
+.section-heading p{margin:4px 0 0;font-size:11px}
 /* Control de QBIT Desktop desde QBIT Web */
 .desktop-control-status{font-size:10px;color:var(--muted);white-space:nowrap}
 .desktop-control-toggle{white-space:nowrap;border-color:#34414d;background:#111820;color:#9aa8b5}
@@ -369,10 +369,9 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
   .workspace section:not(#chatView) .layout{grid-template-columns:minmax(0,1fr)}
   .workspace section:not(#chatView) button{min-height:40px}
   .workspace section:not(#chatView) input:not([type=checkbox]),.workspace section:not(#chatView) textarea,.workspace section:not(#chatView) select{min-height:43px;font-size:16px}
-  .agent-task-head{align-items:flex-start;flex-wrap:wrap}
   #cloudView>.card{padding:15px}
-  #cloudView .agents-heading{align-items:flex-start}
-  #cloudView .agents-heading>button{width:auto;flex:0 0 auto}
+  #cloudView .section-heading{align-items:flex-start}
+  #cloudView .section-heading>button{width:auto;flex:0 0 auto}
   #cloudDeviceList>.item{padding:12px}
   #cloudCommandHistory{grid-template-columns:minmax(0,1fr)}
   .connector-actions{display:grid;grid-template-columns:minmax(0,1fr)}
