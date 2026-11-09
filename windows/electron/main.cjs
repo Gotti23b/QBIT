@@ -4,7 +4,6 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const WebSocket = require("ws");
-const { AgentEngine } = require("./agent-engine.cjs");
 let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
 
@@ -15,8 +14,6 @@ let isQuitting = false;
 let connectorServer=null,connectorSocket=null;
 const connectorPending=new Map();
 const webArtifactPending=new Map();
-const agentActionPending = new Map();
-let agentEngine = null;
 let petExpanded = false;
 const DEFAULT_PET_SETTINGS = Object.freeze({ visible: true, size: "normal", animations: true });
 let petSettings = { ...DEFAULT_PET_SETTINGS };
@@ -93,52 +90,6 @@ function dispatchAgentArtifact(payload) {
     mainWindow.webContents.send("qbit:agent-action", { id, ...payload });
   });
 }
-function initializeAgentEngine() {
-  if (agentEngine) return;
-  agentEngine = new AgentEngine({
-    dataPath: path.join(app.getPath("userData"), "agents", "state.json"),
-    runAI: prompt => askBrowserAI(prompt),
-    onAction: payload => String(payload?.call?.artifact || "").startsWith("computer_") ? runComputerUse(payload) : dispatchAgentArtifact(payload),
-    notify: ({ title, body }) => { try { if (Notification.isSupported()) new Notification({ title, body }).show(); } catch {} },
-    onUpdate: state => {
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("qbit:agents-updated", state);
-    }
-  });
-  agentEngine.start();
-  // Mientras haya vigilancias o tareas programadas, Windows no suspende la PC (sí puede apagar la pantalla).
-  let sleepBlock = null;
-  setInterval(() => {
-    const need = agentEngine.hasActiveWork();
-    if (need && sleepBlock === null) sleepBlock = powerSaveBlocker.start("prevent-app-suspension");
-    else if (!need && sleepBlock !== null) { powerSaveBlocker.stop(sleepBlock); sleepBlock = null; }
-  }, 30000).unref?.();
-}
-ipcMain.handle("qbit:agents-get", () => agentEngine?.snapshot() || { bots: [], tasks: [], logs: [] });
-ipcMain.handle("qbit:agents-create-bot", (_e, input) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.createBot(input); });
-ipcMain.handle("qbit:agents-update-bot", (_e, id, patch) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.updateBot(id, patch); });
-ipcMain.handle("qbit:agents-delete-bot", (_e, id) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.deleteBot(id); });
-ipcMain.handle("qbit:agents-create-task", (_e, input) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.createTask(input); });
-ipcMain.handle("qbit:agents-update-task", (_e, id, patch) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.updateTask(id, patch); });
-ipcMain.handle("qbit:agents-delete-task", (_e, id) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.deleteTask(id); });
-ipcMain.handle("qbit:agents-task-state", (_e, id, state) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); return agentEngine.setTaskState(id, state); });
-ipcMain.handle("qbit:agents-run-task", async (_e, id) => { if (!agentEngine) throw new Error("El motor de agentes todavía no está listo."); await agentEngine.runNow(id); return { ok: true }; });
-ipcMain.handle("qbit:agents-action-result", (event, id, result) => {
-  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("No autorizado.");
-  const pending = agentActionPending.get(String(id));
-  if (!pending) return { ok: false };
-  clearTimeout(pending.timer); agentActionPending.delete(String(id)); pending.resolve(String(result || "Acción procesada."));
-  return { ok: true };
-});
-ipcMain.on("qbit:agents-action-error", (event, id, message) => {
-  if (!mainWindow || event.sender !== mainWindow.webContents) return;
-  const pending = agentActionPending.get(String(id));
-  if (!pending) return;
-  clearTimeout(pending.timer); agentActionPending.delete(String(id)); pending.reject(new Error(String(message || "La acción falló.")));
-});
-ipcMain.on("qbit:agents-ready", event => {
-  if (mainWindow && event.sender === mainWindow.webContents && agentEngine) event.sender.send("qbit:agents-updated", agentEngine.snapshot());
-});
-
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 // QBIT baja la versión nueva en segundo plano y pregunta: reiniciar ahora o seguir
 // en esta versión. Nunca se instala sola: si elegís seguir, te vuelve a preguntar
@@ -851,7 +802,6 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 });
 
 app.whenReady().then(() => {
-  initializeAgentEngine();
   startConnectorServer().catch(error=>console.warn("[QBIT] No se pudo iniciar el puente local automáticamente:",error.message||error));
   loadPetSettings();
   createTray();
@@ -859,7 +809,7 @@ app.whenReady().then(() => {
   createPetWindow();
   setupAutoUpdater();
 });
-app.on("before-quit", () => { isQuitting = true; agentEngine?.stop(); for (const [id,p] of agentActionPending) { clearTimeout(p.timer); p.reject(new Error("QBIT se está cerrando.")); agentActionPending.delete(id); } stopConnectorServer(); });
+app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); });
 app.on("window-all-closed", () => {
   if (isQuitting) app.quit();
 });
