@@ -374,7 +374,7 @@
         }));
         addAction(chat.pinned?"☆  Quitar de fijados":"★  Fijar chat",()=>{chat.pinned=!chat.pinned;saveHistory();renderHistory();});
         addAction("✎  Cambiar nombre",async()=>{
-          const title=await agentDialog("Cambiar nombre del chat",[{name:"title",label:"Nombre del chat",value:chat.title||"Nuevo chat",required:true}]);
+          const title=await qbitDialog("Cambiar nombre del chat",[{name:"title",label:"Nombre del chat",value:chat.title||"Nuevo chat",required:true}]);
           if(title===null)return;
           const clean=title.trim();
           if(!clean){notice("El nombre no puede estar vacío.",true);return;}
@@ -411,6 +411,31 @@
     chatHistory.unshift(chat);activeChatId=chat.id;saveHistory();$("chatbox").replaceChildren();
     bubble("QBIT","Chat nuevo. ¿Qué probamos? ✨","bot");
     renderHistory();activateTab("chatView");
+  }
+  function qbitDialog(title,fields){
+    return new Promise(resolve=>{
+      const overlay=node("div","qbit-modal-overlay"),box=node("form","qbit-modal card");
+      box.setAttribute("role","dialog");box.setAttribute("aria-modal","true");
+      box.append(node("h3","",title));
+      const values={},inputs={};
+      fields.forEach(field=>{
+        const wrap=node("div","qbit-dialog-field"),label=node("label","",field.label);
+        let input=field.type==="textarea"?document.createElement("textarea"):field.type==="select"?document.createElement("select"):document.createElement("input");
+        if(field.type==="select")field.options.forEach(o=>{const opt=document.createElement("option");opt.value=o.value;opt.textContent=o.label;input.append(opt);});
+        else if(field.type!=="textarea")input.type=field.type||"text";
+        input.id="qbit-"+field.name;input.value=field.value||"";label.htmlFor=input.id;
+        if(field.required)input.required=true;if(field.min!==undefined)input.min=field.min;if(field.max!==undefined)input.max=field.max;
+        wrap.append(label,input);box.append(wrap);inputs[field.name]=input;
+      });
+      const actions=node("div","qbit-modal-actions"),cancel=btn("Cancelar","",()=>finish(null)),save=btn("Guardar","primary",null);
+      cancel.type="button";save.type="submit";actions.append(cancel,save);box.append(actions);
+      function finish(v){overlay.remove();document.removeEventListener("keydown",key);resolve(v);}
+      function key(e){if(e.key==="Escape")finish(null);}
+      box.addEventListener("submit",e=>{e.preventDefault();for(const k in inputs)values[k]=inputs[k].value;finish(values);});
+      overlay.addEventListener("click",e=>{if(e.target===overlay)finish(null);});
+      document.addEventListener("keydown",key);overlay.append(box);document.body.append(overlay);
+      Object.values(inputs)[0]?.focus();
+    });
   }
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
