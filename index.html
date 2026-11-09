@@ -39,6 +39,10 @@
           <button class="active" data-tab="chatView" type="button"><span class="nav-icon">⌂</span><span>Chat</span><span class="nav-arrow">›</span></button>
         </nav>
       </div>
+      <div class="sidebar-pinned">
+        <div class="sidebar-label">FIJADOS</div>
+        <div id="pinnedChatList" class="sidebar-chat-list"><div class="sidebar-empty">Todavía no hay chats fijados</div></div>
+      </div>
       <div class="sidebar-group chat-sidebar-group">
         <div class="sidebar-label">RECIENTES</div>
         <div id="chatSidebarList" class="sidebar-chat-list"><div class="sidebar-empty">Todavía no hay chats</div></div>
@@ -57,10 +61,6 @@
           <button data-tab="adminView" type="button"><span class="nav-icon">⚙</span><span>Administración</span></button>
         </nav>
       </div>
-      <div class="sidebar-pinned">
-        <div class="sidebar-label">FIJADOS</div>
-        <div id="pinnedChatList" class="sidebar-chat-list"><div class="sidebar-empty">Todavía no hay chats fijados</div></div>
-      </div>
       <div class="sidebar-group sidebar-archived">
         <div class="sidebar-label">ARCHIVADOS</div>
         <div id="archivedChatList" class="sidebar-chat-list"><div class="sidebar-empty">No hay chats archivados</div></div>
@@ -72,8 +72,8 @@
           <span class="sidebar-version">1.5.35</span>
         </div>
         <div class="sidebar-update">
-          <button id="androidUpdateButton" class="sidebar-update-button" type="button">⟳ Buscar actualizaciones</button>
-          <span id="androidReleaseStatus" class="sidebar-update-status" aria-live="polite">QBIT está listo.</span>
+          <button id="androidReleasePageUpdateButton" class="sidebar-update-button" type="button">⟳ Buscar actualizaciones</button>
+          <span id="androidReleasePageStatus" class="sidebar-update-status" aria-live="polite">QBIT está listo.</span>
         </div>
       </div>
     </aside>
