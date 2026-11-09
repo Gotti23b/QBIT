@@ -472,3 +472,54 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .guest-access-notice{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 13px;margin:0 0 12px;border:1px solid var(--line-soft);border-radius:10px;background:rgba(30,190,210,.055);color:var(--muted);font-size:11px}
 .guest-access-notice button{flex:0 0 auto}
 .guest-access-notice:empty{display:none}
+
+
+/* Navegación lateral móvil: panel bajo demanda, sin barra inferior permanente. */
+.mobile-sidebar-toggle{display:none;flex:0 0 38px;width:38px;height:38px;padding:0;border:1px solid var(--line);border-radius:10px;background:#111a22;color:#c8eaf1;font-size:21px;line-height:1}
+.mobile-sidebar-backdrop{display:none}
+.sidebar-account{display:flex;align-items:center;gap:10px;min-width:0}
+.sidebar-account-avatar{display:grid;place-items:center;width:34px;height:34px;flex:0 0 34px;border:1px solid #285566;border-radius:11px;background:#102b36;color:var(--cyan);font-weight:800}
+.sidebar-account-copy{display:grid;gap:1px;min-width:0}
+.sidebar-account-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.sidebar-account-copy small{color:var(--muted);font-size:10px}
+.sidebar-bottom{display:grid;gap:11px}
+.sidebar-bottom .sidebar-version{margin-left:auto}
+.sidebar-update{display:grid;gap:5px}
+.sidebar-update-button{width:100%;padding:9px 10px;border-color:#28505d;background:#10252e;color:#b8eff7;text-align:left;font-size:11px}
+.sidebar-update-button:hover{background:#163541}
+.sidebar-update-button:disabled{opacity:.6;cursor:wait}
+.sidebar-update-status{min-height:14px;color:var(--muted-2);font-size:9px;line-height:1.35}
+@media(max-width:620px){
+  .top{position:relative;z-index:510;justify-content:flex-start;gap:9px;padding:0 11px}
+  .mobile-sidebar-toggle{display:grid;place-items:center}
+  .brand{min-width:0;margin-right:auto}
+  .brand .logo{width:31px;height:31px}
+  #mobileNewChat{flex:0 0 36px}
+  .app-shell{position:relative;display:block;min-height:calc(100dvh - 52px)}
+  .sidebar{position:fixed!important;z-index:505;top:52px;bottom:0;left:0;width:min(86vw,330px);height:auto;max-height:none;min-height:0;display:flex!important;flex-direction:column;gap:17px;padding:17px 13px calc(16px + env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;border:0;border-right:1px solid #2b3b47;background:#0d131a;box-shadow:18px 0 50px #0008;transform:translateX(-105%);transition:transform .22s ease}
+  .sidebar.is-open{transform:translateX(0)}
+  .sidebar-brand,.sidebar-pinned,.sidebar-bottom,.sidebar-label{display:initial}
+  .sidebar-brand{display:flex}
+  .sidebar-pinned{display:grid}
+  .sidebar-bottom{display:grid;margin-top:auto}
+  .sidebar-label{display:block}
+  .new-session{width:100%;align-self:stretch;padding:10px 11px}
+  .new-session kbd{display:none}
+  .sidebar-group,.sidebar-group:first-of-type{display:grid;gap:7px}
+  .sidebar-nav{display:grid;gap:3px}
+  .sidebar-nav button{justify-content:flex-start;gap:11px;padding:10px;font-size:12px}
+  .sidebar-nav button .nav-icon{width:18px;font-size:16px}
+  .nav-arrow{display:inline;margin-left:auto}
+  .sidebar-chat-list{max-height:150px;overflow-y:auto}
+  .sidebar-archived .sidebar-chat-list{max-height:100px}
+  .mobile-sidebar-backdrop.is-visible{position:fixed;z-index:500;inset:52px 0 0;display:block;width:100%;height:calc(100dvh - 52px);padding:0;border:0;border-radius:0;background:#0009;backdrop-filter:blur(2px)}
+  body.sidebar-open{overflow:hidden}
+  .workspace{min-height:calc(100dvh - 52px);padding-bottom:env(safe-area-inset-bottom)}
+  #chatView .layout{min-height:calc(100dvh - 105px);padding:12px 10px}
+  .workspace section:not(#chatView){padding:12px}
+  .desktop-dock{display:none}
+  .mobile-nav{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .sidebar{transition:none!important}
+}
