@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, powerSaveBlocker } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -43,53 +43,6 @@ webArtifactPending.set(id,{socket,timer});mainWindow.show();mainWindow.focus();m
 function stopConnectorServer(){for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("El conector se desconectó."));connectorPending.delete(id);}if(connectorSocket){try{connectorSocket.close(1000,"Desconectado desde QBIT");}catch{}connectorSocket=null;}if(connectorServer){try{connectorServer.close();}catch{}connectorServer=null;}return {ok:true};}
 function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));if(!connectorConnected())return Promise.reject(new Error("La extensión no está conectada. Iniciá el conector y tocá Conectar en el icono de QBIT Extension."));const id=require("node:crypto").randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}});}
 
-async function runComputerUse(payload) {
-  const action = String(payload?.call?.artifact || "");
-  const args = payload?.call?.args && typeof payload.call.args === "object" ? payload.call.args : {};
-  const allowed = new Set(["computer_observe","computer_click","computer_click_at","computer_scroll","computer_type","computer_key"]);
-  if (!allowed.has(action)) throw new Error("Herramienta Computer Use desconocida.");
-  const mode = action.slice("computer_".length);
-  const target = ["click","key","scroll"].includes(mode) ? String(mode === "key" ? args.key || "" : args.target || "").slice(0, 160) : "";
-  const value = mode === "type" ? String(args.text || "").slice(0, 2000) : "";
-  const direction = mode === "scroll" ? String(args.direction || "").toLowerCase() : "";
-  const amount = mode === "scroll" ? Math.max(1, Math.min(10, Math.round(Number(args.amount) || 1))) : 1;
-  const x = mode === "click_at" ? Number(args.x) : -1;
-  const y = mode === "click_at" ? Number(args.y) : -1;
-  if (mode === "click" && !target.trim()) throw new Error("Falta el nombre o AutomationId del control.");
-  if (mode === "click_at" && (!Number.isInteger(x) || !Number.isInteger(y))) throw new Error("computer_click_at necesita coordenadas x e y enteras.");
-  if (mode === "scroll" && !["up","down","left","right"].includes(direction)) throw new Error("Dirección de desplazamiento no válida.");
-  const script = app.isPackaged
-    ? path.join(process.resourcesPath, "app.asar.unpacked", "windows", "scripts", "qbit-computer-use.ps1")
-    : path.join(__dirname, "..", "scripts", "qbit-computer-use.ps1");
-  if (!fs.existsSync(script)) throw new Error("No se encontró el motor local de Computer Use.");
-  return await new Promise((resolve, reject) => {
-    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Action", mode, "-Target", target, "-Text", value, "-Direction", direction, "-Amount", String(amount), "-X", String(x), "-Y", String(y)], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "", stderr = "";
-    const timer = setTimeout(() => { child.kill(); reject(new Error("Computer Use tardó demasiado y se detuvo.")); }, 15000);
-    child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
-    child.stdout.on("data", chunk => { stdout = (stdout + chunk).slice(-30000); });
-    child.stderr.on("data", chunk => { stderr = (stderr + chunk).slice(-4000); });
-    child.once("error", error => { clearTimeout(timer); reject(error); });
-    child.once("close", code => {
-      clearTimeout(timer);
-      let result;
-      try { result = JSON.parse(stdout.trim()); } catch { reject(new Error(stderr.trim() || "Windows UI Automation no devolvió una respuesta válida.")); return; }
-      if (code !== 0 || result.ok === false) { reject(new Error(result.error || stderr.trim() || "La acción de Computer Use falló.")); return; }
-      resolve(mode === "observe" ? JSON.stringify(result).slice(0, 18000) : (result.message || "Acción realizada."));
-    });
-  });
-}
-function dispatchAgentArtifact(payload) {
-  if (!mainWindow || mainWindow.isDestroyed()) return Promise.reject(new Error("Abrí QBIT para autorizar la acción del agente."));
-  if (!mainWindow.isVisible()) mainWindow.show();
-  mainWindow.focus();
-  const id = require("node:crypto").randomUUID();
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { agentActionPending.delete(id); reject(new Error("La acción no recibió respuesta de QBIT.")); }, 120000);
-    agentActionPending.set(id, { resolve, reject, timer });
-    mainWindow.webContents.send("qbit:agent-action", { id, ...payload });
-  });
-}
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 // QBIT baja la versión nueva en segundo plano y pregunta: reiniciar ahora o seguir
 // en esta versión. Nunca se instala sola: si elegís seguir, te vuelve a preguntar
