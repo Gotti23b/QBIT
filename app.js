@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.35";
+  const QBIT_VERSION = "1.5.36";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -884,7 +884,32 @@
 
   // QBIT Cloud: registro, presencia y cola de acciones remotas con confirmación local.
   let cloudDeviceId=null,cloudTimer=null,cloudBusy=false,cloudPollBusy=false,cloudRefreshBusy=false;
+  let cloudCommandChannel=null,cloudRealtimeConnected=false,cloudRealtimeStarting=false,cloudLastFallbackPollAt=0;
   function cloudPlatform(){if(window.qbitPC?.isDesktop)return "windows";try{if(window.Capacitor?.getPlatform?.()==="android")return "android";}catch{}return "web";}
+  async function subscribeCloudCommands(){
+    if(!user||!cloudDeviceId||!["windows","android"].includes(cloudPlatform())||cloudCommandChannel||cloudRealtimeStarting)return;
+    cloudRealtimeStarting=true;
+    try{
+      await db.realtime.setAuth();
+      const channel=db.channel("device:"+cloudDeviceId,{config:{private:true}});
+      channel.on("broadcast",{event:"qbit_command"},event=>{
+        const c=event?.payload;
+        if(!c||c.device_id!==cloudDeviceId||!c.id||c.status!=="pending")return;
+        const expires=Date.parse(c.expires_at||"");
+        if(Number.isFinite(expires)&&expires<=Date.now())return;
+        void processCloudCommand({id:c.id,command:c.command,payload:c.payload||{},status:c.status});
+      });
+      cloudCommandChannel=channel;
+      channel.subscribe(status=>{
+        cloudRealtimeConnected=status==="SUBSCRIBED";
+        if(status==="SUBSCRIBED")void pollCloudCommands();
+        else if(status==="CLOSED"&&cloudCommandChannel===channel)cloudCommandChannel=null;
+      });
+    }catch(e){
+      cloudRealtimeConnected=false;
+      console.warn("[QBIT Cloud] Realtime no disponible; se mantiene la consulta de respaldo:",e?.message||e);
+    }finally{cloudRealtimeStarting=false;}
+  }
   async function startCloudPresence(){
     if(!user||cloudBusy)return;cloudBusy=true;
     try{
@@ -896,18 +921,26 @@
         const platform=cloudPlatform();
         let name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
         if(platform==="windows"&&window.qbitPC?.getStatus){try{const info=await window.qbitPC.getStatus();if(info?.computer)name="QBIT Windows · "+String(info.computer).slice(0,55);}catch{}}
-        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):"1.5.30";
-        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||"1.5.30",is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):QBIT_VERSION;
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||QBIT_VERSION,is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
       if(cloudTimer)clearInterval(cloudTimer);
-      cloudTimer=setInterval(()=>{if(user&&cloudDeviceId){void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);if(["windows","android"].includes(cloudPlatform()))void pollCloudCommands();}},15000);
-      if(cloudPlatform()==="windows")void pollCloudCommands();
+      cloudTimer=setInterval(()=>{
+        if(!user||!cloudDeviceId)return;
+        void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);
+        if(["windows","android"].includes(cloudPlatform())){
+          if(!cloudRealtimeConnected||Date.now()-cloudLastFallbackPollAt>=60000)void pollCloudCommands();
+          if(!cloudCommandChannel)void subscribeCloudCommands();
+        }
+      },15000);
+      if(["windows","android"].includes(cloudPlatform())){void subscribeCloudCommands();void pollCloudCommands();}
     }catch(e){console.warn("[QBIT Cloud]",e?.message||e);const s=$("cloudStatus");if(s)s.textContent="No se pudo conectar: "+(e?.message||"error");}
     finally{cloudBusy=false;}
   }
   async function stopCloudPresence(){
     if(cloudTimer){clearInterval(cloudTimer);cloudTimer=null;}
+    if(cloudCommandChannel){const channel=cloudCommandChannel;cloudCommandChannel=null;cloudRealtimeConnected=false;try{await db.removeChannel(channel);}catch{}}
     if(cloudDeviceId&&user)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",user.id);
     cloudDeviceId=null;
   }
@@ -1005,7 +1038,7 @@
     }catch(e){await db.from("qbit_device_commands").update({status:"failed",error_message:String(e?.message||e).slice(0,500),result:{message:String(e?.message||e).slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);}
   }
   async function pollCloudCommands(){
-    if(cloudPollBusy||!user||!cloudDeviceId||!["windows","android"].includes(cloudPlatform()))return;cloudPollBusy=true;
+    if(cloudPollBusy||!user||!cloudDeviceId||!["windows","android"].includes(cloudPlatform()))return;cloudPollBusy=true;cloudLastFallbackPollAt=Date.now();
     try{
       const q=await db.from("qbit_device_commands").select("id,command,payload,status").eq("device_id",cloudDeviceId).eq("status","pending").gt("expires_at",new Date().toISOString()).order("created_at",{ascending:true}).limit(5);
       if(q.error)throw q.error;for(const c of q.data||[])await processCloudCommand(c);
