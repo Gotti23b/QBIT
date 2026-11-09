@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.33";
+  const QBIT_VERSION = "1.5.34";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -412,145 +412,10 @@
     bubble("QBIT","Chat nuevo. ¿Qué probamos? ✨","bot");
     renderHistory();activateTab("chatView");
   }
-  let agentState={bots:[],tasks:[],logs:[]},selectedAgentId=null;
-  function selectedAgent(){return agentState.bots.find(x=>x.id===selectedAgentId)||agentState.bots[0]||null;}
-  function renderAgents(){
-    const list=$("agentBotList"),tasks=$("agentTaskList"),logs=$("agentLogList");if(!list||!tasks||!logs)return;
-    list.replaceChildren();$("agentBotCount").textContent=String(agentState.bots.length);
-    if(!agentState.bots.length)list.append(node("div","empty","No hay bots todavía."));
-    for(const bot of agentState.bots){
-      const item=btn("", "agent-bot-item"+(bot.id===selectedAgentId?" active":""),null);
-      item.dataset.agentAction="select-bot";item.dataset.botId=bot.id;
-      item.append(node("span","agent-bot-avatar","🤖"),node("span","agent-bot-name",bot.name),node("span","agent-bot-state",bot.enabled?"●":"Ⅱ"));list.append(item);
-    }
-    const bot=selectedAgent();
-    $("agentSelectedName").textContent=bot?.name||"Sin bots";
-    $("agentSelectedInstructions").textContent=(bot?.instructions||"Este bot todavía no tiene instrucciones propias.")+(bot?.computerUse?"\n\nComputer Use: ACTIVADO":"\n\nComputer Use: desactivado");
-    $("agentEditBot").disabled=!bot;
-    const toggle=$("agentToggleBot"),remove=$("agentDeleteBot");
-    if(toggle){toggle.disabled=!bot;toggle.textContent=bot?.enabled?"Ⅱ Pausar bot":"▶ Activar bot";}
-    if(remove)remove.disabled=!bot||agentState.bots.length<2;
-    const ownTasks=agentState.tasks.filter(t=>t.botId===bot?.id);
-    tasks.replaceChildren();
-    if(!ownTasks.length)tasks.append(node("div","empty","Este bot todavía no tiene tareas. Creá una con «Nueva tarea»."));
-    for(const task of ownTasks){
-      const card=node("article","agent-task-item"),head=node("div","agent-task-head"),title=node("strong","",task.title);
-      const labels={active:"ACTIVA",paused:"PAUSADA",stopped:"DETENIDA",completed:"COMPLETADA"};
-      const status=node("span","agent-task-status "+task.status,labels[task.status]||task.status.toUpperCase());
-      head.append(title,status);card.append(head,node("p","",task.objective));
-      let meta=task.trigger==="interval"?"Cada "+task.intervalMinutes+" min":task.trigger==="auto"?(task.watch?"Autónoma · vigilando cada "+task.watch.everyMinutes+" min":"Autónoma"):task.trigger==="once"?"Una vez · "+(task.scheduledAt?new Date(task.scheduledAt).toLocaleString("es-AR"):"Fecha pendiente"):"Ejecución manual";
-      card.append(node("small","agent-task-meta",meta+(task.nextRunAt?" · Próxima: "+new Date(task.nextRunAt).toLocaleString("es-AR"):"")));
-      const actions=node("div","agent-task-actions");
-      const runButton=btn("▶ Ejecutar","small",null);runButton.dataset.agentAction="run-task";runButton.dataset.taskId=task.id;actions.append(runButton);
-      const editButton=btn("✎ Editar","small",null);editButton.dataset.agentAction="edit-task";editButton.dataset.taskId=task.id;actions.append(editButton);
-      if(task.status==="active"||task.status==="paused"){const stateButton=btn(task.status==="active"?"Ⅱ Pausar":"▶ Reanudar","small",null);stateButton.dataset.agentAction=task.status==="active"?"pause-task":"resume-task";stateButton.dataset.taskId=task.id;actions.append(stateButton);}
-      if(task.status!=="stopped"&&task.status!=="completed"){const stopButton=btn("■ Detener","small",null);stopButton.dataset.agentAction="stop-task";stopButton.dataset.taskId=task.id;actions.append(stopButton);}
-      const deleteButton=btn("🗑 Borrar","small danger",null);deleteButton.dataset.agentAction="delete-task";deleteButton.dataset.taskId=task.id;actions.append(deleteButton);
-      card.append(actions);tasks.append(card);
-    }
-    logs.replaceChildren();
-    const ownLogs=agentState.logs.filter(x=>x.botId===bot?.id).slice(-40).reverse();
-    if(!ownLogs.length)logs.append(node("div","empty","Las ejecuciones de este bot aparecerán acá."));
-    for(const log of ownLogs){const row=node("div","agent-log-item "+log.level);row.append(node("span","agent-log-time",new Date(log.at).toLocaleString("es-AR")),node("span","agent-log-message",log.message));logs.append(row);}
-  }
-  async function loadAgents(){
-    if(!window.qbitPC?.isDesktop){$("agentEngineStatus").textContent="Los agentes persistentes están disponibles en QBIT Desktop para Windows.";return;}
-    try{agentState=await window.qbitPC.getAgents();if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();$("agentEngineStatus").textContent="Motor activo · "+agentState.bots.length+" bots · "+agentState.tasks.filter(t=>t.status==="active").length+" tareas activas.";}
-    catch(e){$("agentEngineStatus").textContent="No pude cargar los agentes: "+(e.message||e);}
-  }
-  function agentDialog(title,fields){
-    return new Promise(resolve=>{
-      const overlay=node("div","qbit-modal-overlay"),box=node("form","qbit-modal card");
-      box.setAttribute("role","dialog");box.setAttribute("aria-modal","true");
-      box.append(node("h3","",title));
-      const values={},inputs={};
-      fields.forEach(field=>{
-        const wrap=node("div","agent-dialog-field"),label=node("label","",field.label);
-        let input=field.type==="textarea"?document.createElement("textarea"):field.type==="select"?document.createElement("select"):document.createElement("input");
-        if(field.type==="select")field.options.forEach(o=>{const opt=document.createElement("option");opt.value=o.value;opt.textContent=o.label;input.append(opt);});
-        else if(field.type!=="textarea")input.type=field.type||"text";
-        input.id="agent-"+field.name;input.value=field.value||"";label.htmlFor=input.id;
-        if(field.required)input.required=true;if(field.min!==undefined)input.min=field.min;if(field.max!==undefined)input.max=field.max;
-        wrap.append(label,input);box.append(wrap);inputs[field.name]=input;
-      });
-      const actions=node("div","qbit-modal-actions"),cancel=btn("Cancelar","",()=>finish(null)),save=btn("Guardar","primary",null);
-      cancel.type="button";save.type="submit";actions.append(cancel,save);box.append(actions);
-      function finish(v){overlay.remove();document.removeEventListener("keydown",key);resolve(v);}
-      function key(e){if(e.key==="Escape")finish(null);}
-      box.addEventListener("submit",e=>{e.preventDefault();for(const k in inputs)values[k]=inputs[k].value;finish(values);});
-      overlay.addEventListener("click",e=>{if(e.target===overlay)finish(null);});
-      document.addEventListener("keydown",key);overlay.append(box);document.body.append(overlay);
-      Object.values(inputs)[0]?.focus();
-    });
-  }
-  function agentMessage(message){const status=$("agentEngineStatus");if(status)status.textContent=String(message);}
-  function agentConfirm(title,message){
-    return new Promise(resolve=>{
-      const overlay=node("div","qbit-modal-overlay"),box=node("div","qbit-modal card");
-      box.append(node("h3","",title),node("p","",message));
-      const actions=node("div","qbit-modal-actions"),cancel=btn("Cancelar","",()=>finish(false)),yes=btn("Borrar","danger",()=>finish(true));
-      cancel.type="button";yes.type="button";actions.append(cancel,yes);box.append(actions);overlay.append(box);document.body.append(overlay);
-      function finish(v){overlay.remove();document.removeEventListener("keydown",key);resolve(v);}
-      function key(e){if(e.key==="Escape")finish(false);}
-      document.addEventListener("keydown",key);yes.focus();
-    });
-  }
-  async function createAgentBot(){
-    const v=await agentDialog("Crear un bot",[{name:"name",label:"Nombre",value:"Nuevo bot",required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:""},{name:"computerUse",label:"Computer Use",type:"select",value:"false",options:[{value:"false",label:"Desactivado"},{value:"true",label:"Activado — controlar ventanas de Windows"}]}]);
-    if(!v)return;v.computerUse=v.computerUse==="true";try{const bot=await window.qbitPC.createAgentBot(v);selectedAgentId=bot.id;await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
-  }
-  async function editAgentBot(){
-    const bot=selectedAgent();if(!bot)return;
-    const v=await agentDialog("Configurar bot",[{name:"name",label:"Nombre",value:bot.name,required:true},{name:"instructions",label:"Instrucciones",type:"textarea",value:bot.instructions||""},{name:"computerUse",label:"Computer Use",type:"select",value:bot.computerUse?"true":"false",options:[{value:"false",label:"Desactivado"},{value:"true",label:"Activado — controlar ventanas de Windows"}]}]);
-    if(!v)return;v.computerUse=v.computerUse==="true";try{await window.qbitPC.updateAgentBot(bot.id,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
-  }
-  async function createAgentTask(){
-    const bot=selectedAgent();if(!bot){agentMessage("Primero creá un bot.");return;}if(!bot.enabled){agentMessage("Activá el bot antes.");return;}
-    const v=await agentDialog("Nueva tarea",[{name:"title",label:"Nombre",value:"Nueva tarea",required:true},{name:"objective",label:"Objetivo detallado",type:"textarea",required:true},{name:"trigger",label:"Programación",type:"select",value:"auto",options:[{value:"auto",label:"Autónoma (la empieza y se gobierna sola)"},{value:"manual",label:"Manual"},{value:"interval",label:"Cada intervalo"},{value:"once",label:"Una vez, en fecha y hora"}]},{name:"intervalMinutes",label:"Intervalo (minutos)",type:"number",value:"30",min:1,max:10080},{name:"scheduledAt",label:"Fecha/hora para «Una vez»",type:"datetime-local"}]);
-    if(!v)return;v.intervalMinutes=Number(v.intervalMinutes);if(v.trigger==="once"&&v.scheduledAt)v.scheduledAt=new Date(v.scheduledAt).toISOString();
-    try{await window.qbitPC.createAgentTask({...v,botId:bot.id});await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
-  }
-  async function editAgentTask(taskId){
-    const t=agentState.tasks.find(x=>x.id===taskId);if(!t)return;
-    const v=await agentDialog("Editar tarea",[{name:"title",label:"Nombre",value:t.title,required:true},{name:"objective",label:"Objetivo detallado",type:"textarea",value:t.objective,required:true},{name:"trigger",label:"Programación",type:"select",value:t.trigger,options:[{value:"manual",label:"Manual"},{value:"interval",label:"Cada intervalo"},{value:"once",label:"Una vez, en fecha y hora"}]},{name:"intervalMinutes",label:"Intervalo (minutos)",type:"number",value:String(t.intervalMinutes||30),min:1,max:10080},{name:"scheduledAt",label:"Fecha/hora para «Una vez»",type:"datetime-local",value:t.scheduledAt?t.scheduledAt.slice(0,16):""}]);
-    if(!v)return;v.intervalMinutes=Number(v.intervalMinutes);if(v.trigger==="once"&&v.scheduledAt)v.scheduledAt=new Date(v.scheduledAt).toISOString();
-    try{await window.qbitPC.updateAgentTask(taskId,v);await loadAgents();}catch(e){agentMessage("Error: "+(e.message||e));}
-  }
-  window.qbitPC?.onWebArtifactRequest?.(async payload=>{
-    try{const result=await runArtifactBlock(JSON.stringify(payload?.call||{}));await window.qbitPC.completeWebArtifact(payload.id,result);}
-    catch(error){try{await window.qbitPC.completeWebArtifact(payload.id,"No se pudo ejecutar el Artifact: "+(error?.message||error));}catch{}}
-  });
-  window.qbitPC?.onAgentsUpdated?.(state=>{agentState=state;if(!selectedAgentId||!agentState.bots.some(x=>x.id===selectedAgentId))selectedAgentId=agentState.bots[0]?.id||null;renderAgents();});
-  window.qbitPC?.onAgentAction?.(async payload=>{
-    try{const result=await runArtifactBlock(JSON.stringify(payload.call||{}));await window.qbitPC.completeAgentAction(payload.id,result);}
-    catch(e){window.qbitPC?.sendAgentActionError?.(payload.id,e?.message||"No se pudo ejecutar el Artifact.");}
-  });
-  document.addEventListener("click",async event=>{
-    const control=event.target.closest("[data-agent-action]");
-    if(!control)return;
-    event.preventDefault();if(control.disabled)return;
-    const action=control.dataset.agentAction;control.disabled=true;
-    try{
-      if(action==="select-bot"){selectedAgentId=control.dataset.botId;renderAgents();}
-      else if(action==="create-bot")await createAgentBot();
-      else if(action==="edit-bot")await editAgentBot();
-      else if(action==="toggle-bot"){const bot=selectedAgent();if(bot)await window.qbitPC.updateAgentBot(bot.id,{enabled:!bot.enabled});await loadAgents();}
-      else if(action==="delete-bot"){const bot=selectedAgent();if(bot&&await agentConfirm("Borrar bot","¿Borrar «"+bot.name+"» y todas sus tareas e historial?")){await window.qbitPC.deleteAgentBot(bot.id);selectedAgentId=null;await loadAgents();}}
-      else if(action==="create-task")await createAgentTask();
-      else if(action==="edit-task")await editAgentTask(control.dataset.taskId);
-      else if(action==="delete-task"){const task=agentState.tasks.find(x=>x.id===control.dataset.taskId);if(task&&await agentConfirm("Borrar tarea","¿Borrar «"+task.title+"» y su historial?")){await window.qbitPC.deleteAgentTask(task.id);await loadAgents();}}
-      else if(action==="run-task"){const taskId=control.dataset.taskId;const task=agentState.tasks.find(x=>x.id===taskId);if(task?.status!=="active")await window.qbitPC.setAgentTaskState(taskId,"active");await window.qbitPC.runAgentTask(taskId);await loadAgents();}
-      else if(action==="pause-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"paused");await loadAgents();}
-      else if(action==="resume-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"active");await loadAgents();}
-      else if(action==="stop-task"){await window.qbitPC.setAgentTaskState(control.dataset.taskId,"stopped");await loadAgents();}
-    }catch(error){const message=error?.message||"No se pudo completar la acción.";const status=$("agentEngineStatus");if(status)status.textContent="Error: "+message;}
-    finally{if(control.isConnected)control.disabled=false;}
-  });
-  const originalActivateTab = null;
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===id));
-    ["chatView","agentsView","connectorView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
-    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="agentsView")void loadAgents();if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
+    ["chatView","connectorView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
