@@ -8,6 +8,11 @@
   const form = document.getElementById("petForm");
   const input = document.getElementById("petInput");
   const sendButton = form.querySelector('button[type="submit"]');
+  const voiceOutputButton = document.getElementById("petVoiceOutput");
+  const voiceInputButton = document.getElementById("petVoiceInput");
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let speechRecognition = null;
+  let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
   let sending = false;
   const stateNames = { idle: "tranqui", working: "trabajando", resting: "descansando" };
   let expanded = false;
@@ -32,6 +37,56 @@
     }
     if (expanded) input.focus({ preventScroll: true });
   }
+
+  function speakReply(text) {
+    if (!voiceOutputEnabled || !("speechSynthesis" in window)) return;
+    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 3500);
+    if (!clean) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = "es-AR";
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+  function renderVoiceButtons() {
+    voiceOutputButton.textContent = voiceOutputEnabled ? "🔊 Voz ON" : "🔊 Voz OFF";
+    voiceOutputButton.setAttribute("aria-pressed", String(voiceOutputEnabled));
+    voiceInputButton.disabled = !SpeechRecognition;
+    voiceInputButton.title = SpeechRecognition ? "Dictar un mensaje puntual a QBIT" : "Este sistema no admite dictado por voz";
+  }
+  voiceOutputButton.addEventListener("click", () => {
+    voiceOutputEnabled = !voiceOutputEnabled;
+    try { localStorage.setItem("qbit-voice-output", String(voiceOutputEnabled)); } catch {}
+    if (!voiceOutputEnabled && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    renderVoiceButtons();
+  });
+  voiceInputButton.addEventListener("click", () => {
+    if (!SpeechRecognition) { greeting.textContent = "Este sistema no admite dictado por voz. Probá con Windows actualizado."; return; }
+    if (speechRecognition) { speechRecognition.abort(); speechRecognition = null; }
+    const recognition = new SpeechRecognition();
+    speechRecognition = recognition;
+    recognition.lang = "es-AR";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    voiceInputButton.textContent = "🎙️ Escuchando…";
+    voiceInputButton.disabled = true;
+    greeting.textContent = "Te escucho. Decí tu mensaje y lo envío una sola vez. 🎤";
+    recognition.onresult = event => {
+      const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
+      if (transcript) { input.value = transcript; form.requestSubmit(); }
+    };
+    recognition.onerror = event => {
+      if (event.error !== "no-speech" && event.error !== "aborted") greeting.textContent = "No pude reconocer la voz. Revisá el permiso del micrófono.";
+    };
+    recognition.onend = () => {
+      if (speechRecognition === recognition) speechRecognition = null;
+      voiceInputButton.textContent = "🎤 Hablarle";
+      voiceInputButton.disabled = !SpeechRecognition;
+    };
+    try { recognition.start(); } catch { speechRecognition = null; voiceInputButton.textContent = "🎤 Hablarle"; voiceInputButton.disabled = false; }
+  });
+  renderVoiceButtons();
 
   function setState(state) {
     if (!stateNames[state]) return;
@@ -115,6 +170,7 @@
   if (api?.getSettings) api.getSettings().then(applySettings).catch(() => {});
   if (api?.onPetReply) api.onPetReply(reply => {
     greeting.textContent = String(reply);
+    speakReply(reply);
     sending = false;
     input.disabled = false;
     sendButton.disabled = false;
