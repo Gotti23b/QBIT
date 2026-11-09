@@ -3,11 +3,51 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.32";
+  const QBIT_VERSION = "1.5.33";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
   let pendingFiles = [];
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let speechRecognition = null;
+  let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
+  function speakQbitText(text){
+    if(!voiceOutputEnabled || !("speechSynthesis" in window))return;
+    const clean=String(text||"").replace(/\s+/g," ").trim().slice(0,3500);
+    if(!clean)return;
+    window.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance(clean);
+    utterance.lang="es-AR";
+    utterance.rate=1;
+    utterance.pitch=1;
+    window.speechSynthesis.speak(utterance);
+  }
+  function renderVoiceControls(){
+    const output=$("voiceOutputToggle"),input=$("voiceInputButton");
+    if(output){output.textContent=voiceOutputEnabled?"🔊 Voz ON":"🔊 Voz OFF";output.setAttribute("aria-pressed",String(voiceOutputEnabled));}
+    if(input){input.disabled=!SpeechRecognition;input.title=SpeechRecognition?"Dictar un mensaje puntual a QBIT":"Este navegador no admite dictado por voz";}
+  }
+  $("voiceOutputToggle")?.addEventListener("click",()=>{
+    voiceOutputEnabled=!voiceOutputEnabled;
+    try{localStorage.setItem("qbit-voice-output",String(voiceOutputEnabled));}catch{}
+    if(!voiceOutputEnabled&&"speechSynthesis" in window)window.speechSynthesis.cancel();
+    renderVoiceControls();
+  });
+  $("voiceInputButton")?.addEventListener("click",()=>{
+    if(!SpeechRecognition){bubble("QBIT","Este navegador no admite dictado por voz. Probá con Chrome o Edge actualizado.","bot");return;}
+    if(speechRecognition){speechRecognition.abort();speechRecognition=null;}
+    const recognition=new SpeechRecognition();speechRecognition=recognition;
+    recognition.lang="es-AR";recognition.continuous=false;recognition.interimResults=false;recognition.maxAlternatives=1;
+    const button=$("voiceInputButton");button.textContent="🎙️ Escuchando…";button.disabled=true;
+    recognition.onresult=event=>{
+      const transcript=String(event.results?.[0]?.[0]?.transcript||"").trim();
+      if(transcript){$("chatInput").value=transcript;$("sendForm").requestSubmit();}
+    };
+    recognition.onerror=event=>{if(event.error!=="no-speech"&&event.error!=="aborted")bubble("QBIT","No pude reconocer la voz. Revisá el permiso del micrófono e intentá de nuevo.","bot");};
+    recognition.onend=()=>{if(speechRecognition===recognition)speechRecognition=null;button.textContent="🎤 Hablarle";button.disabled=false;};
+    try{recognition.start();}catch{button.textContent="🎤 Hablarle";button.disabled=false;speechRecognition=null;}
+  });
+  renderVoiceControls();
   function renderDesktopControlStatus(){
     const toggle=$("desktopControlToggle"),status=$("desktopControlStatus");
     if(toggle){toggle.textContent="Control PC · "+(desktopControlEnabled?"ON":"OFF");toggle.setAttribute("aria-pressed",String(desktopControlEnabled));toggle.classList.toggle("is-on",desktopControlEnabled);}
@@ -298,7 +338,7 @@
   }
   function bubble(who,text,kind){
     const b=node("div","bubble "+kind);b.append(node("small","",who),richText(String(text)));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
-    if(kind==="bot"&&petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}
+    if(kind==="bot"){speakQbitText(text);if(petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}}
     if(!restoringChat&&user){ensureActiveChat();const chat=chatHistory.find(c=>c.id===activeChatId);if(chat){chat.messages.push({who,text:String(text),kind,at:new Date().toISOString()});if(chat.messages.filter(m=>m.kind==="user").length===1)chat.title=String(text).slice(0,48);chat.updatedAt=new Date().toISOString();saveHistory();renderHistory();}}
   }
   function showChat(id,switchToChat=true){
