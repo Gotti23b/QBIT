@@ -90,7 +90,10 @@ label{display:block;color:var(--muted);font-size:12px;margin:11px 0 5px}
 .bubble.user{align-self:flex-end;background:#14252d;border-color:#294b57;color:#e7f8fb}
 .bubble.bot{align-self:flex-start;background:#111820;border-color:#202b35}
 .bubble small{display:block;margin-bottom:4px;color:#8e9daa;font-size:10px;font-weight:700;letter-spacing:.4px}
-.composer-tools{position:relative;display:flex;align-items:center;justify-content:flex-start;margin:0 0 7px}
+.composer-tools{position:relative;display:flex;align-items:center;justify-content:flex-start;gap:7px;margin:0 0 7px}
+.voice-button{min-height:34px;padding:6px 11px;border:1px solid #294654;border-radius:9px;background:#101c25;color:#a9ddeb;font-size:11px;font-weight:650}
+.voice-button[aria-pressed="true"]{border-color:#2b9eb2;background:#103441;color:#8eefff;box-shadow:0 0 14px #22d3ee16}
+.voice-button:disabled{opacity:.5;cursor:not-allowed}
 .attach-button{width:34px;height:34px;border:1px solid #2a3945;border-radius:9px;background:#111820;color:#9bdcf0;font-size:24px;line-height:1;cursor:pointer}
 .attach-menu{position:absolute;z-index:20;left:0;bottom:42px;display:flex;flex-direction:column;gap:4px;min-width:190px;padding:7px;border:1px solid #2a3945;border-radius:10px;background:#111820;box-shadow:0 12px 30px #0008}
 .attach-menu button{border:0;background:transparent;text-align:left;padding:9px 10px;border-radius:7px;color:var(--text);cursor:pointer}
