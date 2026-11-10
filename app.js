@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.40";
+  const QBIT_VERSION = "1.5.41";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -886,7 +886,7 @@
   let cloudCommandChannel=null,cloudRealtimeConnected=false,cloudRealtimeStarting=false,cloudLastFallbackPollAt=0;
   function cloudPlatform(){if(window.qbitPC?.isDesktop)return "windows";try{if(window.Capacitor?.getPlatform?.()==="android")return "android";}catch{}return "web";}
   async function subscribeCloudCommands(){
-    if(!user||!cloudDeviceId||!["windows","android"].includes(cloudPlatform())||cloudCommandChannel||cloudRealtimeStarting)return;
+    if(!user||!cloudDeviceId||cloudPlatform()!=="windows"||cloudCommandChannel||cloudRealtimeStarting)return;
     cloudRealtimeStarting=true;
     try{
       await db.realtime.setAuth();
@@ -924,20 +924,31 @@
         const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||QBIT_VERSION,is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
+      if(cloudPlatform()==="android"){
+        const native=window.Capacitor?.Plugins?.QBITControl;
+        const auth=await db.auth.getSession();
+        const activeSession=auth?.data?.session;
+        if(!native?.startBackgroundAgent)throw new Error("Este APK no incluye el agente nativo en segundo plano. Actualizá QBIT Android.");
+        if(!activeSession?.access_token||!activeSession?.refresh_token)throw new Error("No se pudo obtener la sesión segura para el agente Android.");
+        await native.startBackgroundAgent({deviceId:cloudDeviceId,accessToken:activeSession.access_token,refreshToken:activeSession.refresh_token});
+      }
       if(cloudTimer)clearInterval(cloudTimer);
       cloudTimer=setInterval(()=>{
         if(!user||!cloudDeviceId)return;
         void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);
-        if(["windows","android"].includes(cloudPlatform())){
+        if(cloudPlatform()==="windows"){
           if(!cloudRealtimeConnected||Date.now()-cloudLastFallbackPollAt>=60000)void pollCloudCommands();
           if(!cloudCommandChannel)void subscribeCloudCommands();
         }
       },15000);
-      if(["windows","android"].includes(cloudPlatform())){void subscribeCloudCommands();void pollCloudCommands();}
+      if(cloudPlatform()==="windows"){void subscribeCloudCommands();void pollCloudCommands();}
     }catch(e){console.warn("[QBIT Cloud]",e?.message||e);const s=$("cloudStatus");if(s)s.textContent="No se pudo conectar: "+(e?.message||"error");}
     finally{cloudBusy=false;}
   }
   async function stopCloudPresence(){
+    if(cloudPlatform()==="android"){
+      try{await window.Capacitor?.Plugins?.QBITControl?.stopBackgroundAgent?.();}catch(e){console.warn("[QBIT Cloud] No se pudo detener el agente:",e?.message||e);}
+    }
     if(cloudTimer){clearInterval(cloudTimer);cloudTimer=null;}
     if(cloudCommandChannel){const channel=cloudCommandChannel;cloudCommandChannel=null;cloudRealtimeConnected=false;try{await db.removeChannel(channel);}catch{}}
     if(cloudDeviceId&&user)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",user.id);
@@ -1039,7 +1050,7 @@
     android: new Set([...CLOUD_SHARED_COMMANDS, ...["android_open_accessibility_settings","android_back","android_home","android_notifications","android_quick_settings","android_lock_screen","android_volume_up","android_volume_down","android_volume_mute","android_brightness_up","android_brightness_down","android_open_wifi_settings","android_open_bluetooth_settings","android_open_display_settings","android_open_sound_settings","android_open_battery_settings","android_open_app_settings"]])
   };
   async function processCloudCommand(c){
-    if(!user||!["windows","android"].includes(cloudPlatform()))return;
+    if(!user||cloudPlatform()!=="windows")return;
     const claim=await db.from("qbit_device_commands").update({status:"running",started_at:new Date().toISOString()}).eq("id",c.id).eq("status","pending").select("id").maybeSingle();
     if(claim.error||!claim.data)return;
     try{
@@ -1087,7 +1098,7 @@
     }catch(e){await db.from("qbit_device_commands").update({status:"failed",error_message:String(e?.message||e).slice(0,500),result:{message:String(e?.message||e).slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);}
   }
   async function pollCloudCommands(){
-    if(cloudPollBusy||!user||!cloudDeviceId||!["windows","android"].includes(cloudPlatform()))return;cloudPollBusy=true;cloudLastFallbackPollAt=Date.now();
+    if(cloudPollBusy||!user||!cloudDeviceId||cloudPlatform()!=="windows")return;cloudPollBusy=true;cloudLastFallbackPollAt=Date.now();
     try{
       const q=await db.from("qbit_device_commands").select("id,command,payload,status").eq("device_id",cloudDeviceId).eq("status","pending").gt("expires_at",new Date().toISOString()).order("created_at",{ascending:true}).limit(5);
       if(q.error)throw q.error;for(const c of q.data||[])await processCloudCommand(c);
