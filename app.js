@@ -1276,7 +1276,7 @@
     }
     const skipConfirmation=(platform==="windows"||platform==="android")&&!remoteConfirmationRequired(platform);
     if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
-    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:skipConfirmation}});
+    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:platform==="android"?true:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
     const status=$("cloudStatus");
     if(status)status.textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener activo el agente en segundo plano.";
