@@ -11,6 +11,7 @@ let mainWindow;
 let petWindow;
 let tray;
 let isQuitting = false;
+const backgroundLaunch = process.argv.includes("--qbit-background");
 let connectorServer=null,connectorSocket=null;
 const connectorPending=new Map();
 const webArtifactPending=new Map();
@@ -264,13 +265,34 @@ function createTray() {
   }
   tray = new Tray(icon);
   tray.setToolTip("QBIT");
-  tray.setContextMenu(Menu.buildFromTemplate([
+  const refreshTrayMenu = () => tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Abrir QBIT", click: () => createWindow() },
     { label: "Mostrar mascota", click: () => createPetWindow() },
     { label: "Ocultar mascota", click: () => petWindow?.hide() },
     { type: "separator" },
+    {
+      label: "Iniciar con Windows (en segundo plano)",
+      type: "checkbox",
+      checked: !!app.getLoginItemSettings().openAtLogin,
+      click: item => {
+        const enabled = !!item.checked;
+        app.setLoginItemSettings({
+          openAtLogin: enabled,
+          args: enabled ? ["--qbit-background"] : []
+        });
+        refreshTrayMenu();
+        new Notification({
+          title: "QBIT · Segundo plano",
+          body: enabled
+            ? "QBIT se iniciará con Windows y quedará en la bandeja."
+            : "QBIT ya no se iniciará automáticamente con Windows."
+        }).show();
+      }
+    },
+    { type: "separator" },
     { label: "Salir de QBIT", click: () => { isQuitting = true; app.quit(); } }
   ]));
+  refreshTrayMenu();
   tray.on("double-click", () => createWindow());
 }
 
@@ -755,11 +777,14 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 });
 
 app.whenReady().then(() => {
+  app.setAppUserModelId("com.gotti23b.qbit");
   startConnectorServer().catch(error=>console.warn("[QBIT] No se pudo iniciar el puente local automáticamente:",error.message||error));
   loadPetSettings();
   createTray();
-  createWindow();
-  createPetWindow();
+  // El arranque automático carga el renderer oculto para mantener la sesión,
+  // la presencia y la cola de comandos; el icono de bandeja permite abrirlo.
+  createWindow(!backgroundLaunch);
+  if (!backgroundLaunch) createPetWindow();
   setupAutoUpdater();
 });
 app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); });
