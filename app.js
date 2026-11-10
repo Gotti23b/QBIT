@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.39";
+  const QBIT_VERSION = "1.5.40";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -1003,7 +1003,8 @@
       await downloadAndroidAsset(androidApkAsset(latest),version);
     }catch(e){/* El error ya se muestra en los dos estados del actualizador. */}
     finally{
-      androidUpdateButtons().forEach(b=>{b.disabled=false;const newer=androidReleasesCache.filter(androidApkAsset).sort((a,c)=>compareQbitVersions(androidReleaseVersion(c),androidReleaseVersion(a)))[0];b.textContent=newer&&compareQbitVersions(androidReleaseVersion(newer),getInstalledAndroidVersion())>0?"⬆ Actualizar a v"+androidReleaseVersion(newer):"⟳ Buscar actualizaciones";});
+      const installed=await getInstalledAndroidVersion();
+      androidUpdateButtons().forEach(b=>{b.disabled=false;const latest=androidReleasesCache.filter(androidApkAsset).sort((a,c)=>compareQbitVersions(androidReleaseVersion(c),androidReleaseVersion(a)))[0];b.textContent=latest&&compareQbitVersions(androidReleaseVersion(latest),installed)>0?"⬆ Actualizar a v"+androidReleaseVersion(latest):"⟳ Buscar actualizaciones";});
     }
   }
   $("androidReleaseRefresh")?.addEventListener("click",()=>void loadAndroidReleases().catch(()=>{}));
