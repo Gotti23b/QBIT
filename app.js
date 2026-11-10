@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.43";
+  const QBIT_VERSION = "1.5.44";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -884,6 +884,67 @@
   // QBIT Cloud: registro, presencia y cola de acciones remotas con confirmación local.
   let cloudDeviceId=null,cloudTimer=null,cloudBusy=false,cloudPollBusy=false,cloudRefreshBusy=false;
   let cloudCommandChannel=null,cloudRealtimeConnected=false,cloudRealtimeStarting=false,cloudLastFallbackPollAt=0;
+  let remoteHostCode=null,remoteHostCodeExpires=0,remoteHostPeer=null,remoteHostStream=null,remoteHostSessionId=null,remoteHostBanner=null;
+  function remoteSend(channel,event,payload){return channel.send({type:"broadcast",event,payload});}
+  function removeRemoteHostBanner(){
+    if(remoteHostBanner){remoteHostBanner.remove();remoteHostBanner=null;}
+  }
+  function showRemoteHostBanner(){
+    removeRemoteHostBanner();
+    const bar=node("div","", "");bar.id="qbitRemoteHostBanner";
+    bar.style.cssText="position:fixed;z-index:99999;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid #32d6c0;border-radius:14px;background:#071b28;color:#eaffff;box-shadow:0 10px 35px #0009;font:600 13px system-ui";
+    const label=node("span","","● Compartiendo pantalla de Windows");
+    const stop=btn("Detener conexión","small danger",()=>void stopRemoteHost(true));
+    bar.append(label,stop);document.body.append(bar);remoteHostBanner=bar;
+  }
+  async function stopRemoteHost(sendSignal=true){
+    const sessionId=remoteHostSessionId;
+    if(sendSignal&&sessionId&&cloudCommandChannel)try{await remoteSend(cloudCommandChannel,"qbit_remote_stop",{sessionId,from:"host"});}catch{}
+    if(remoteHostPeer){try{remoteHostPeer.close();}catch{}remoteHostPeer=null;}
+    if(remoteHostStream){remoteHostStream.getTracks().forEach(track=>{try{track.stop();}catch{}});remoteHostStream=null;}
+    remoteHostSessionId=null;remoteHostCode=null;remoteHostCodeExpires=0;removeRemoteHostBanner();
+  }
+  function generateRemotePairCode(){
+    if(!window.qbitPC?.isDesktop||!cloudDeviceId)throw new Error("El código se genera desde QBIT Desktop en Windows.");
+    if(remoteHostPeer)throw new Error("Ya hay una sesión Remote Desktop activa.");
+    const random=new Uint32Array(1);crypto.getRandomValues(random);
+    remoteHostCode=String(random[0]%1000000).padStart(6,"0");
+    remoteHostCodeExpires=Date.now()+300000;
+    return remoteHostCode;
+  }
+  async function handleRemoteRequest(payload,channel){
+    const sessionId=String(payload?.sessionId||"");
+    const code=String(payload?.code||"");
+    if(!/^[0-9a-f-]{36}$/i.test(sessionId)||!remoteHostCode||Date.now()>remoteHostCodeExpires||code!==remoteHostCode||remoteHostPeer){
+      try{await remoteSend(channel,"qbit_remote_reject",{sessionId,reason:"Código incorrecto, vencido o sesión ocupada."});}catch{}
+      return;
+    }
+    remoteHostCode=null;remoteHostCodeExpires=0;
+    remoteHostSessionId=sessionId;
+    try{
+      await window.qbitPC?.showWindow?.();
+      if(!window.confirm("Un dispositivo de tu cuenta QBIT quiere ver la pantalla de este equipo.\n\nVas a elegir qué pantalla compartir en el selector de Windows. ¿Autorizar?")){
+        await remoteSend(channel,"qbit_remote_reject",{sessionId,reason:"Conexión rechazada en Windows."});
+        remoteHostSessionId=null;return;
+      }
+      if(!navigator.mediaDevices?.getDisplayMedia)throw new Error("La captura de pantalla no está disponible en esta versión de QBIT.");
+      const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:15,max:20}},audio:false});
+      if(!stream.getVideoTracks().length)throw new Error("Windows no entregó una pantalla para compartir.");
+      remoteHostStream=stream;
+      const peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+      remoteHostPeer=peer;
+      stream.getTracks().forEach(track=>{peer.addTrack(track,stream);track.addEventListener("ended",()=>void stopRemoteHost(true),{once:true});});
+      peer.onicecandidate=event=>{if(event.candidate&&remoteHostSessionId===sessionId)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"host",candidate:event.candidate.toJSON()}).catch(()=>{});};
+      peer.onconnectionstatechange=()=>{if(["failed","closed"].includes(peer.connectionState)&&remoteHostPeer===peer)void stopRemoteHost(false);};
+      const offer=await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await remoteSend(channel,"qbit_remote_offer",{sessionId,sdp:peer.localDescription});
+      showRemoteHostBanner();
+    }catch(error){
+      try{await remoteSend(channel,"qbit_remote_reject",{sessionId,reason:error?.message||"No se pudo iniciar la captura."});}catch{}
+      await stopRemoteHost(false);
+    }
+  }
   function cloudPlatform(){if(window.qbitPC?.isDesktop)return "windows";try{if(window.Capacitor?.getPlatform?.()==="android")return "android";}catch{}return "web";}
   async function subscribeCloudCommands(){
     if(!user||!cloudDeviceId||cloudPlatform()!=="windows"||cloudCommandChannel||cloudRealtimeStarting)return;
@@ -897,6 +958,18 @@
         const expires=Date.parse(c.expires_at||"");
         if(Number.isFinite(expires)&&expires<=Date.now())return;
         void processCloudCommand({id:c.id,command:c.command,payload:c.payload||{},status:c.status});
+      });
+      channel.on("broadcast",{event:"qbit_remote_request"},event=>void handleRemoteRequest(event?.payload,channel));
+      channel.on("broadcast",{event:"qbit_remote_answer"},async event=>{
+        const p=event?.payload;if(!p||p.sessionId!==remoteHostSessionId||!remoteHostPeer||p.from!=="viewer")return;
+        try{await remoteHostPeer.setRemoteDescription(new RTCSessionDescription(p.sdp));}catch(error){console.warn("[QBIT Remote] No se pudo aceptar la respuesta:",error?.message||error);}
+      });
+      channel.on("broadcast",{event:"qbit_remote_ice"},async event=>{
+        const p=event?.payload;if(!p||p.sessionId!==remoteHostSessionId||p.from!=="viewer"||!remoteHostPeer||!p.candidate)return;
+        try{await remoteHostPeer.addIceCandidate(new RTCIceCandidate(p.candidate));}catch(error){console.warn("[QBIT Remote] ICE:",error?.message||error);}
+      });
+      channel.on("broadcast",{event:"qbit_remote_stop"},event=>{
+        const p=event?.payload;if(p?.sessionId===remoteHostSessionId&&p.from==="viewer")void stopRemoteHost(false);
       });
       cloudCommandChannel=channel;
       channel.subscribe(status=>{
@@ -1212,6 +1285,93 @@
     const t=d?.last_seen_at?new Date(d.last_seen_at).getTime():0;
     return !!d?.is_online&&Number.isFinite(t)&&t>0&&Date.now()-t<45000;
   }
+  async function startRemoteViewer(deviceId,code,container){
+    if(!user)throw new Error("Iniciá sesión para conectar dispositivos.");
+    if(!/^\\d{6}$/.test(String(code||"")))throw new Error("El código tiene que tener 6 dígitos.");
+    if(!window.RTCPeerConnection)throw new Error("Este navegador no admite WebRTC.");
+    const sessionId=crypto.randomUUID();
+    let channel=null,peer=null,closed=false,offerTimer=null;
+    const status=node("p","muted","Conectando con Windows…");
+    const video=node("video","");video.autoplay=true;video.playsInline=true;video.controls=false;video.style.cssText="display:block;width:100%;max-height:65vh;background:#02070d;border-radius:12px;object-fit:contain";
+    const stop=btn("Desconectar","small danger",()=>void cleanup("Conexión finalizada.",true));
+    container.replaceChildren(status,video,stop);
+    let pendingIce=[];
+    async function cleanup(message,sendStop){
+      if(closed)return;closed=true;if(offerTimer)clearTimeout(offerTimer);
+      if(sendStop&&channel)try{await remoteSend(channel,"qbit_remote_stop",{sessionId,from:"viewer"});}catch{}
+      if(peer){try{peer.close();}catch{}peer=null;}
+      if(channel){const old=channel;channel=null;try{await db.removeChannel(old);}catch{}}
+      video.srcObject=null;status.textContent=message;stop.disabled=true;
+    }
+    try{
+      await db.realtime.setAuth();
+      channel=db.channel("device:"+deviceId,{config:{private:true}});
+      peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+      peer.ontrack=event=>{const stream=event.streams?.[0];if(stream){video.srcObject=stream;void video.play().catch(()=>{});}};
+      peer.onicecandidate=event=>{if(event.candidate&&channel)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"viewer",candidate:event.candidate.toJSON()}).catch(()=>{});};
+      peer.onconnectionstatechange=()=>{if(peer?.connectionState==="connected")status.textContent="Pantalla de Windows en vivo · Solo visualización";else if(["failed","closed"].includes(peer?.connectionState))void cleanup("La conexión se interrumpió.",false);};
+      channel.on("broadcast",{event:"qbit_remote_offer"},async event=>{
+        const p=event?.payload;if(closed||p?.sessionId!==sessionId||!p.sdp)return;
+        try{
+          await peer.setRemoteDescription(new RTCSessionDescription(p.sdp));
+          for(const candidate of pendingIce.splice(0))await peer.addIceCandidate(new RTCIceCandidate(candidate));
+          const answer=await peer.createAnswer();await peer.setLocalDescription(answer);
+          await remoteSend(channel,"qbit_remote_answer",{sessionId,from:"viewer",sdp:peer.localDescription});
+          status.textContent="Autorizado · Conectando video…";
+        }catch(error){void cleanup("No se pudo establecer el video: "+(error?.message||error),true);}
+      });
+      channel.on("broadcast",{event:"qbit_remote_ice"},async event=>{
+        const p=event?.payload;if(closed||p?.sessionId!==sessionId||p.from!=="host"||!p.candidate)return;
+        try{if(peer.remoteDescription)await peer.addIceCandidate(new RTCIceCandidate(p.candidate));else pendingIce.push(p.candidate);}catch(error){console.warn("[QBIT Remote] ICE viewer:",error?.message||error);}
+      });
+      channel.on("broadcast",{event:"qbit_remote_reject"},event=>{
+        const p=event?.payload;if(p?.sessionId===sessionId)void cleanup(p.reason||"Windows rechazó la conexión.",false);
+      });
+      channel.on("broadcast",{event:"qbit_remote_stop"},event=>{
+        const p=event?.payload;if(p?.sessionId===sessionId&&p.from==="host")void cleanup("Windows finalizó la sesión.",false);
+      });
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error("No se pudo conectar al canal seguro de QBIT.")),12000);
+        channel.subscribe(state=>{if(state==="SUBSCRIBED"){clearTimeout(timer);resolve();}else if(state==="CHANNEL_ERROR"||state==="TIMED_OUT"){clearTimeout(timer);reject(new Error("Supabase Realtime no autorizó el canal ("+state+")."));}});
+      });
+      status.textContent="Código enviado · Esperando autorización en Windows…";
+      await remoteSend(channel,"qbit_remote_request",{sessionId,code:String(code)});
+      offerTimer=setTimeout(()=>void cleanup("Se agotó el tiempo de espera de Windows.",true),60000);
+    }catch(error){await cleanup("No se pudo conectar: "+(error?.message||error),false);throw error;}
+  }
+  function appendRemoteDesktopControls(detail,device,platform,onlineNow){
+    const section=node("section","cloud-detail-section");
+    section.append(node("h3","","Remote Desktop"));
+    if(window.qbitPC?.isDesktop&&device.id===cloudDeviceId){
+      section.append(node("p","muted","Generá un código temporal. Otro dispositivo de tu cuenta deberá ingresarlo y vos tendrás que autorizar la conexión."));
+      const generate=btn("Generar código de acceso","small primary",()=>{
+        try{
+          const code=generateRemotePairCode();
+          section.querySelector("[data-remote-code]")?.remove();
+          const display=node("p","", "Código: "+code+" · vence en 5 minutos");display.dataset.remoteCode="true";
+          display.style.cssText="font:700 20px ui-monospace,monospace;letter-spacing:2px;color:#54e8d4";
+          section.append(display);
+        }catch(error){alert(error?.message||error);}
+      });
+      section.append(generate);
+      if(remoteHostPeer)section.append(node("p","muted","Hay una sesión de pantalla activa en este equipo."));
+    }else if(platform==="windows"){
+      section.append(node("p","muted",onlineNow?"Ingresá el código que muestra Windows para solicitar ver su pantalla.":"El equipo está desconectado."));
+      const input=node("input","");input.inputMode="numeric";input.maxLength=6;input.placeholder="Código de 6 dígitos";input.autocomplete="one-time-code";input.style.cssText="max-width:220px;margin:8px 8px 8px 0";
+      const connect=btn("Conectar y ver pantalla","small primary",async()=>{
+        connect.disabled=true;
+        try{await startRemoteViewer(device.id,input.value,viewerBox);}
+        catch(error){alert(error?.message||error);}
+        finally{connect.disabled=false;}
+      });
+      connect.disabled=!onlineNow;
+      section.append(input,connect);
+      const viewerBox=node("div","");viewerBox.style.marginTop="12px";section.append(viewerBox);
+    }else{
+      section.append(node("p","muted","Remote Desktop permite ver la pantalla de un equipo Windows vinculado. Seleccioná ese equipo para iniciar la conexión."));
+    }
+    detail.append(section);
+  }
   function renderCloudDeviceDetail(){
     const detail=$("cloudDeviceDetail");if(!detail)return;
     const d=cloudDevicesCache.find(x=>x.id===selectedCloudDeviceId);
@@ -1258,6 +1418,7 @@
         ["show_notification","Enviar notificación…","prompt"],["set_timer","Crear temporizador…","prompt"],["cancel_timer","Cancelar temporizador…","prompt"]
       ],d,disabled));
       detail.append(cloudDetailSection("Seguridad",[[ "lock_pc","Bloquear PC" ]],d,disabled));
+      appendRemoteDesktopControls(detail,d,platform,onlineNow);
       const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="Los controles remotos requieren QBIT Desktop abierto en Windows. Cada acción pasa por la confirmación configurada para ese dispositivo; algunas opciones de Windows pueden requerir permisos del sistema.";detail.append(hint);
     }else if(platform==="android"){
       detail.append(cloudDetailSection("Permisos", [["android_open_accessibility_settings","Configurar accesibilidad"]],d));
