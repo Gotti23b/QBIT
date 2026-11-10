@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.45";
+  const QBIT_VERSION = "1.5.46";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -1294,22 +1294,50 @@
     const sessionId=crypto.randomUUID();
     let channel=null,peer=null,closed=false,offerTimer=null;
     const status=node("p","muted","Conectando con Windows…");
-    const video=node("video","");video.autoplay=true;video.playsInline=true;video.controls=false;video.style.cssText="display:block;width:100%;max-height:65vh;background:#02070d;border-radius:12px;object-fit:contain";
+    const frame=node("div","qbit-remote-viewer");frame.style.cssText="width:100%;background:#02070d;border:1px solid #243b49;border-radius:12px;overflow:hidden";
+    const video=node("video","");video.autoplay=true;video.playsInline=true;video.controls=false;video.style.cssText="display:block;width:100%;height:auto;max-height:65vh;min-height:220px;background:#02070d;object-fit:contain";
+    const toolbar=node("div","qbit-remote-toolbar");toolbar.style.cssText="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 10px;background:#0b1821";
+    const fullscreen=btn("⛶ Pantalla completa","small",async()=>{
+      try{
+        if(document.fullscreenElement===frame)await document.exitFullscreen();
+        else if(frame.requestFullscreen)await frame.requestFullscreen();
+        else throw new Error("Este navegador no permite pantalla completa desde QBIT.");
+      }catch(error){status.textContent=error?.message||"No se pudo activar pantalla completa.";}
+    });
     const stop=btn("Desconectar","small danger",()=>void cleanup("Conexión finalizada.",true));
-    container.replaceChildren(status,video,stop);
+    toolbar.append(fullscreen,stop);frame.append(video,toolbar);container.replaceChildren(status,frame);
+    const updateFullscreenLabel=()=>{fullscreen.textContent=document.fullscreenElement===frame?"⛶ Salir de pantalla completa":"⛶ Pantalla completa";};
+    document.addEventListener("fullscreenchange",updateFullscreenLabel);
+    video.addEventListener("playing",()=>{status.textContent="Pantalla de Windows en vivo · Solo visualización";});
+    video.addEventListener("error",()=>{
+      const code=video.error?.code;
+      status.textContent="El navegador no pudo reproducir el video"+(code?" (error "+code+")":"")+". Puede ser una incompatibilidad de códec.";
+    });
     let pendingIce=[];
     async function cleanup(message,sendStop){
       if(closed)return;closed=true;if(offerTimer)clearTimeout(offerTimer);
+      document.removeEventListener("fullscreenchange",updateFullscreenLabel);
+      if(document.fullscreenElement===frame)try{await document.exitFullscreen();}catch{}
       if(sendStop&&channel)try{await remoteSend(channel,"qbit_remote_stop",{sessionId,from:"viewer"});}catch{}
       if(peer){try{peer.close();}catch{}peer=null;}
       if(channel){const old=channel;channel=null;try{await db.removeChannel(old);}catch{}}
-      video.srcObject=null;status.textContent=message;stop.disabled=true;
+      video.srcObject=null;status.textContent=message;stop.disabled=true;fullscreen.disabled=true;
     }
     try{
       await db.realtime.setAuth();
       channel=db.channel("device:"+deviceId,{config:{private:true}});
       peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
-      peer.ontrack=event=>{const stream=event.streams?.[0];if(stream){video.srcObject=stream;void video.play().catch(()=>{});}};
+      peer.ontrack=event=>{
+        const stream=event.streams?.[0]||new MediaStream([event.track]);
+        video.srcObject=stream;
+        void video.play().catch(error=>{status.textContent="El navegador recibió el video, pero no pudo reproducirlo: "+(error?.message||"formato no compatible");});
+      };
+      const videoCaps=window.RTCRtpReceiver?.getCapabilities?.("video");
+      const videoTransceiver=peer.addTransceiver("video",{direction:"recvonly"});
+      if(videoCaps?.codecs?.length&&videoTransceiver.setCodecPreferences){
+        const rank=codec=>{const mime=String(codec.mimeType||"").toLowerCase();return mime==="video/vp8"?0:mime==="video/h264"?1:mime==="video/vp9"?2:mime==="video/av1"?3:4;};
+        videoTransceiver.setCodecPreferences([...videoCaps.codecs].sort((a,b)=>rank(a)-rank(b)));
+      }
       peer.onicecandidate=event=>{if(event.candidate&&channel)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"viewer",candidate:event.candidate.toJSON()}).catch(()=>{});};
       peer.onconnectionstatechange=()=>{if(peer?.connectionState==="connected")status.textContent="Pantalla de Windows en vivo · Solo visualización";else if(["failed","closed"].includes(peer?.connectionState))void cleanup("La conexión se interrumpió.",false);};
       channel.on("broadcast",{event:"qbit_remote_offer"},async event=>{
