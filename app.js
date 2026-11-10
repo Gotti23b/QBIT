@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.36";
+  const QBIT_VERSION = "1.5.37";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -483,7 +483,7 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){const changed=user?.id!==u?.id;if(!u&&cloudDeviceId)void stopCloudPresence();user=u;syncPresetToggle();$("loginView")?.classList.add("hidden");$("appView").classList.remove("hidden");$("userBar").classList.toggle("hidden",!u);$("userEmail").textContent=u?(u.is_anonymous?"Invitado":(u.email||"Cuenta QBIT")):"Modo sin conexión";const accountName=$("sidebarAccountName"),accountDetail=$("sidebarAccountDetail");if(accountName)accountName.textContent=u?(u.is_anonymous?"Invitado":(u.email||"Mi cuenta")):"Sin conexión";if(accountDetail)accountDetail.textContent=u?"Cuenta QBIT":"Revisá tu conexión";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();}
+  function session(u){const changed=user?.id!==u?.id;if(!u&&cloudDeviceId)void stopCloudPresence();user=u;syncPresetToggle();const loggedIn=!!u;const loginView=$("loginView");loginView?.classList.toggle("hidden",loggedIn);loginView?.setAttribute("aria-hidden",String(loggedIn));$("appView").classList.toggle("hidden",!loggedIn);$("userBar").classList.toggle("hidden",!loggedIn);$("userEmail").textContent=u?(u.is_anonymous?"Invitado":(u.email||"Cuenta QBIT")):"";const accountName=$("sidebarAccountName"),accountDetail=$("sidebarAccountDetail");if(accountName)accountName.textContent=u?(u.is_anonymous?"Invitado":(u.email||"Mi cuenta")):"Sin sesión";if(accountDetail)accountDetail.textContent=u?(u.is_anonymous?"Modo invitado":"Cuenta QBIT"):"Elegí cómo entrar";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();}
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -585,7 +585,6 @@
   function resetCategory(){$("categoryId").value="";$("categoryName").value="";$("cancelCategory").classList.add("hidden");}
   function resetCommand(){$("commandId").value="";$("commandName").value="";$("commandTrigger").value="";$("commandCategory").value="";$("cancelCommand").classList.add("hidden");}
   function resetResponse(){$("responseId").value="";$("responseCommand").value="";$("responseContent").value="";$("responsePriority").value="1";$("responseActive").checked=true;$("cancelResponse").classList.add("hidden");}
-  $("guestRetryBtn")?.addEventListener("click",()=>void ensureGuestSession(true));
   renderDesktopControlStatus();
   $("presetCommandsToggle")?.addEventListener("change",async e=>{
     try{localStorage.setItem(PRESET_COMMANDS_KEY,String(e.target.checked));}catch{}
@@ -1216,7 +1215,7 @@
   $("cloudRefresh")?.addEventListener("click",()=>void refreshCloudDevices());
   setInterval(()=>{if(user&&$("cloudView")&&!$("cloudView").classList.contains("hidden"))void refreshCloudDevices();},10000);
 
-  db.auth.onAuthStateChange((event,authSession)=>{if((event==="SIGNED_IN"||event==="TOKEN_REFRESHED")&&authSession?.user)session(authSession.user);if(event==="SIGNED_OUT"){session(null);void ensureGuestSession();}});
+  db.auth.onAuthStateChange((event,authSession)=>{if((event==="SIGNED_IN"||event==="TOKEN_REFRESHED")&&authSession?.user){pendingGuestUser=null;session(authSession.user);}if(event==="SIGNED_OUT"){pendingGuestUser=null;session(null);}});
   async function addStarterCommands(){
     if(!user)return;
     const groups=[
@@ -1255,24 +1254,77 @@
     await refresh();
   }
   let guestAuthPending=false;
-  async function ensureGuestSession(force=false){
-    if(guestAuthPending)return;guestAuthPending=true;
-    const status=$("guestAccessStatus"),retry=$("guestRetryBtn");
-    if(status)status.textContent="Conectando con QBIT…";if(retry)retry.disabled=true;
+  let pendingGuestUser=null;
+  let authMode="signin";
+  function authMessage(message,isError=false){const el=$("authMessage");if(el){el.textContent=message||"";el.classList.toggle("error",!!isError);}}
+  function setAuthMode(mode){
+    authMode=mode==="signup"?"signup":"signin";
+    $("authTitle").textContent=authMode==="signup"?"Crear cuenta QBIT":"Iniciar sesión";
+    $("authSubmit").textContent=authMode==="signup"?"Crear cuenta":"Iniciar sesión";
+    $("authModeToggle").textContent=authMode==="signup"?"Ya tengo una cuenta":"Crear una cuenta";
+    $("authPassword").autocomplete=authMode==="signup"?"new-password":"current-password";
+    authMessage("");
+  }
+  async function restoreAuth(){
     try{
       const {data,error}=await db.auth.getSession();
       if(error)throw error;
-      if(data.session){session(data.session.user);await refresh();if(status)status.textContent=data.session.user.is_anonymous?"Sesión de invitado activa. Tus datos se guardan en este navegador.":"Sesión activa.";return;}
-      const {data:guest,error:guestError}=await db.auth.signInAnonymously({options:{data:{app:"QBIT"}}});
-      if(guestError)throw guestError;
-      if(!guest?.user)throw new Error("Supabase no devolvió un usuario invitado.");
-      session(guest.user);await refresh();
-      if(status)status.textContent="Entraste como invitado. No necesitás correo ni contraseña.";
-    }catch(error){
+      const savedUser=data.session?.user;
+      if(savedUser?.is_anonymous){pendingGuestUser=savedUser;session(null);authMessage("Tu sesión de invitado sigue disponible en este dispositivo.");return;}
+      if(savedUser){session(savedUser);await refresh();return;}
       session(null);
-      if(status)status.textContent="No se pudo iniciar el modo invitado: "+(error?.message||"Error de conexión")+". Revisá que Supabase esté activo y que estén habilitados los inicios anónimos.";
-    }finally{guestAuthPending=false;if(retry)retry.disabled=false;}
+    }catch(error){session(null);authMessage("No se pudo comprobar la sesión: "+(error?.message||"Error de conexión"),true);}
   }
-  $("loginView")?.classList.add("hidden");$("appView")?.classList.remove("hidden");
-  void ensureGuestSession();
+  async function ensureGuestSession(){
+    if(guestAuthPending)return;guestAuthPending=true;
+    const button=$("continueGuestBtn");
+    if(button){button.disabled=true;button.textContent="Conectando…";}
+    authMessage("");
+    try{
+      let guest=pendingGuestUser;
+      if(!guest){
+        const {data,error}=await db.auth.getSession();
+        if(error)throw error;
+        if(data.session?.user&&!data.session.user.is_anonymous){session(data.session.user);await refresh();return;}
+        if(data.session?.user?.is_anonymous)guest=data.session.user;
+      }
+      if(!guest){
+        const {data,error}=await db.auth.signInAnonymously({options:{data:{app:"QBIT"}}});
+        if(error)throw error;
+        guest=data.user;
+      }
+      if(!guest)throw new Error("Supabase no devolvió una sesión de invitado.");
+      pendingGuestUser=null;session(guest);await refresh();
+    }catch(error){authMessage("No se pudo entrar como invitado: "+(error?.message||"Error de conexión")+". Revisá tu conexión y que los inicios anónimos estén habilitados.",true);}
+    finally{guestAuthPending=false;if(button){button.disabled=false;button.textContent="Continuar como invitado";}}
+  }
+  $("authModeToggle")?.addEventListener("click",()=>setAuthMode(authMode==="signin"?"signup":"signin"));
+  $("authForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const email=$("authEmail").value.trim(),password=$("authPassword").value;
+    const submit=$("authSubmit");if(!email||!password)return;
+    submit.disabled=true;authMessage(authMode==="signup"?"Creando tu cuenta…":"Iniciando sesión…");
+    try{
+      if(authMode==="signup"){
+        const {data,error}=await db.auth.signUp({email,password,options:{data:{app:"QBIT"}}});
+        if(error)throw error;
+        if(data.session&&data.user){pendingGuestUser=null;session(data.user);await refresh();}
+        else authMessage("Cuenta creada. Revisá tu correo para confirmar la dirección y después iniciá sesión.");
+      }else{
+        const {data,error}=await db.auth.signInWithPassword({email,password});
+        if(error)throw error;
+        if(!data.user)throw new Error("No se recibió una cuenta válida.");
+        pendingGuestUser=null;session(data.user);await refresh();
+      }
+    }catch(error){authMessage(error?.message||"No se pudo completar el acceso.",true);}
+    finally{submit.disabled=false;}
+  });
+  $("continueGuestBtn")?.addEventListener("click",()=>void ensureGuestSession());
+  $("logoutBtn")?.addEventListener("click",async()=>{
+    if(user?.is_anonymous&&!confirm("Si salís del modo invitado, esta sesión y sus datos no se podrán recuperar en otro dispositivo. ¿Querés continuar?"))return;
+    const {error}=await db.auth.signOut();
+    if(error)authMessage("No se pudo cerrar la sesión: "+error.message,true);
+  });
+  setAuthMode("signin");
+  void restoreAuth();
 })();
