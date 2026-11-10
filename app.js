@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.37";
+  const QBIT_VERSION = "1.5.38";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -1308,8 +1308,8 @@
       if(authMode==="signup"){
         const {data,error}=await db.auth.signUp({email,password,options:{data:{app:"QBIT"}}});
         if(error)throw error;
-        if(data.session&&data.user){pendingGuestUser=null;session(data.user);await refresh();}
-        else authMessage("Cuenta creada. Revisá tu correo para confirmar la dirección y después iniciá sesión.");
+        if(!data.session||!data.user)throw new Error("Supabase no inició la sesión automáticamente. Revisá que Confirm email esté desactivado en la configuración de autenticación.");
+        pendingGuestUser=null;session(data.user);await refresh();
       }else{
         const {data,error}=await db.auth.signInWithPassword({email,password});
         if(error)throw error;
