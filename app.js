@@ -944,28 +944,71 @@
     cloudDeviceId=null;
   }
 
-  // Releases Android separadas de las releases existentes de Windows.
+  // Actualizador Android: el botón fijo del menú y el botón de la página usan el mismo flujo.
   const ANDROID_RELEASES_API="https://api.github.com/repos/Gotti23b/QBIT/releases?per_page=50";
   let androidReleasesCache=[],androidReleaseBusy=false;
+  const androidUpdateButtons=()=>[$("androidReleasePageUpdateButton"),$("androidUpdateButton")].filter(Boolean);
+  function setAndroidReleaseStatus(message){
+    ["androidReleaseStatus","androidReleasePageStatus"].forEach(id=>{const el=$(id);if(el)el.textContent=message;});
+  }
   function compareQbitVersions(a,b){const x=String(a||"0").replace(/^v/,"").split(".").map(Number),y=String(b||"0").replace(/^v/,"").split(".").map(Number);for(let i=0;i<Math.max(x.length,y.length);i++){const n=(x[i]||0)-(y[i]||0);if(n)return n;}return 0;}
   function androidReleaseVersion(r){return String(r?.tag_name||"").replace(/^android-v/,"");}
   function androidApkAsset(r){return (r?.assets||[]).find(a=>/\.apk$/i.test(a.name));}
   async function getInstalledAndroidVersion(){try{const p=window.Capacitor?.Plugins?.QBITControl;if(p?.getAppVersion){const v=await p.getAppVersion();return v?.version||QBIT_VERSION;}}catch{}return QBIT_VERSION;}
   function renderAndroidReleases(installed){
-    const list=$("androidReleaseList"),status=$("androidReleaseStatus"),update=$("androidUpdateButton");if(!list)return;list.replaceChildren();
+    const list=$("androidReleaseList"),update=$("androidUpdateButton");if(!list)return;list.replaceChildren();
     const releases=androidReleasesCache.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a))),latest=releases[0],version=latest?androidReleaseVersion(latest):"";
-    if(status)status.textContent=latest?"Versión instalada: "+installed+" · Última APK: "+version:"Todavía no hay APK publicadas. La primera aparecerá al terminar una compilación Android.";
-    if(update){update.disabled=false;update.textContent=latest&&compareQbitVersions(version,installed)>0?"⬆ Actualizar a v"+version:"⟳ Buscar actualizaciones";update.dataset.needsUpdate=String(!!latest&&compareQbitVersions(version,installed)>0);}
+    setAndroidReleaseStatus(latest?"Versión instalada: "+installed+" · Última APK: "+version:"Todavía no hay APK Android publicadas.");
+    const needsUpdate=!!latest&&compareQbitVersions(version,installed)>0;
+    androidUpdateButtons().forEach(button=>{button.disabled=false;button.textContent=needsUpdate?"⬆ Actualizar a v"+version:"⟳ Buscar actualizaciones";button.dataset.needsUpdate=String(needsUpdate);});
     if(!releases.length){list.append(node("div","android-release-empty","No hay releases Android publicadas todavía."));return;}
     for(const r of releases){const asset=androidApkAsset(r),card=node("article","android-release-card"),head=node("div","android-release-heading"),title=node("strong","","QBIT Android v"+androidReleaseVersion(r)),date=node("span","muted",r.published_at?new Intl.DateTimeFormat("es-AR",{dateStyle:"medium"}).format(new Date(r.published_at)):"Fecha no disponible"),notes=node("p","muted android-release-notes",String(r.body||"Sin notas para esta versión.").slice(0,1200)),actions=node("div","android-release-actions");
       head.append(title,date);const download=btn("⬇ Descargar APK","primary",()=>downloadAndroidAsset(asset,androidReleaseVersion(r)));const github=btn("Ver en GitHub","small",()=>window.open(r.html_url,"_blank","noopener"));actions.append(download,github);card.append(head,notes,actions);list.append(card);}
   }
-  async function downloadAndroidAsset(asset,version){const p=window.Capacitor?.Plugins?.QBITControl,status=$("androidReleaseStatus");if(p?.downloadApk){try{const r=await p.downloadApk({url:asset.browser_download_url,version});if(status)status.textContent=r?.message||"Descarga iniciada. Cuando termine, abrí la notificación para instalar.";}catch(e){if(status)status.textContent="No se pudo descargar: "+(e?.message||e);}}else{const a=document.createElement("a");a.href=asset.browser_download_url;a.target="_blank";a.rel="noopener";a.download=asset.name;a.click();}}
-  async function loadAndroidReleases(){if(androidReleaseBusy)return;androidReleaseBusy=true;const s=$("androidReleaseStatus");if(s)s.textContent="Consultando las releases de GitHub…";try{const response=await fetch(ANDROID_RELEASES_API,{headers:{Accept:"application/vnd.github+json"}});if(!response.ok)throw new Error("GitHub respondió "+response.status);const r=await response.json();androidReleasesCache=(Array.isArray(r)?r:[]).filter(x=>String(x.tag_name||"").startsWith("android-v")&&!x.draft&&!x.prerelease);renderAndroidReleases(await getInstalledAndroidVersion());}catch(e){if(s)s.textContent="No pude consultar GitHub: "+(e?.message||e)+". Revisá la conexión e intentá de nuevo.";}finally{androidReleaseBusy=false;}}
-  $("androidReleaseRefresh")?.addEventListener("click",()=>void loadAndroidReleases());
-  if($("androidUpdateButton")&&!window.Capacitor?.Plugins?.QBITControl){$("androidUpdateButton").classList.add("hidden");$("androidUpdateButton").parentElement?.classList.add("hidden");}
-  $("androidUpdateButton")?.addEventListener("click",async()=>{const button=$("androidUpdateButton");if(button){button.disabled=true;button.textContent="⟳ Buscando…";}try{if(!androidReleasesCache.length)await loadAndroidReleases();const installed=await getInstalledAndroidVersion(),r=androidReleasesCache.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a)))[0];if(!r){if($("androidReleaseStatus"))$("androidReleaseStatus").textContent="No se encontró una APK publicada.";return;}const v=androidReleaseVersion(r);if(compareQbitVersions(v,installed)<=0){if($("androidReleaseStatus"))$("androidReleaseStatus").textContent="Ya tenés la última versión (v"+installed+").";return;}if(button)button.textContent="⬇ Descargar v"+v;await downloadAndroidAsset(androidApkAsset(r),v);}finally{if(button){button.disabled=false;button.textContent="⟳ Buscar actualizaciones";}}});
-
+  async function downloadAndroidAsset(asset,version){
+    if(!asset?.browser_download_url)throw new Error("La release no contiene un enlace de descarga válido.");
+    const p=window.Capacitor?.Plugins?.QBITControl;
+    if(p?.downloadApk){
+      try{const r=await p.downloadApk({url:asset.browser_download_url,version});setAndroidReleaseStatus(r?.message||"Descarga iniciada. Cuando termine, abrí la notificación para instalar.");return r;}
+      catch(e){const message=e?.message||String(e);setAndroidReleaseStatus("No se pudo iniciar la descarga: "+message);throw e;}
+    }
+    window.open(asset.browser_download_url,"_blank","noopener");
+    setAndroidReleaseStatus("Abrí la descarga de la APK. Al terminar, abrila y confirmá la instalación de Android.");
+    return {message:"Descarga abierta en el navegador."};
+  }
+  async function loadAndroidReleases(){
+    if(androidReleaseBusy)return androidReleasesCache;
+    androidReleaseBusy=true;setAndroidReleaseStatus("Consultando las actualizaciones de QBIT…");
+    try{
+      const response=await fetch(ANDROID_RELEASES_API,{headers:{Accept:"application/vnd.github+json"},cache:"no-store"});
+      if(!response.ok)throw new Error("GitHub respondió "+response.status);
+      const releases=await response.json();
+      androidReleasesCache=(Array.isArray(releases)?releases:[]).filter(x=>String(x.tag_name||"").startsWith("android-v")&&!x.draft&&!x.prerelease);
+      renderAndroidReleases(await getInstalledAndroidVersion());
+      return androidReleasesCache;
+    }catch(e){setAndroidReleaseStatus("No pude consultar GitHub: "+(e?.message||e)+". Revisá la conexión e intentá de nuevo.");throw e;}
+    finally{androidReleaseBusy=false;}
+  }
+  async function checkAndroidUpdate(button){
+    if(button){button.disabled=true;button.textContent="⟳ Buscando…";}
+    androidUpdateButtons().forEach(b=>{b.disabled=true;if(b!==button)b.textContent="⟳ Buscando…";});
+    try{
+      const releases=await loadAndroidReleases();
+      const installed=await getInstalledAndroidVersion();
+      const latest=releases.filter(androidApkAsset).sort((a,b)=>compareQbitVersions(androidReleaseVersion(b),androidReleaseVersion(a)))[0];
+      if(!latest){setAndroidReleaseStatus("No se encontró ninguna APK Android publicada.");return;}
+      const version=androidReleaseVersion(latest);
+      if(compareQbitVersions(version,installed)<=0){setAndroidReleaseStatus("Ya tenés la última versión de QBIT Android (v"+installed+").");return;}
+      setAndroidReleaseStatus("Nueva versión disponible: v"+version+". Iniciando descarga…");
+      await downloadAndroidAsset(androidApkAsset(latest),version);
+    }catch(e){/* El error ya se muestra en los dos estados del actualizador. */}
+    finally{
+      androidUpdateButtons().forEach(b=>{b.disabled=false;const newer=androidReleasesCache.filter(androidApkAsset).sort((a,c)=>compareQbitVersions(androidReleaseVersion(c),androidReleaseVersion(a)))[0];b.textContent=newer&&compareQbitVersions(androidReleaseVersion(newer),getInstalledAndroidVersion())>0?"⬆ Actualizar a v"+androidReleaseVersion(newer):"⟳ Buscar actualizaciones";});
+    }
+  }
+  $("androidReleaseRefresh")?.addEventListener("click",()=>void loadAndroidReleases().catch(()=>{}));
+  $("androidUpdateButton")?.addEventListener("click",event=>void checkAndroidUpdate(event.currentTarget));
+  $("androidReleasePageUpdateButton")?.addEventListener("click",event=>void checkAndroidUpdate(event.currentTarget));
   async function executeAndroidControlCommand(command){
     const control=window.Capacitor?.Plugins?.QBITControl;
     if(!control)throw new Error("Este APK todavía no incluye el módulo nativo de control. Actualizá QBIT Android.");
