@@ -37,6 +37,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
+import java.text.SimpleDateFormat;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -178,7 +181,7 @@ public class QBITBackgroundService extends Service {
     private void pollCommands() throws Exception {
         String query = "/rest/v1/qbit_device_commands?select=id,command,payload,status,expires_at"
             + "&device_id=eq." + enc(deviceId)
-            + "&status=eq.pending&expires_at=gt." + enc(new Date().toInstant().toString())
+            + "&status=eq.pending&expires_at=gt." + enc(nowIso())
             + "&order=created_at.asc&limit=5";
         JSONArray commands = new JSONArray(api("GET", query, null, null));
         for (int i = 0; i < commands.length(); i++) {
@@ -193,7 +196,7 @@ public class QBITBackgroundService extends Service {
         String name = command.optString("command", "");
         if (id.isEmpty()) return;
         try {
-            JSONObject claimBody = new JSONObject().put("status", "running").put("started_at", new Date().toInstant().toString());
+            JSONObject claimBody = new JSONObject().put("status", "running").put("started_at", nowIso());
             String claim = api("PATCH", "/rest/v1/qbit_device_commands?id=eq." + enc(id) + "&status=eq.pending",
                 claimBody, "return=representation");
             if (new JSONArray(claim).length() == 0) return;
@@ -206,7 +209,7 @@ public class QBITBackgroundService extends Service {
             JSONObject body = new JSONObject()
                 .put("status", "completed")
                 .put("result", new JSONObject().put("message", result.optString("message", "Completado")))
-                .put("completed_at", new Date().toInstant().toString());
+                .put("completed_at", nowIso());
             api("PATCH", "/rest/v1/qbit_device_commands?id=eq." + enc(id), body, "return=minimal");
             updateNotification("Acción completada · esperando órdenes");
         } catch (Exception error) {
@@ -215,7 +218,7 @@ public class QBITBackgroundService extends Service {
                     .put("status", "failed")
                     .put("error_message", safeMessage(error.getMessage()))
                     .put("result", new JSONObject().put("message", safeMessage(error.getMessage())))
-                    .put("completed_at", new Date().toInstant().toString());
+                    .put("completed_at", nowIso());
                 api("PATCH", "/rest/v1/qbit_device_commands?id=eq." + enc(id), body, "return=minimal");
             } catch (Exception ignored) {}
             updateNotification("Una acción no pudo ejecutarse · revisá QBIT Web");
@@ -294,7 +297,7 @@ public class QBITBackgroundService extends Service {
     }
 
     private void updatePresence(boolean online) throws Exception {
-        JSONObject body = new JSONObject().put("is_online", online).put("last_seen_at", new Date().toInstant().toString());
+        JSONObject body = new JSONObject().put("is_online", online).put("last_seen_at", nowIso());
         api("PATCH", "/rest/v1/qbit_devices?id=eq." + enc(deviceId), body, "return=minimal");
     }
 
@@ -361,6 +364,12 @@ public class QBITBackgroundService extends Service {
 
     private static String enc(String value) throws Exception {
         return URLEncoder.encode(value, "UTF-8");
+    }
+
+    private static String nowIso() {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        format.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return format.format(new Date());
     }
 
     private static String safeMessage(String value) {
