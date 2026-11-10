@@ -1766,9 +1766,28 @@
     try{
       if(authMode==="signup"){
         const {data,error}=await db.auth.signUp({email,password,options:{data:{app:"QBIT"}}});
-        if(error)throw error;
-        if(!data.session||!data.user)throw new Error("Supabase no inició la sesión automáticamente. Revisá que Confirm email esté desactivado en la configuración de autenticación.");
-        pendingGuestUser=null;session(data.user);await refresh();
+        let authData=data;
+        if(error){
+          if(/already registered|user already exists/i.test(error.message||"")){
+            const login=await db.auth.signInWithPassword({email,password});
+            if(login.error)throw login.error;
+            authData=login.data;
+          }else{
+            throw error;
+          }
+        }else if(!data?.session){
+          if(!data?.user)throw new Error("Supabase no devolvió los datos de la cuenta.");
+          const login=await db.auth.signInWithPassword({email,password});
+          if(login.error){
+            if(login.error.code==="email_not_confirmed"||/email not confirmed/i.test(login.error.message||"")){
+              throw new Error("La cuenta se creó, pero Supabase todavía exige confirmar el correo. Desactivá Confirm email en Authentication → Providers → Email.");
+            }
+            throw login.error;
+          }
+          authData=login.data;
+        }
+        if(!authData?.session||!authData?.user)throw new Error("La cuenta se creó, pero no se pudo iniciar la sesión. Probá iniciar sesión con el mismo correo y contraseña.");
+        pendingGuestUser=null;session(authData.user);await refresh();
       }else{
         const {data,error}=await db.auth.signInWithPassword({email,password});
         if(error)throw error;
