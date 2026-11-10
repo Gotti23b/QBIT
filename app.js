@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.48";
+  const QBIT_VERSION = "1.5.49";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -928,7 +928,7 @@
         await remoteSend(channel,"qbit_remote_reject",{sessionId,reason:"Conexión rechazada en Windows."});
         remoteHostSessionId=null;return;
       }
-      if(!navigator.mediaDevices?.getDisplayMedia)throw new Error("La captura de pantalla no está disponible en esta versión de QBIT.");
+      if(!navigator.mediaDevices?.getDisplayMedia)throw new Error("NotSupportedError: Electron no expone getDisplayMedia para compartir la pantalla.");
       const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:15,max:20}},audio:false});
       if(!stream.getVideoTracks().length)throw new Error("Windows no entregó una pantalla para compartir.");
       remoteHostStream=stream;
@@ -950,7 +950,9 @@
       await remoteSend(channel,"qbit_remote_offer",{sessionId,sdp:peer.localDescription});
       showRemoteHostBanner();
     }catch(error){
-      try{await remoteSend(channel,"qbit_remote_reject",{sessionId,reason:error?.message||"No se pudo iniciar la captura."});}catch{}
+      const reason=[error?.name,error?.message].filter(Boolean).join(": ")||"No se pudo iniciar la captura.";
+      console.error("[QBIT Remote][Windows] Falló la captura o el inicio de WebRTC:",error);
+      try{await remoteSend(channel,"qbit_remote_reject",{sessionId,reason});}catch{}
       await stopRemoteHost(false);
     }
   }
@@ -1329,7 +1331,7 @@
     let channel=null,peer=null,closed=false,offerTimer=null;
     const status=node("p","muted","Conectando con Windows…");
     const frame=node("div","qbit-remote-viewer");frame.style.cssText="width:100%;background:#02070d;border:1px solid #243b49;border-radius:12px;overflow:hidden";
-    const video=node("video","");video.autoplay=true;video.playsInline=true;video.controls=false;video.style.cssText="display:block;width:100%;height:auto;max-height:65vh;min-height:220px;background:#02070d;object-fit:contain";
+    const video=node("video","");video.autoplay=true;video.playsInline=true;video.muted=true;video.controls=false;video.style.cssText="display:block;width:100%;height:auto;max-height:65vh;min-height:220px;background:#02070d;object-fit:contain";
     const toolbar=node("div","qbit-remote-toolbar");toolbar.style.cssText="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:9px 10px;background:#0b1821";
     const fullscreen=btn("⛶ Pantalla completa","small",async()=>{
       try{
@@ -1383,6 +1385,7 @@
         videoTransceiver.setCodecPreferences([...videoCaps.codecs].sort((a,b)=>rank(a)-rank(b)));
       }
       peer.onicecandidate=event=>{if(event.candidate&&channel)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"viewer",candidate:event.candidate.toJSON()}).catch(()=>{});};
+      peer.onicecandidateerror=event=>console.warn("[QBIT Remote][Viewer] Error ICE:",{code:event.errorCode,text:event.errorText,url:event.url});
       peer.onconnectionstatechange=()=>{console.info("[QBIT Remote][Viewer] Estado WebRTC:",peer?.connectionState);if(peer?.connectionState==="connected")status.textContent="Conexión establecida · esperando video…";else if(peer?.connectionState==="failed")void cleanup("WebRTC no pudo establecer la conexión. Revisá la red o la disponibilidad de TURN.",false);else if(peer?.connectionState==="closed")void cleanup("La conexión se cerró.",false);};
       peer.oniceconnectionstatechange=()=>{console.info("[QBIT Remote][Viewer] Estado ICE:",peer?.iceConnectionState);if(peer?.iceConnectionState==="failed")status.textContent="La señalización llegó, pero ICE no pudo conectar los dispositivos.";};
       channel.on("broadcast",{event:"qbit_remote_offer"},async event=>{
