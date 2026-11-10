@@ -28,6 +28,10 @@ public class QBITControlPlugin extends Plugin {
         String refreshToken = call.getString("refreshToken", "");
         if (deviceId.isEmpty() || accessToken.isEmpty() || refreshToken.isEmpty()) { call.reject("Faltan los datos de sesión para iniciar el agente."); return; }
         try {
+            if (Build.VERSION.SDK_INT >= 33 &&
+                getContext().checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                getActivity().requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1541);
+            }
             Intent intent = new Intent(getContext(), QBITBackgroundService.class);
             intent.putExtra("deviceId", deviceId); intent.putExtra("accessToken", accessToken); intent.putExtra("refreshToken", refreshToken);
             if (Build.VERSION.SDK_INT >= 26) getContext().startForegroundService(intent); else getContext().startService(intent);
