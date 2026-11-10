@@ -915,7 +915,7 @@
   }
   async function handleRemoteRequest(payload,channel){
     const sessionId=String(payload?.sessionId||"");
-    const code=String(payload?.code||"");
+    const code=String(payload?.code||"").replace(/\D/g,"");
     if(!/^[0-9a-f-]{36}$/i.test(sessionId)||!remoteHostCode||Date.now()>remoteHostCodeExpires||code!==remoteHostCode||remoteHostPeer){
       try{await remoteSend(channel,"qbit_remote_reject",{sessionId,reason:"Código incorrecto, vencido o sesión ocupada."});}catch{}
       return;
@@ -1288,7 +1288,8 @@
   }
   async function startRemoteViewer(deviceId,code,container){
     if(!user)throw new Error("Iniciá sesión para conectar dispositivos.");
-    if(!/^\\d{6}$/.test(String(code||"")))throw new Error("El código tiene que tener 6 dígitos.");
+    const normalizedCode=String(code??"").replace(/\D/g,"");
+    if(!/^\d{6}$/.test(normalizedCode))throw new Error("El código tiene que tener 6 dígitos.");
     if(!window.RTCPeerConnection)throw new Error("Este navegador no admite WebRTC.");
     const sessionId=crypto.randomUUID();
     let channel=null,peer=null,closed=false,offerTimer=null;
@@ -1336,7 +1337,7 @@
         channel.subscribe(state=>{if(state==="SUBSCRIBED"){clearTimeout(timer);resolve();}else if(state==="CHANNEL_ERROR"||state==="TIMED_OUT"){clearTimeout(timer);reject(new Error("Supabase Realtime no autorizó el canal ("+state+")."));}});
       });
       status.textContent="Código enviado · Esperando autorización en Windows…";
-      await remoteSend(channel,"qbit_remote_request",{sessionId,code:String(code)});
+      await remoteSend(channel,"qbit_remote_request",{sessionId,code:normalizedCode});
       offerTimer=setTimeout(()=>void cleanup("Se agotó el tiempo de espera de Windows.",true),60000);
     }catch(error){await cleanup("No se pudo conectar: "+(error?.message||error),false);throw error;}
   }
@@ -1358,7 +1359,8 @@
       if(remoteHostPeer)section.append(node("p","muted","Hay una sesión de pantalla activa en este equipo."));
     }else if(platform==="windows"){
       section.append(node("p","muted",onlineNow?"Ingresá el código que muestra Windows para solicitar ver su pantalla.":"El equipo está desconectado."));
-      const input=node("input","");input.inputMode="numeric";input.maxLength=6;input.placeholder="Código de 6 dígitos";input.autocomplete="one-time-code";input.style.cssText="max-width:220px;margin:8px 8px 8px 0";
+      const input=node("input","");input.type="text";input.inputMode="numeric";input.maxLength=6;input.pattern="[0-9]{6}";input.dataset.remoteInput="true";input.placeholder="Código de 6 dígitos";input.autocomplete="one-time-code";input.style.cssText="max-width:220px;margin:8px 8px 8px 0";
+      input.addEventListener("input",()=>{const clean=input.value.replace(/\D/g,"").slice(0,6);if(input.value!==clean)input.value=clean;});
       const connect=btn("Conectar y ver pantalla","small primary",async()=>{
         connect.disabled=true;
         try{await startRemoteViewer(device.id,input.value,viewerBox);}
@@ -1470,7 +1472,7 @@
       open.append(head,last,action);open.addEventListener("click",()=>{selectedCloudDeviceId=d.id;renderCloudDevices();});
       card.append(open);list.append(card);
     }
-    if(detail){const hasSelection=!!selectedCloudDeviceId;list.classList.toggle("hidden",hasSelection);detail.classList.toggle("hidden",!hasSelection);if(hasSelection)renderCloudDeviceDetail();}
+    if(detail){const hasSelection=!!selectedCloudDeviceId;list.classList.toggle("hidden",hasSelection);detail.classList.toggle("hidden",!hasSelection);if(hasSelection&&!detail.querySelector("[data-remote-code], [data-remote-input], video"))renderCloudDeviceDetail();}
   }
   function renderCloudHistory(rows){
     const history=$("cloudCommandHistory");if(!history)return;
