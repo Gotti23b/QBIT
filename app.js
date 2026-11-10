@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.41";
+  const QBIT_VERSION = "1.5.42";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -1045,8 +1045,62 @@
     return await control.performSystemAction({action});
   }
   const CLOUD_SHARED_COMMANDS = ["get_system_info","get_battery_info","get_network_info","get_display_info"];
+  const CLOUD_WINDOWS_CONTROL_COMMANDS = new Set([
+    "volume_up","volume_down","volume_mute","volume_set","brightness_up","brightness_down","brightness_set","lock_pc",
+    "toggle_wifi_on","toggle_wifi_off","toggle_night_light",
+    "open_settings_system","open_settings_display","open_settings_sound","open_settings_network","open_settings_wifi","open_settings_bluetooth","open_settings_apps","open_settings_personalization","open_settings_updates","open_settings_storage","open_settings_notifications","open_settings_privacy",
+    "media_play_pause","media_next","media_previous","media_stop","minimize_all","restore_all","focus_app","close_window","open_anything",
+    "open_calculator","open_notepad","open_task_manager","get_processes","cpu_usage","ram_usage","disk_usage",
+    "search_files","open_file_location","get_file_info","zip_files","unzip_file","read_text_file","create_folder","create_file","show_notification","set_timer","cancel_timer"
+  ]);
+  const CLOUD_WINDOWS_ARTIFACTS = {
+    volume_set:["volume",p=>({action:"set",level:p.level})],
+    brightness_set:["brightness_set",p=>({level:p.level})],
+    toggle_wifi_on:["toggle_wifi",{action:"on"}],
+    toggle_wifi_off:["toggle_wifi",{action:"off"}],
+    toggle_night_light:["toggle_night_light",{}],
+    open_settings_system:["open_settings",{page:"system"}],
+    open_settings_display:["open_settings",{page:"display"}],
+    open_settings_sound:["open_settings",{page:"sound"}],
+    open_settings_network:["open_settings",{page:"network"}],
+    open_settings_wifi:["open_settings",{page:"wifi"}],
+    open_settings_bluetooth:["open_settings",{page:"bluetooth"}],
+    open_settings_apps:["open_settings",{page:"apps"}],
+    open_settings_personalization:["open_settings",{page:"personalization"}],
+    open_settings_updates:["open_settings",{page:"updates"}],
+    open_settings_storage:["open_settings",{page:"storage"}],
+    open_settings_notifications:["open_settings",{page:"notifications"}],
+    open_settings_privacy:["open_settings",{page:"privacy"}],
+    media_play_pause:["media_control",{action:"play_pause"}],
+    media_next:["media_control",{action:"next"}],
+    media_previous:["media_control",{action:"previous"}],
+    media_stop:["media_control",{action:"stop"}],
+    minimize_all:["minimize_all",{}],
+    restore_all:["restore_all",{}],
+    focus_app:["focus_app",p=>({query:p.query})],
+    close_window:["close_window",p=>({query:p.query})],
+    open_anything:["open_anything",p=>({query:p.query})],
+    open_calculator:["open_calculator",{}],
+    open_notepad:["open_notepad",{}],
+    open_task_manager:["open_task_manager",{}],
+    get_processes:["get_processes",{}],
+    cpu_usage:["cpu_usage",{}],
+    ram_usage:["ram_usage",{}],
+    disk_usage:["disk_usage",{}],
+    search_files:["search_files",p=>({query:p.query})],
+    open_file_location:["open_file_location",p=>({query:p.query})],
+    get_file_info:["get_file_info",p=>({query:p.query})],
+    zip_files:["zip_files",p=>({query:p.query})],
+    unzip_file:["unzip_file",p=>({query:p.query})],
+    read_text_file:["read_text_file",p=>({query:p.query})],
+    create_folder:["create_folder",p=>({base:p.base,path:p.path})],
+    create_file:["create_file",p=>({base:p.base,path:p.path,content:p.content})],
+    show_notification:["show_notification",p=>({title:p.title,message:p.message})],
+    set_timer:["set_timer",p=>({seconds:p.seconds,label:p.label})],
+    cancel_timer:["cancel_timer",p=>({id:p.id})]
+  };
   const CLOUD_COMMANDS_BY_PLATFORM = {
-    windows: new Set([...CLOUD_SHARED_COMMANDS, ...["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]]),
+    windows: new Set([...CLOUD_SHARED_COMMANDS, ...CLOUD_WINDOWS_CONTROL_COMMANDS]),
     android: new Set([...CLOUD_SHARED_COMMANDS, ...["android_open_accessibility_settings","android_back","android_home","android_notifications","android_quick_settings","android_lock_screen","android_volume_up","android_volume_down","android_volume_mute","android_brightness_up","android_brightness_down","android_open_wifi_settings","android_open_bluetooth_settings","android_open_display_settings","android_open_sound_settings","android_open_battery_settings","android_open_app_settings"]])
   };
   async function processCloudCommand(c){
@@ -1093,7 +1147,11 @@
         if(cloudPlatform()!=="windows")throw new Error("El brillo remoto solo está disponible en Windows.");
         result=await executeDesktopArtifact("brightness_down");
       }
-      else throw new Error("Acción todavía no implementada en este cliente.");
+      else if(cloudPlatform()==="windows"&&CLOUD_WINDOWS_ARTIFACTS[c.command]){
+        const [artifact,argsFactory]=CLOUD_WINDOWS_ARTIFACTS[c.command];
+        const args=typeof argsFactory==="function"?argsFactory(c.payload||{}):argsFactory;
+        result=await executeDesktopArtifact(artifact,args);
+      }else throw new Error("Acción todavía no implementada en este cliente.");
       await db.from("qbit_device_commands").update({status:"completed",result:{message:String(result?.message||JSON.stringify(result)||"Completado").slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);
     }catch(e){await db.from("qbit_device_commands").update({status:"failed",error_message:String(e?.message||e).slice(0,500),result:{message:String(e?.message||e).slice(0,7000)},completed_at:new Date().toISOString()}).eq("id",c.id);}
   }
@@ -1115,7 +1173,19 @@
     return new Date(time).toLocaleString("es-AR");
   }
   function cloudCommandLabel(command){
-    return ({get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",brightness_up:"Subir brillo",brightness_down:"Bajar brillo",lock_pc:"Bloquear PC",android_open_accessibility_settings:"Configurar accesibilidad",android_back:"Atrás",android_home:"Inicio",android_notifications:"Abrir notificaciones",android_quick_settings:"Ajustes rápidos",android_lock_screen:"Bloquear teléfono",android_volume_up:"Subir volumen del teléfono",android_volume_down:"Bajar volumen del teléfono",android_volume_mute:"Silenciar teléfono",android_brightness_up:"Subir brillo del teléfono",android_brightness_down:"Bajar brillo del teléfono",android_open_wifi_settings:"Abrir ajustes de Wi-Fi",android_open_bluetooth_settings:"Abrir ajustes de Bluetooth",android_open_display_settings:"Abrir ajustes de pantalla",android_open_sound_settings:"Abrir ajustes de sonido",android_open_battery_settings:"Abrir ajustes de batería",android_open_app_settings:"Abrir ajustes de QBIT"})[command]||String(command||"Acción");
+    return ({
+      get_system_info:"Información del sistema",get_battery_info:"Estado de batería",get_network_info:"Diagnóstico de red",get_display_info:"Pantallas",
+      volume_up:"Subir volumen",volume_down:"Bajar volumen",volume_mute:"Silenciar audio",volume_set:"Fijar volumen",
+      brightness_up:"Subir brillo",brightness_down:"Bajar brillo",brightness_set:"Fijar brillo",lock_pc:"Bloquear PC",
+      toggle_wifi_on:"Activar Wi-Fi",toggle_wifi_off:"Desactivar Wi-Fi",toggle_night_light:"Abrir Luz nocturna",
+      open_settings_system:"Configuración de Windows",open_settings_display:"Ajustes de pantalla",open_settings_sound:"Ajustes de sonido",open_settings_network:"Ajustes de red",open_settings_wifi:"Ajustes de Wi-Fi",open_settings_bluetooth:"Ajustes de Bluetooth",open_settings_apps:"Aplicaciones",open_settings_personalization:"Personalización",open_settings_updates:"Windows Update",open_settings_storage:"Almacenamiento",open_settings_notifications:"Notificaciones",open_settings_privacy:"Privacidad",
+      media_play_pause:"Reproducir / pausar",media_next:"Siguiente pista",media_previous:"Pista anterior",media_stop:"Detener multimedia",
+      minimize_all:"Minimizar ventanas",restore_all:"Restaurar ventanas",focus_app:"Enfocar aplicación",close_window:"Cerrar aplicación",open_anything:"Abrir aplicación o archivo",
+      open_calculator:"Abrir Calculadora",open_notepad:"Abrir Bloc de notas",open_task_manager:"Abrir Administrador de tareas",
+      get_processes:"Procesos activos",cpu_usage:"Uso de CPU",ram_usage:"Uso de RAM",disk_usage:"Espacio en discos",
+      search_files:"Buscar archivos",open_file_location:"Mostrar ubicación de archivo",get_file_info:"Información de archivo",zip_files:"Comprimir en ZIP",unzip_file:"Extraer ZIP",read_text_file:"Leer archivo de texto",create_folder:"Crear carpeta",create_file:"Crear archivo",show_notification:"Enviar notificación",set_timer:"Crear temporizador",cancel_timer:"Cancelar temporizador",
+      android_open_accessibility_settings:"Configurar accesibilidad",android_back:"Atrás",android_home:"Inicio",android_notifications:"Abrir notificaciones",android_quick_settings:"Ajustes rápidos",android_lock_screen:"Bloquear teléfono",android_volume_up:"Subir volumen del teléfono",android_volume_down:"Bajar volumen del teléfono",android_volume_mute:"Silenciar teléfono",android_brightness_up:"Subir brillo del teléfono",android_brightness_down:"Bajar brillo del teléfono",android_open_wifi_settings:"Abrir ajustes de Wi-Fi",android_open_bluetooth_settings:"Abrir ajustes de Bluetooth",android_open_display_settings:"Abrir ajustes de pantalla",android_open_sound_settings:"Abrir ajustes de sonido",android_open_battery_settings:"Abrir ajustes de batería",android_open_app_settings:"Abrir ajustes de QBIT"
+    })[command]||String(command||"Acción");
   }
   function cloudStatusLabel(status){
     return ({pending:"En espera",running:"En ejecución",completed:"Completada",failed:"Falló",cancelled:"Cancelada",expired:"Vencida"})[status]||String(status||"Estado desconocido");
@@ -1125,11 +1195,15 @@
     const section=document.createElement("section");section.className="cloud-detail-section";
     const heading=document.createElement("h3");heading.textContent=title;section.append(heading);
     const actions=document.createElement("div");actions.className="cloud-actions";
-    options.forEach(([command,label,available=true])=>{
+    options.forEach(([command,label,payloadOrAvailable=true])=>{
+      const available=typeof payloadOrAvailable==="boolean"?payloadOrAvailable:true;
       const b=document.createElement("button");b.type="button";b.className="small";b.textContent=label;
-      b.disabled=!available||disabledReason||!deviceOnline(device);
+      b.disabled=!available||!!disabledReason||!deviceOnline(device);
       b.title=disabledReason||(!deviceOnline(device)?"El dispositivo está desconectado":label);
-      if(!b.disabled)b.addEventListener("click",()=>sendCloudCommand(device.id,command));
+      if(!b.disabled)b.addEventListener("click",()=>{
+        if(payloadOrAvailable==="prompt")void promptCloudCommand(device.id,command);
+        else void sendCloudCommand(device.id,command,payloadOrAvailable&&typeof payloadOrAvailable==="object"?payloadOrAvailable:{});
+      });
       actions.append(b);
     });
     section.append(actions);return section;
@@ -1157,8 +1231,34 @@
       [["get_system_info","Sistema"],["get_battery_info","Batería"],["get_network_info","Red"],["get_display_info","Pantalla"]]:[];
     if(diagnostics.length)detail.append(cloudDetailSection("Diagnóstico",diagnostics,d));
     if(platform==="windows"){
-      detail.append(cloudDetailSection("Control de Windows",[["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["brightness_up","Brillo +"],["brightness_down","Brillo −"],["lock_pc","Bloquear PC"]],d,desktopControlEnabled?"":"Activá «Control PC» en la barra superior."));
-      const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="La confirmación se configura por separado para Windows y Android en esta pantalla.";detail.append(hint);
+      const disabled=desktopControlEnabled?"":"Activá «Control PC» en la barra superior.";
+      detail.append(cloudDetailSection("Sonido y pantalla",[
+        ["volume_up","Volumen +"],["volume_down","Volumen −"],["volume_mute","Silenciar"],["volume_set","Fijar volumen…","prompt"],
+        ["brightness_up","Brillo +"],["brightness_down","Brillo −"],["brightness_set","Fijar brillo…","prompt"],
+        ["media_play_pause","Reproducir / pausar"],["media_next","Siguiente pista"],["media_previous","Pista anterior"],["media_stop","Detener multimedia"]
+      ],d,disabled));
+      detail.append(cloudDetailSection("Conexiones y ajustes",[
+        ["toggle_wifi_on","Activar Wi-Fi"],["toggle_wifi_off","Desactivar Wi-Fi"],["toggle_night_light","Luz nocturna"],
+        ["open_settings_system","Sistema"],["open_settings_display","Pantalla"],["open_settings_sound","Sonido"],["open_settings_network","Red"],["open_settings_wifi","Wi-Fi"],["open_settings_bluetooth","Bluetooth"],
+        ["open_settings_apps","Aplicaciones"],["open_settings_personalization","Personalización"],["open_settings_updates","Windows Update"],["open_settings_storage","Almacenamiento"],["open_settings_notifications","Notificaciones"],["open_settings_privacy","Privacidad"]
+      ],d,disabled));
+      detail.append(cloudDetailSection("Ventanas y aplicaciones",[
+        ["minimize_all","Minimizar todo"],["restore_all","Restaurar ventanas"],["open_calculator","Calculadora"],["open_notepad","Bloc de notas"],["open_task_manager","Administrador de tareas"],
+        ["open_anything","Abrir aplicación / archivo…","prompt"],["focus_app","Traer aplicación al frente…","prompt"],["close_window","Cerrar aplicación…","prompt"]
+      ],d,disabled));
+      detail.append(cloudDetailSection("Archivos",[
+        ["search_files","Buscar archivo…","prompt"],["open_file_location","Mostrar ubicación…","prompt"],["get_file_info","Información…","prompt"],
+        ["zip_files","Comprimir ZIP…","prompt"],["unzip_file","Extraer ZIP…","prompt"],["read_text_file","Leer texto…","prompt"],
+        ["create_folder","Crear carpeta…","prompt"],["create_file","Crear archivo…","prompt"]
+      ],d,disabled));
+      detail.append(cloudDetailSection("Rendimiento y procesos",[
+        ["get_processes","Procesos"],["cpu_usage","CPU"],["ram_usage","RAM"],["disk_usage","Discos"]
+      ],d,disabled));
+      detail.append(cloudDetailSection("Notificaciones y temporizadores",[
+        ["show_notification","Enviar notificación…","prompt"],["set_timer","Crear temporizador…","prompt"],["cancel_timer","Cancelar temporizador…","prompt"]
+      ],d,disabled));
+      detail.append(cloudDetailSection("Seguridad",[[ "lock_pc","Bloquear PC" ]],d,disabled));
+      const hint=document.createElement("p");hint.className="muted cloud-device-hint";hint.textContent="Los controles remotos requieren QBIT Desktop abierto en Windows. Cada acción pasa por la confirmación configurada para ese dispositivo; algunas opciones de Windows pueden requerir permisos del sistema.";detail.append(hint);
     }else if(platform==="android"){
       detail.append(cloudDetailSection("Permisos", [["android_open_accessibility_settings","Configurar accesibilidad"]],d));
       detail.append(cloudDetailSection("Navegación", [["android_back","Atrás"],["android_home","Inicio"],["android_notifications","Notificaciones"],["android_quick_settings","Ajustes rápidos"],["android_lock_screen","Bloquear teléfono"]],d));
@@ -1260,7 +1360,33 @@
   $("cloudConfirmAndroid")?.addEventListener("change",e=>{try{localStorage.setItem(REMOTE_CONFIRM_KEYS.android,String(e.target.checked));}catch{}});
   syncRemoteConfirmationToggles();
 
-  async function sendCloudCommand(deviceId,command){
+  async function promptCloudCommand(deviceId,command){
+    const commonQuery=[{name:"query",label:"Nombre de aplicación o archivo",required:true}];
+    const forms={
+      volume_set:{title:"Fijar volumen",fields:[{name:"level",label:"Volumen (0–100)",type:"number",value:"50",min:"0",max:"100",required:true}]},
+      brightness_set:{title:"Fijar brillo",fields:[{name:"level",label:"Brillo (0–100)",type:"number",value:"50",min:"0",max:"100",required:true}]},
+      focus_app:{title:"Traer aplicación al frente",fields:commonQuery},
+      close_window:{title:"Cerrar aplicación",fields:commonQuery},
+      open_anything:{title:"Abrir aplicación o archivo",fields:commonQuery},
+      search_files:{title:"Buscar archivos",fields:commonQuery},
+      open_file_location:{title:"Mostrar ubicación",fields:commonQuery},
+      get_file_info:{title:"Información de archivo",fields:commonQuery},
+      zip_files:{title:"Comprimir archivo",fields:commonQuery},
+      unzip_file:{title:"Extraer archivo ZIP",fields:commonQuery},
+      read_text_file:{title:"Leer archivo de texto",fields:commonQuery},
+      create_folder:{title:"Crear carpeta",fields:[{name:"base",label:"Ubicación",type:"select",value:"documentos",options:[{value:"documentos",label:"Documentos"},{value:"descargas",label:"Descargas"},{value:"escritorio",label:"Escritorio"}]},{name:"path",label:"Nombre o ruta relativa",required:true}]},
+      create_file:{title:"Crear archivo",fields:[{name:"base",label:"Ubicación",type:"select",value:"documentos",options:[{value:"documentos",label:"Documentos"},{value:"descargas",label:"Descargas"},{value:"escritorio",label:"Escritorio"}]},{name:"path",label:"Nombre del archivo",required:true},{name:"content",label:"Contenido",type:"textarea"}]},
+      show_notification:{title:"Enviar notificación",fields:[{name:"title",label:"Título",value:"QBIT"},{name:"message",label:"Mensaje",required:true}]},
+      set_timer:{title:"Crear temporizador",fields:[{name:"seconds",label:"Duración en segundos",type:"number",value:"60",min:"1",max:"86400",required:true},{name:"label",label:"Nombre",value:"Temporizador"}]},
+      cancel_timer:{title:"Cancelar temporizador",fields:[{name:"id",label:"ID del temporizador",value:"default",required:true}]}
+    };
+    const form=forms[command];if(!form)return;
+    const values=await qbitDialog(form.title,form.fields);if(values===null)return;
+    if(values.level!==undefined)values.level=Number(values.level);
+    if(values.seconds!==undefined)values.seconds=Number(values.seconds);
+    await sendCloudCommand(deviceId,command,values);
+  }
+  async function sendCloudCommand(deviceId,command,args={}){
     if(!user)return;
     const target=cloudDevicesCache.find(d=>d.id===deviceId);
     if(!target){alert("No encontré el dispositivo seleccionado. Actualizá la lista e intentá de nuevo.");return;}
@@ -1269,8 +1395,7 @@
       alert("Esta acción no está disponible para "+(platform||"este dispositivo")+".");
       return;
     }
-    const windowsOnlyActions=new Set(["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]);
-    if(platform==="windows"&&windowsOnlyActions.has(command)&&!desktopControlEnabled){
+    if(platform==="windows"&&CLOUD_WINDOWS_CONTROL_COMMANDS.has(command)&&!desktopControlEnabled){
       alert("Activá Control PC en la barra superior antes de enviar acciones remotas.");
       return;
     }
@@ -1279,7 +1404,8 @@
       ?"¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nAl confirmarla acá, QBIT Android la ejecutará en segundo plano."
       :"¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla.";
     if(!skipConfirmation&&!window.confirm(confirmationMessage))return;
-    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:platform==="android"?true:skipConfirmation}});
+    const safeArgs=args&&typeof args==="object"&&!Array.isArray(args)?args:{};
+    const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{...safeArgs,skip_confirmation:platform==="android"?true:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
     const status=$("cloudStatus");
     if(status)status.textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y "+(platform==="android"?"tener activo el agente en segundo plano.":"tener QBIT abierto.");
