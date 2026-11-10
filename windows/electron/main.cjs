@@ -525,6 +525,7 @@ ipcMain.handle("qbit:web-artifact-result",(e,id,result)=>{
   if(pending.socket.readyState===WebSocket.OPEN)pending.socket.send(JSON.stringify({type:"web_artifact_result",id:key,ok:true,result:String(result||"")}));
   return {ok:true};
 });
+ipcMain.handle("qbit:show-window",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");mainWindow.show();mainWindow.focus();return {ok:true};});
 ipcMain.handle("qbit:connector-start",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return startConnectorServer();});
 ipcMain.handle("qbit:connector-stop",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return stopConnectorServer();});
 ipcMain.handle("qbit:connector-status",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return {running:!!connectorServer,connected:connectorConnected()};});
