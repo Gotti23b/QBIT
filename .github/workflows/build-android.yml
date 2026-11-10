@@ -56,7 +56,7 @@ jobs:
           source = gradle.read_text()
           dependency = '    implementation "com.squareup.okhttp3:okhttp:4.12.0"'
           if "com.squareup.okhttp3:okhttp" not in source:
-              source = source.replace("dependencies {", "dependencies {\\n" + dependency, 1)
+              source = source.replace("dependencies {", "dependencies {\n" + dependency, 1)
           gradle.write_text(source)
           PY
 
