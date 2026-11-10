@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -133,6 +133,62 @@ ipcMain.handle("qbit:app-version", () => app.getVersion());
 function getAppRoot() {
   const candidates = [path.join(__dirname, ".."), path.join(__dirname, "..", "..")];
   return candidates.find(candidate => fs.existsSync(path.join(candidate, "index.html"))) || candidates[0];
+}
+
+// Captura de pantalla para Remote Desktop. Nunca se concede automáticamente:
+// el usuario debe elegir una pantalla en un diálogo nativo de Windows.
+function setupDisplayCapture() {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowed = permission === "display-capture" &&
+      !!mainWindow && !mainWindow.isDestroyed() &&
+      webContents === mainWindow.webContents;
+    callback(allowed);
+  });
+
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed() ||
+          !request?.videoRequested ||
+          !request.frame ||
+          request.frame.url !== mainWindow.webContents.getURL()) {
+        callback(null);
+        return;
+      }
+
+      const sources = await desktopCapturer.getSources({
+        types: ["screen"],
+        thumbnailSize: { width: 0, height: 0 }
+      });
+      if (!sources.length) {
+        callback(null);
+        return;
+      }
+
+      const choices = sources.slice(0, 8);
+      const buttons = choices.map((source, index) =>
+        (index + 1) + ". " + (source.name || ("Pantalla " + (index + 1)))
+      );
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "question",
+        title: "Compartir pantalla con QBIT",
+        message: "Elegí qué pantalla querés compartir",
+        detail: "Solo se transmitirá la pantalla que selecciones. Podés detener la conexión desde QBIT.",
+        buttons: [...buttons, "Cancelar"],
+        defaultId: 0,
+        cancelId: choices.length,
+        noLink: true
+      });
+
+      if (response < 0 || response >= choices.length) {
+        callback(null);
+        return;
+      }
+      callback({ video: choices[response] });
+    } catch (error) {
+      console.warn("[QBIT Remote] No se pudo seleccionar la pantalla:", error?.message || error);
+      callback(null);
+    }
+  });
 }
 
 const PET_SMALL = { width: 116, height: 116 };
@@ -779,6 +835,7 @@ ipcMain.handle("qbit:automation", async (_event, taskName) => {
 
 app.whenReady().then(() => {
   app.setAppUserModelId("com.gotti23b.qbit");
+  setupDisplayCapture();
   startConnectorServer().catch(error=>console.warn("[QBIT] No se pudo iniciar el puente local automáticamente:",error.message||error));
   loadPetSettings();
   createTray();
