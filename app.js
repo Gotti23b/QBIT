@@ -884,7 +884,7 @@
   // QBIT Cloud: registro, presencia y cola de acciones remotas con confirmación local.
   let cloudDeviceId=null,cloudTimer=null,cloudBusy=false,cloudPollBusy=false,cloudRefreshBusy=false;
   let cloudCommandChannel=null,cloudRealtimeConnected=false,cloudRealtimeStarting=false,cloudLastFallbackPollAt=0;
-  let remoteHostCode=null,remoteHostCodeExpires=0,remoteHostPeer=null,remoteHostStream=null,remoteHostSessionId=null,remoteHostBanner=null;
+  let remoteHostCode=null,remoteHostCodeExpires=0,remoteHostPeer=null,remoteHostStream=null,remoteHostSessionId=null,remoteHostBanner=null,remoteHostPendingIce=[];
   function remoteSend(channel,event,payload){return channel.send({type:"broadcast",event,payload});}
   function removeRemoteHostBanner(){
     if(remoteHostBanner){remoteHostBanner.remove();remoteHostBanner=null;}
@@ -901,6 +901,7 @@
     const sessionId=remoteHostSessionId;
     if(sendSignal&&sessionId&&cloudCommandChannel)try{await remoteSend(cloudCommandChannel,"qbit_remote_stop",{sessionId,from:"host"});}catch{}
     if(remoteHostPeer){try{remoteHostPeer.close();}catch{}remoteHostPeer=null;}
+    remoteHostPendingIce=[];
     if(remoteHostStream){remoteHostStream.getTracks().forEach(track=>{try{track.stop();}catch{}});remoteHostStream=null;}
     remoteHostSessionId=null;remoteHostCode=null;remoteHostCodeExpires=0;removeRemoteHostBanner();
   }
@@ -932,7 +933,7 @@
       if(!stream.getVideoTracks().length)throw new Error("Windows no entregó una pantalla para compartir.");
       remoteHostStream=stream;
       const peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
-      remoteHostPeer=peer;
+      remoteHostPeer=peer;remoteHostPendingIce=[];
       stream.getTracks().forEach(track=>{peer.addTrack(track,stream);track.addEventListener("ended",()=>void stopRemoteHost(true),{once:true});});
       peer.onicecandidate=event=>{if(event.candidate&&remoteHostSessionId===sessionId)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"host",candidate:event.candidate.toJSON()}).catch(()=>{});};
       peer.onconnectionstatechange=()=>{if(["failed","closed"].includes(peer.connectionState)&&remoteHostPeer===peer)void stopRemoteHost(false);};
@@ -962,11 +963,11 @@
       channel.on("broadcast",{event:"qbit_remote_request"},event=>void handleRemoteRequest(event?.payload,channel));
       channel.on("broadcast",{event:"qbit_remote_answer"},async event=>{
         const p=event?.payload;if(!p||p.sessionId!==remoteHostSessionId||!remoteHostPeer||p.from!=="viewer")return;
-        try{await remoteHostPeer.setRemoteDescription(new RTCSessionDescription(p.sdp));}catch(error){console.warn("[QBIT Remote] No se pudo aceptar la respuesta:",error?.message||error);}
+        try{await remoteHostPeer.setRemoteDescription(new RTCSessionDescription(p.sdp));for(const candidate of remoteHostPendingIce.splice(0))await remoteHostPeer.addIceCandidate(new RTCIceCandidate(candidate));}catch(error){console.warn("[QBIT Remote] No se pudo aceptar la respuesta:",error?.message||error);}
       });
       channel.on("broadcast",{event:"qbit_remote_ice"},async event=>{
         const p=event?.payload;if(!p||p.sessionId!==remoteHostSessionId||p.from!=="viewer"||!remoteHostPeer||!p.candidate)return;
-        try{await remoteHostPeer.addIceCandidate(new RTCIceCandidate(p.candidate));}catch(error){console.warn("[QBIT Remote] ICE:",error?.message||error);}
+        try{if(remoteHostPeer.remoteDescription)await remoteHostPeer.addIceCandidate(new RTCIceCandidate(p.candidate));else remoteHostPendingIce.push(p.candidate);}catch(error){console.warn("[QBIT Remote] ICE:",error?.message||error);}
       });
       channel.on("broadcast",{event:"qbit_remote_stop"},event=>{
         const p=event?.payload;if(p?.sessionId===remoteHostSessionId&&p.from==="viewer")void stopRemoteHost(false);
