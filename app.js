@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.46";
+  const QBIT_VERSION = "1.5.47";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -983,22 +983,41 @@
       console.warn("[QBIT Cloud] Realtime no disponible; se mantiene la consulta de respaldo:",e?.message||e);
     }finally{cloudRealtimeStarting=false;}
   }
+  async function getCloudAppVersion(){
+    const platform=cloudPlatform();
+    try{
+      if(platform==="windows"&&window.qbitPC?.getAppVersion){
+        const value=await window.qbitPC.getAppVersion();
+        return String(typeof value==="string"?value:value?.version||QBIT_VERSION);
+      }
+      if(platform==="android"){
+        const native=window.Capacitor?.Plugins?.QBITControl;
+        if(native?.getAppVersion){
+          const value=await native.getAppVersion();
+          if(value?.version)return String(value.version);
+        }
+      }
+    }catch(error){console.warn("[QBIT Cloud] No se pudo leer la versión nativa:",error?.message||error);}
+    return QBIT_VERSION;
+  }
   async function startCloudPresence(){
     if(!user||cloudBusy)return;cloudBusy=true;
     try{
-      const key="qbit-cloud-device-id";let saved=null;try{saved=localStorage.getItem(key);}catch{}
+      const key="qbit-cloud-device-id",platform=cloudPlatform(),appVersion=await getCloudAppVersion();
+      let saved=null;try{saved=localStorage.getItem(key);}catch{}
       let existing=null;
       if(saved){const q=await db.from("qbit_devices").select("id").eq("id",saved).eq("user_id",user.id).maybeSingle();if(q.data)existing=q.data;}
-      if(existing){cloudDeviceId=existing.id;await db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);}
-      else{
-        const platform=cloudPlatform();
+      if(existing){
+        cloudDeviceId=existing.id;
+        const updated=await db.from("qbit_devices").update({app_version:appVersion,is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId).eq("user_id",user.id);
+        if(updated.error)throw updated.error;
+      }else{
         let name=platform==="windows"?"QBIT Windows":platform==="android"?"QBIT Android":"QBIT Web";
         if(platform==="windows"&&window.qbitPC?.getStatus){try{const info=await window.qbitPC.getStatus();if(info?.computer)name="QBIT Windows · "+String(info.computer).slice(0,55);}catch{}}
-        const appVersion=window.qbitPC?.getAppVersion?await window.qbitPC.getAppVersion().catch(()=>null):QBIT_VERSION;
-        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion||QBIT_VERSION,is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
+        const created=await db.from("qbit_devices").insert({user_id:user.id,name,platform,app_version:appVersion,is_online:true,last_seen_at:new Date().toISOString(),device_info:{client:"QBIT"}}).select("id").single();
         if(created.error)throw created.error;cloudDeviceId=created.data.id;try{localStorage.setItem(key,cloudDeviceId);}catch{}
       }
-      if(cloudPlatform()==="android"){
+      if(platform==="android"){
         const native=window.Capacitor?.Plugins?.QBITControl;
         const auth=await db.auth.getSession();
         const activeSession=auth?.data?.session;
@@ -1007,15 +1026,22 @@
         await native.startBackgroundAgent({deviceId:cloudDeviceId,accessToken:activeSession.access_token,refreshToken:activeSession.refresh_token});
       }
       if(cloudTimer)clearInterval(cloudTimer);
-      cloudTimer=setInterval(()=>{
+      cloudTimer=setInterval(async()=>{
         if(!user||!cloudDeviceId)return;
-        void db.from("qbit_devices").update({is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId);
-        if(cloudPlatform()==="windows"){
+        const heartbeat=await db.from("qbit_devices").update({app_version:appVersion,is_online:true,last_seen_at:new Date().toISOString()}).eq("id",cloudDeviceId).eq("user_id",user.id).select("id").maybeSingle();
+        if(heartbeat.error){console.warn("[QBIT Cloud] No se pudo actualizar la presencia:",heartbeat.error.message);return;}
+        if(!heartbeat.data){
+          cloudDeviceId=null;
+          try{localStorage.removeItem(key);}catch{}
+          void startCloudPresence();
+          return;
+        }
+        if(platform==="windows"){
           if(!cloudRealtimeConnected||Date.now()-cloudLastFallbackPollAt>=60000)void pollCloudCommands();
           if(!cloudCommandChannel)void subscribeCloudCommands();
         }
       },15000);
-      if(cloudPlatform()==="windows"){void subscribeCloudCommands();void pollCloudCommands();}
+      if(platform==="windows"){void subscribeCloudCommands();void pollCloudCommands();}
     }catch(e){console.warn("[QBIT Cloud]",e?.message||e);const s=$("cloudStatus");if(s)s.textContent="No se pudo conectar: "+(e?.message||"error");}
     finally{cloudBusy=false;}
   }
@@ -1462,6 +1488,28 @@
       const note=document.createElement("p");note.className="muted cloud-device-hint";note.textContent="El navegador informa presencia, pero no ejecuta acciones del sistema.";detail.append(note);
     }
   }
+  async function deleteCloudDevice(device){
+    if(!user||!device?.id)return;
+    const label=device.name||"este dispositivo";
+    if(!window.confirm("¿Borrar "+label+" de tus dispositivos vinculados?\n\nSe eliminará también su historial de acciones. Si vuelve a conectarse a QBIT, aparecerá nuevamente."))return;
+    try{
+      const commands=await db.from("qbit_device_commands").delete().eq("device_id",device.id).eq("user_id",user.id);
+      if(commands.error)throw commands.error;
+      const removed=await db.from("qbit_devices").delete().eq("id",device.id).eq("user_id",user.id).select("id").maybeSingle();
+      if(removed.error)throw removed.error;
+      if(!removed.data)throw new Error("No se encontró el dispositivo o no tenés permiso para borrarlo.");
+      cloudDevicesCache=cloudDevicesCache.filter(item=>item.id!==device.id);
+      if(selectedCloudDeviceId===device.id)selectedCloudDeviceId=null;
+      if(cloudDeviceId===device.id){
+        cloudDeviceId=null;
+        try{localStorage.removeItem("qbit-cloud-device-id");}catch{}
+      }
+      renderCloudDevices();
+      const status=$("cloudStatus");if(status)status.textContent="Dispositivo eliminado. Si vuelve a conectarse a QBIT, aparecerá nuevamente.";
+    }catch(error){
+      alert("No se pudo borrar el dispositivo: "+(error?.message||"error desconocido"));
+    }
+  }
   function renderCloudDevices(){
     syncRemoteConfirmationToggles();
     const list=$("cloudDeviceList"),summary=$("cloudSummary"),detail=$("cloudDeviceDetail");
@@ -1498,7 +1546,9 @@
       const last=document.createElement("p");last.className="cloud-last-seen";last.textContent="Última conexión: "+cloudTimeLabel(d.last_seen_at);
       const action=document.createElement("span");action.className="cloud-open-label";action.textContent="Ver controles →";
       open.append(head,last,action);open.addEventListener("click",()=>{selectedCloudDeviceId=d.id;renderCloudDevices();});
-      card.append(open);list.append(card);
+      const actions=document.createElement("div");actions.className="cloud-device-card-actions";
+      const remove=document.createElement("button");remove.type="button";remove.className="small danger cloud-device-delete";remove.textContent="Borrar dispositivo";remove.addEventListener("click",()=>void deleteCloudDevice(d));
+      actions.append(remove);card.append(open,actions);list.append(card);
     }
     if(detail){const hasSelection=!!selectedCloudDeviceId;list.classList.toggle("hidden",hasSelection);detail.classList.toggle("hidden",!hasSelection);if(hasSelection&&!detail.querySelector("[data-remote-code], [data-remote-input], video"))renderCloudDeviceDetail();}
   }
