@@ -1275,7 +1275,10 @@
       return;
     }
     const skipConfirmation=(platform==="windows"||platform==="android")&&!remoteConfirmationRequired(platform);
-    if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
+    const confirmationMessage=platform==="android"
+      ?"¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nAl confirmarla acá, QBIT Android la ejecutará en segundo plano."
+      :"¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla.";
+    if(!skipConfirmation&&!window.confirm(confirmationMessage))return;
     const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:platform==="android"?true:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
     const status=$("cloudStatus");
