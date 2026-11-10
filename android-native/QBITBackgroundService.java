@@ -27,12 +27,11 @@ import android.view.WindowManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -42,6 +41,7 @@ import java.util.TimeZone;
 import java.text.SimpleDateFormat;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -61,6 +61,9 @@ public class QBITBackgroundService extends Service {
     private static final long HEARTBEAT_INTERVAL_MS = 20000L;
     private static final String KEY_ALIAS = "qbit_background_agent_key";
 
+    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS).writeTimeout(12, TimeUnit.SECONDS).build();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean polling = false;
@@ -138,7 +141,7 @@ public class QBITBackgroundService extends Service {
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
             ? new Notification.Builder(this, CHANNEL)
             : new Notification.Builder(this);
-        builder.setSmallIcon(getApplicationInfo().icon)
+        builder.setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("QBIT · Agente activo")
             .setContentText(message)
             .setOngoing(true)
@@ -302,64 +305,40 @@ public class QBITBackgroundService extends Service {
     }
 
     private String api(String method, String path, JSONObject body, String prefer) throws Exception {
-        HttpURLConnection connection = null;
-        try {
-            URL url = new URL(SUPABASE_URL + path);
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod(method);
-            connection.setConnectTimeout(12000);
-            connection.setReadTimeout(12000);
-            connection.setRequestProperty("apikey", SUPABASE_KEY);
-            connection.setRequestProperty("Authorization", "Bearer " + accessToken);
-            connection.setRequestProperty("Accept", "application/json");
-            if (prefer != null) connection.setRequestProperty("Prefer", prefer);
-            if (body != null) {
-                connection.setDoOutput(true);
-                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
-                try (OutputStream output = connection.getOutputStream()) { output.write(bytes); }
-            }
-            int status = connection.getResponseCode();
-            if (status == 401 && refreshAccessToken()) return api(method, path, body, prefer);
-            InputStream stream = status >= 200 && status < 300 ? connection.getInputStream() : connection.getErrorStream();
-            String response = read(stream);
-            if (status < 200 || status >= 300) throw new Exception("Supabase HTTP " + status + ": " + response);
-            return response;
-        } finally {
-            if (connection != null) connection.disconnect();
+        RequestBody requestBody = body == null ? null : RequestBody.create(body.toString(), JSON);
+        Request.Builder builder = new Request.Builder()
+            .url(SUPABASE_URL + path)
+            .header("apikey", SUPABASE_KEY)
+            .header("Authorization", "Bearer " + accessToken)
+            .header("Accept", "application/json")
+            .method(method, requestBody);
+        if (prefer != null) builder.header("Prefer", prefer);
+        try (Response response = httpClient.newCall(builder.build()).execute()) {
+            String responseText = response.body() == null ? "" : response.body().string();
+            if (response.code() == 401 && refreshAccessToken()) return api(method, path, body, prefer);
+            if (!response.isSuccessful()) throw new Exception("Supabase HTTP " + response.code() + ": " + responseText);
+            return responseText;
         }
     }
 
     private boolean refreshAccessToken() {
         try {
-            HttpURLConnection connection = (HttpURLConnection) new URL(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token").openConnection();
-            connection.setRequestMethod("POST");
-            connection.setConnectTimeout(12000);
-            connection.setReadTimeout(12000);
-            connection.setDoOutput(true);
-            connection.setRequestProperty("apikey", SUPABASE_KEY);
-            connection.setRequestProperty("Content-Type", "application/json");
             JSONObject body = new JSONObject().put("refresh_token", refreshToken);
-            try (OutputStream output = connection.getOutputStream()) { output.write(body.toString().getBytes(StandardCharsets.UTF_8)); }
-            int status = connection.getResponseCode();
-            String response = read(status >= 200 && status < 300 ? connection.getInputStream() : connection.getErrorStream());
-            if (status < 200 || status >= 300) return false;
-            JSONObject session = new JSONObject(response);
-            accessToken = session.getString("access_token");
-            refreshToken = session.optString("refresh_token", refreshToken);
-            saveCredentials();
-            return true;
+            Request request = new Request.Builder()
+                .url(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token")
+                .header("apikey", SUPABASE_KEY)
+                .header("Content-Type", "application/json")
+                .post(RequestBody.create(body.toString(), JSON))
+                .build();
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) return false;
+                JSONObject session = new JSONObject(response.body().string());
+                accessToken = session.getString("access_token");
+                refreshToken = session.optString("refresh_token", refreshToken);
+                saveCredentials();
+                return true;
+            }
         } catch (Exception ignored) { return false; }
-    }
-
-    private static String read(InputStream stream) throws Exception {
-        if (stream == null) return "";
-        StringBuilder result = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = reader.readLine()) != null) result.append(line);
-        }
-        return result.toString();
     }
 
     private static String enc(String value) throws Exception {
