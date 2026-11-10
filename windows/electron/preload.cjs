@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 const petListeners = new Map();
 contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   isDesktop: true,
+  showWindow: () => ipcRenderer.invoke("qbit:show-window"),
   startConnector: () => ipcRenderer.invoke("qbit:connector-start"),
   stopConnector: () => ipcRenderer.invoke("qbit:connector-stop"),
   getConnectorStatus: () => ipcRenderer.invoke("qbit:connector-status"),
