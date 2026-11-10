@@ -1500,10 +1500,6 @@
       if(!removed.data)throw new Error("No se encontró el dispositivo o no tenés permiso para borrarlo.");
       cloudDevicesCache=cloudDevicesCache.filter(item=>item.id!==device.id);
       if(selectedCloudDeviceId===device.id)selectedCloudDeviceId=null;
-      if(cloudDeviceId===device.id){
-        cloudDeviceId=null;
-        try{localStorage.removeItem("qbit-cloud-device-id");}catch{}
-      }
       renderCloudDevices();
       const status=$("cloudStatus");if(status)status.textContent="Dispositivo eliminado. Si vuelve a conectarse a QBIT, aparecerá nuevamente.";
     }catch(error){
