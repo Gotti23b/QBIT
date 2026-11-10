@@ -21,10 +21,25 @@
   <div id="updateBar" class="update-bar hidden"><button id="updateBtn" class="small" type="button" title="Buscar actualizaciones de QBIT">⟳ <span id="updateVersion">v…</span></button><span id="updateStatus" class="muted" aria-live="polite"></span></div>
   <div id="userBar" class="row hidden" style="flex:0 1 auto"><span id="userEmail" class="muted"></span><span id="desktopControlStatus" class="desktop-control-status" aria-live="polite">Extensión no detectada</span><button id="desktopControlToggle" class="small desktop-control-toggle" type="button" aria-pressed="false">Control PC · OFF</button></div>
 </header>
-<section id="loginView" class="card login hidden" aria-hidden="true"></section>
+<section id="loginView" class="card login" aria-hidden="false">
+  <div class="login-mark"><img src="qbit-icon.svg" alt=""><span>QBIT</span></div>
+  <span class="login-eyebrow">TU ESPACIO, EN TODOS TUS DISPOSITIVOS</span>
+  <h2 id="authTitle">Iniciar sesión</h2>
+  <p class="login-description">Entrá con tu cuenta para sincronizar tus dispositivos y continuar donde lo dejaste.</p>
+  <form id="authForm" class="auth-form">
+    <label for="authEmail">Correo electrónico</label>
+    <input id="authEmail" type="email" autocomplete="email" placeholder="tu@correo.com" required>
+    <label for="authPassword">Contraseña</label>
+    <input id="authPassword" type="password" autocomplete="current-password" placeholder="Tu contraseña" minlength="6" required>
+    <button id="authSubmit" class="primary auth-submit" type="submit">Iniciar sesión</button>
+  </form>
+  <button id="authModeToggle" class="auth-mode-toggle" type="button">Crear una cuenta</button>
+  <div class="login-divider"><span>O TAMBIÉN</span></div>
+  <button id="continueGuestBtn" class="auth-guest-button" type="button">Continuar como invitado</button>
+  <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
+</section>
 <section id="appView" class="hidden">
   <div class="app-shell">
-    <div id="guestAccessNotice" class="guest-access-notice" role="status"><span id="guestAccessStatus">Conectando con QBIT…</span><button id="guestRetryBtn" class="small" type="button">Reintentar</button></div>
     <button id="mobileSidebarBackdrop" class="mobile-sidebar-backdrop" type="button" aria-label="Cerrar menú" tabindex="-1"></button>
     <aside id="mainSidebar" class="sidebar" aria-label="Navegación principal">
       <div class="sidebar-brand">
@@ -69,8 +84,9 @@
         <div class="sidebar-account">
           <span class="sidebar-account-avatar">Q</span>
           <span class="sidebar-account-copy"><strong id="sidebarAccountName">Invitado</strong><small id="sidebarAccountDetail">Cuenta QBIT</small></span>
-          <span class="sidebar-version">1.5.36</span>
+          <span class="sidebar-version">1.5.37</span>
         </div>
+        <button id="logoutBtn" class="sidebar-update-button" type="button">↪ Cambiar cuenta / salir</button>
         <div class="sidebar-update">
           <button id="androidReleasePageUpdateButton" class="sidebar-update-button" type="button">⟳ Buscar actualizaciones</button>
           <span id="androidReleasePageStatus" class="sidebar-update-status" aria-live="polite">QBIT está listo.</span>
@@ -149,7 +165,7 @@
   </section>
       <div class="desktop-dock" aria-label="Estado de QBIT">
         <div class="dock-left"><span class="dock-prompt">›_</span><strong>ACTIVIDAD</strong><span class="dock-muted">No hay procesos en ejecución</span></div>
-        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.36</span></div>
+        <div class="dock-right"><span class="status-dot"></span><span>Backend listo</span><span class="dock-separator"></span><span class="dock-muted">QBIT Desktop · v1.5.37</span></div>
       </div>
     </main>
   </div>
