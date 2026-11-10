@@ -48,6 +48,18 @@ jobs:
         working-directory: config
         run: npx cap add android
 
+      - name: Add native background networking dependency
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          gradle = Path("config/android/app/build.gradle")
+          source = gradle.read_text()
+          dependency = '    implementation "com.squareup.okhttp3:okhttp:4.12.0"'
+          if "com.squareup.okhttp3:okhttp" not in source:
+              source = source.replace("dependencies {", "dependencies {\\n" + dependency, 1)
+          gradle.write_text(source)
+          PY
+
       - name: Install QBIT Android control service
         run: |
           set -e
