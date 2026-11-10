@@ -22,6 +22,33 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class QBITControlPlugin extends Plugin {
 
     @PluginMethod
+    public void startBackgroundAgent(PluginCall call) {
+        String deviceId = call.getString("deviceId", "");
+        String accessToken = call.getString("accessToken", "");
+        String refreshToken = call.getString("refreshToken", "");
+        if (deviceId.isEmpty() || accessToken.isEmpty() || refreshToken.isEmpty()) { call.reject("Faltan los datos de sesión para iniciar el agente."); return; }
+        try {
+            Intent intent = new Intent(getContext(), QBITBackgroundService.class);
+            intent.putExtra("deviceId", deviceId); intent.putExtra("accessToken", accessToken); intent.putExtra("refreshToken", refreshToken);
+            if (Build.VERSION.SDK_INT >= 26) getContext().startForegroundService(intent); else getContext().startService(intent);
+            JSObject result = new JSObject(); result.put("enabled", true); result.put("message", "Agente de QBIT iniciado en segundo plano."); call.resolve(result);
+        } catch (Exception error) { call.reject("No se pudo iniciar el agente en segundo plano.", error); }
+    }
+
+    @PluginMethod
+    public void stopBackgroundAgent(PluginCall call) {
+        try {
+            Intent intent = new Intent(getContext(), QBITBackgroundService.class); intent.setAction("com.gotti23b.qbit.STOP_BACKGROUND_AGENT");
+            getContext().startService(intent); JSObject result = new JSObject(); result.put("enabled", false); call.resolve(result);
+        } catch (Exception error) { call.reject("No se pudo detener el agente en segundo plano.", error); }
+    }
+
+    @PluginMethod
+    public void getBackgroundAgentStatus(PluginCall call) {
+        JSObject result = new JSObject(); result.put("enabled", QBITBackgroundService.isEnabled(getContext())); call.resolve(result);
+    }
+
+    @PluginMethod
     public void downloadApk(PluginCall call) {
         String url = call.getString("url", "");
         String version = call.getString("version", "latest");
