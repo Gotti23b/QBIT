@@ -1279,7 +1279,7 @@
     const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
     const status=$("cloudStatus");
-    if(status)status.textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener QBIT abierto.";
+    if(status)status.textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener activo el agente en segundo plano.";
     await refreshCloudDevices();
   }
   $("cloudRefresh")?.addEventListener("click",()=>void refreshCloudDevices());
