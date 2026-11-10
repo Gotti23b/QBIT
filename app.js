@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.47";
+  const QBIT_VERSION = "1.5.48";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -935,8 +935,16 @@
       const peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
       remoteHostPeer=peer;remoteHostPendingIce=[];
       stream.getTracks().forEach(track=>{peer.addTrack(track,stream);track.addEventListener("ended",()=>void stopRemoteHost(true),{once:true});});
+      // Preferir VP8 en ambos extremos evita negociar formatos que algunos navegadores no decodifican.
+      const senderCaps=window.RTCRtpSender?.getCapabilities?.("video");
+      const videoSenderTransceiver=peer.getTransceivers().find(item=>item.sender?.track?.kind==="video");
+      if(senderCaps?.codecs?.length&&videoSenderTransceiver?.setCodecPreferences){
+        const rank=codec=>{const mime=String(codec.mimeType||"").toLowerCase();return mime==="video/vp8"?0:mime==="video/h264"?1:mime==="video/vp9"?2:mime==="video/av1"?3:mime==="video/rtx"?5:4;};
+        videoSenderTransceiver.setCodecPreferences([...senderCaps.codecs].sort((a,b)=>rank(a)-rank(b)));
+      }
       peer.onicecandidate=event=>{if(event.candidate&&remoteHostSessionId===sessionId)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"host",candidate:event.candidate.toJSON()}).catch(()=>{});};
-      peer.onconnectionstatechange=()=>{if(["failed","closed"].includes(peer.connectionState)&&remoteHostPeer===peer)void stopRemoteHost(false);};
+      peer.onconnectionstatechange=()=>{console.info("[QBIT Remote][Windows] Estado WebRTC:",peer.connectionState);if(["failed","closed"].includes(peer.connectionState)&&remoteHostPeer===peer)void stopRemoteHost(false);};
+      peer.oniceconnectionstatechange=()=>console.info("[QBIT Remote][Windows] Estado ICE:",peer.iceConnectionState);
       const offer=await peer.createOffer();
       await peer.setLocalDescription(offer);
       await remoteSend(channel,"qbit_remote_offer",{sessionId,sdp:peer.localDescription});
@@ -1334,10 +1342,14 @@
     toolbar.append(fullscreen,stop);frame.append(video,toolbar);container.replaceChildren(status,frame);
     const updateFullscreenLabel=()=>{fullscreen.textContent=document.fullscreenElement===frame?"⛶ Salir de pantalla completa":"⛶ Pantalla completa";};
     document.addEventListener("fullscreenchange",updateFullscreenLabel);
+    video.addEventListener("loadedmetadata",()=>{status.textContent="Video recibido · "+video.videoWidth+"×"+video.videoHeight+" · esperando reproducción…";});
     video.addEventListener("playing",()=>{status.textContent="Pantalla de Windows en vivo · Solo visualización";});
     video.addEventListener("error",()=>{
-      const code=video.error?.code;
-      status.textContent="El navegador no pudo reproducir el video"+(code?" (error "+code+")":"")+". Puede ser una incompatibilidad de códec.";
+      const mediaError=video.error;
+      const code=mediaError?.code;
+      const detail=mediaError?.message||"sin detalle del navegador";
+      status.textContent="Error al reproducir video (MediaError "+(code||"desconocido")+"): "+detail;
+      console.error("[QBIT Remote][Viewer] Error de reproducción:",{code,detail,readyState:video.readyState,networkState:video.networkState});
     });
     let pendingIce=[];
     async function cleanup(message,sendStop){
@@ -1354,18 +1366,25 @@
       channel=db.channel("device:"+deviceId,{config:{private:true}});
       peer=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
       peer.ontrack=event=>{
+        console.info("[QBIT Remote][Viewer] Pista recibida:",{kind:event.track?.kind,muted:event.track?.muted,streams:event.streams?.length});
         const stream=event.streams?.[0]||new MediaStream([event.track]);
         video.srcObject=stream;
-        void video.play().catch(error=>{status.textContent="El navegador recibió el video, pero no pudo reproducirlo: "+(error?.message||"formato no compatible");});
+        status.textContent="Chrome recibió la pista de video · preparando reproducción…";
+        event.track.addEventListener("unmute",()=>console.info("[QBIT Remote][Viewer] La pista de video está activa."),{once:true});
+        void video.play().catch(error=>{
+          status.textContent="El navegador recibió el video, pero falló la reproducción: "+(error?.name||"Error")+" · "+(error?.message||"sin detalle");
+          console.error("[QBIT Remote][Viewer] video.play() falló:",error);
+        });
       };
       const videoCaps=window.RTCRtpReceiver?.getCapabilities?.("video");
       const videoTransceiver=peer.addTransceiver("video",{direction:"recvonly"});
       if(videoCaps?.codecs?.length&&videoTransceiver.setCodecPreferences){
-        const rank=codec=>{const mime=String(codec.mimeType||"").toLowerCase();return mime==="video/vp8"?0:mime==="video/h264"?1:mime==="video/vp9"?2:mime==="video/av1"?3:4;};
+        const rank=codec=>{const mime=String(codec.mimeType||"").toLowerCase();return mime==="video/vp8"?0:mime==="video/h264"?1:mime==="video/vp9"?2:mime==="video/av1"?3:mime==="video/rtx"?5:4;};
         videoTransceiver.setCodecPreferences([...videoCaps.codecs].sort((a,b)=>rank(a)-rank(b)));
       }
       peer.onicecandidate=event=>{if(event.candidate&&channel)void remoteSend(channel,"qbit_remote_ice",{sessionId,from:"viewer",candidate:event.candidate.toJSON()}).catch(()=>{});};
-      peer.onconnectionstatechange=()=>{if(peer?.connectionState==="connected")status.textContent="Pantalla de Windows en vivo · Solo visualización";else if(["failed","closed"].includes(peer?.connectionState))void cleanup("La conexión se interrumpió.",false);};
+      peer.onconnectionstatechange=()=>{console.info("[QBIT Remote][Viewer] Estado WebRTC:",peer?.connectionState);if(peer?.connectionState==="connected")status.textContent="Conexión establecida · esperando video…";else if(peer?.connectionState==="failed")void cleanup("WebRTC no pudo establecer la conexión. Revisá la red o la disponibilidad de TURN.",false);else if(peer?.connectionState==="closed")void cleanup("La conexión se cerró.",false);};
+      peer.oniceconnectionstatechange=()=>{console.info("[QBIT Remote][Viewer] Estado ICE:",peer?.iceConnectionState);if(peer?.iceConnectionState==="failed")status.textContent="La señalización llegó, pero ICE no pudo conectar los dispositivos.";};
       channel.on("broadcast",{event:"qbit_remote_offer"},async event=>{
         const p=event?.payload;if(closed||p?.sessionId!==sessionId||!p.sdp)return;
         try{
