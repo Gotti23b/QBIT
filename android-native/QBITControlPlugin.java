@@ -22,6 +22,20 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class QBITControlPlugin extends Plugin {
 
     @PluginMethod
+    public void getAppVersion(PluginCall call) {
+        try {
+            android.content.pm.PackageInfo info = getContext().getPackageManager()
+                .getPackageInfo(getContext().getPackageName(), 0);
+            JSObject result = new JSObject();
+            result.put("version", info.versionName != null ? info.versionName : "0.0.0");
+            result.put("versionCode", Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("No se pudo leer la versión instalada de QBIT Android.", error);
+        }
+    }
+
+    @PluginMethod
     public void startBackgroundAgent(PluginCall call) {
         String deviceId = call.getString("deviceId", "");
         String accessToken = call.getString("accessToken", "");
