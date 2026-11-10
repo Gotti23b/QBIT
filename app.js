@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.38";
+  const QBIT_VERSION = "1.5.39";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -989,11 +989,18 @@
     if(!state?.enabled)throw new Error("Primero habilitá «QBIT Control» en Ajustes → Accesibilidad. Podés usar el botón «Configurar accesibilidad» de este panel.");
     return await control.performSystemAction({action});
   }
+  const CLOUD_SHARED_COMMANDS = ["get_system_info","get_battery_info","get_network_info","get_display_info"];
+  const CLOUD_COMMANDS_BY_PLATFORM = {
+    windows: new Set([...CLOUD_SHARED_COMMANDS, ...["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]]),
+    android: new Set([...CLOUD_SHARED_COMMANDS, ...["android_open_accessibility_settings","android_back","android_home","android_notifications","android_quick_settings","android_lock_screen","android_volume_up","android_volume_down","android_volume_mute","android_brightness_up","android_brightness_down","android_open_wifi_settings","android_open_bluetooth_settings","android_open_display_settings","android_open_sound_settings","android_open_battery_settings","android_open_app_settings"]])
+  };
   async function processCloudCommand(c){
     if(!user||!["windows","android"].includes(cloudPlatform()))return;
     const claim=await db.from("qbit_device_commands").update({status:"running",started_at:new Date().toISOString()}).eq("id",c.id).eq("status","pending").select("id").maybeSingle();
     if(claim.error||!claim.data)return;
     try{
+      const supportedCommands=CLOUD_COMMANDS_BY_PLATFORM[cloudPlatform()];
+      if(!supportedCommands?.has(c.command))throw new Error("La acción "+c.command+" no está habilitada para este dispositivo.");
       if(c.payload?.skip_confirmation!==true&&!window.confirm("QBIT solicita una acción en este dispositivo: "+c.command+". ¿La permitís?")){
         await db.from("qbit_device_commands").update({status:"cancelled",completed_at:new Date().toISOString()}).eq("id",c.id);return;
       }
@@ -1003,8 +1010,7 @@
         else result={message:"Dispositivo Android · "+(navigator.platform||"plataforma móvil")+" · "+String(navigator.userAgent||"").slice(0,220)};
       }else if(c.command==="get_battery_info"){
         if(cloudPlatform()==="windows")result=await executeDesktopArtifact("battery_info");
-        else if(navigator.getBattery){const b=await navigator.getBattery();result={message:"Batería: "+Math.round(b.level*100)+"% · "+(b.charging?"cargando":"sin cargar")};}
-        else throw new Error("Este Android/WebView no expone el estado de batería.");
+        else {const control=window.Capacitor?.Plugins?.QBITControl;if(control?.getBatteryInfo)result=await control.getBatteryInfo();else if(navigator.getBattery){const b=await navigator.getBattery();result={message:"Batería: "+Math.round(b.level*100)+"% · "+(b.charging?"cargando":"sin cargar")};}else throw new Error("Este Android/WebView no expone el estado de batería.");}
       }else if(c.command==="get_network_info"){
         if(cloudPlatform()==="windows")result=await executeDesktopArtifact("network_info");
         else {const n=navigator.connection||navigator.mozConnection||navigator.webkitConnection;result={message:"Conexión: "+(navigator.onLine?"en línea":"sin conexión")+(n?" · "+(n.effectiveType||n.type||"tipo desconocido")+" · "+(n.downlink||"?")+" Mbps":" · detalles de red no disponibles")};}
@@ -1201,15 +1207,24 @@
 
   async function sendCloudCommand(deviceId,command){
     if(!user)return;
-    const remoteActions=new Set(["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]);
-    if(remoteActions.has(command)&&!desktopControlEnabled){alert("Activá Control PC en la barra superior antes de enviar acciones remotas.");return;}
-    const target=cloudDevicesCache.find(d=>d.id===deviceId),platform=String(target?.platform||"").toLowerCase();
+    const target=cloudDevicesCache.find(d=>d.id===deviceId);
+    if(!target){alert("No encontré el dispositivo seleccionado. Actualizá la lista e intentá de nuevo.");return;}
+    const platform=String(target.platform||"").toLowerCase();
+    if(!CLOUD_COMMANDS_BY_PLATFORM[platform]?.has(command)){
+      alert("Esta acción no está disponible para "+(platform||"este dispositivo")+".");
+      return;
+    }
+    const windowsOnlyActions=new Set(["volume_up","volume_down","volume_mute","brightness_up","brightness_down","lock_pc"]);
+    if(platform==="windows"&&windowsOnlyActions.has(command)&&!desktopControlEnabled){
+      alert("Activá Control PC en la barra superior antes de enviar acciones remotas.");
+      return;
+    }
     const skipConfirmation=(platform==="windows"||platform==="android")&&!remoteConfirmationRequired(platform);
-    const labels={get_system_info:"consultar información del sistema",get_battery_info:"consultar la batería",get_network_info:"consultar la red",get_display_info:"consultar las pantallas",volume_up:"subir el volumen",volume_down:"bajar el volumen",volume_mute:"silenciar el audio",brightness_up:"subir el brillo",brightness_down:"bajar el brillo",lock_pc:"bloquear la PC"};
-    if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+(labels[command]||command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
+    if(!skipConfirmation&&!window.confirm("¿Enviar a este dispositivo la acción: "+cloudCommandLabel(command)+"?\n\nEl equipo también pedirá confirmación antes de ejecutarla."))return;
     const {error}=await db.from("qbit_device_commands").insert({user_id:user.id,device_id:deviceId,command,payload:{skip_confirmation:skipConfirmation}});
     if(error){alert("No se pudo enviar: "+error.message);return;}
-    $("cloudStatus").textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener QBIT abierto.";
+    const status=$("cloudStatus");
+    if(status)status.textContent="Acción enviada a la cola. El dispositivo debe estar encendido, conectado y tener QBIT abierto.";
     await refreshCloudDevices();
   }
   $("cloudRefresh")?.addEventListener("click",()=>void refreshCloudDevices());

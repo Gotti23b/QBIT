@@ -4,8 +4,10 @@ import android.content.ComponentName;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.Settings;
@@ -135,6 +137,34 @@ public class QBITControlPlugin extends Plugin {
             call.resolve(result);
         } catch (Exception error) {
             call.reject("No se pudieron abrir los ajustes solicitados.", error);
+        }
+    }
+
+    @PluginMethod
+    public void getBatteryInfo(PluginCall call) {
+        try {
+            Intent battery = getContext().registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            if (battery == null) {
+                call.reject("Android no devolvió información de batería.");
+                return;
+            }
+            int level = battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+            int scale = battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+            int status = battery.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN);
+            if (level < 0 || scale <= 0) {
+                call.reject("No se pudo leer el nivel de batería.");
+                return;
+            }
+            int percent = Math.round(level * 100f / scale);
+            boolean charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL;
+            JSObject result = new JSObject();
+            result.put("level", percent);
+            result.put("charging", charging);
+            result.put("message", "Batería: " + percent + "% · " + (charging ? "cargando" : "sin cargar"));
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("No se pudo consultar la batería.", error);
         }
     }
 
