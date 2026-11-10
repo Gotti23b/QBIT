@@ -55,6 +55,7 @@ jobs:
           mkdir -p "$JAVA_DIR" config/android/app/src/main/res/xml
           cp android-native/QBITControlPlugin.java "$JAVA_DIR/"
           cp android-native/QBITAccessibilityService.java "$JAVA_DIR/"
+          cp android-native/QBITBackgroundService.java "$JAVA_DIR/"
           cp android-native/qbit_accessibility_service.xml config/android/app/src/main/res/xml/
           python3 <<'PY'
           from pathlib import Path
@@ -80,10 +81,33 @@ jobs:
                       android:resource="@xml/qbit_accessibility_service" />
               </service>
           """
-          if "android.permission.WRITE_SETTINGS" not in source:
-              source = source.replace("<application", '<uses-permission android:name="android.permission.WRITE_SETTINGS" />\n    <application', 1)
+          permissions = [
+              "android.permission.WRITE_SETTINGS",
+              "android.permission.FOREGROUND_SERVICE",
+              "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+              "android.permission.POST_NOTIFICATIONS",
+              "android.permission.ACCESS_NETWORK_STATE"
+          ]
+          for permission in permissions:
+              marker = '<uses-permission android:name="' + permission + '"'
+              if marker not in source:
+                  source = source.replace("<application", '<uses-permission android:name="' + permission + '" />\\n    <application', 1)
           if "QBITAccessibilityService" not in source:
-              source = source.replace("</application>", service + "\n    </application>")
+              source = source.replace("</application>", service + "\\n    </application>")
+          background_service = """
+              <service
+                  android:name=".QBITBackgroundService"
+                  android:label="QBIT Background Agent"
+                  android:exported="false"
+                  android:stopWithTask="false"
+                  android:foregroundServiceType="specialUse">
+                  <property
+                      android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                      android:value="Recepción y ejecución de acciones remotas autorizadas por el usuario" />
+              </service>
+          """
+          if "QBITBackgroundService" not in source:
+              source = source.replace("</application>", background_service + "\\n    </application>")
           manifest.write_text(source)
           PY
 
