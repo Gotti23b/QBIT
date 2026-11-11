@@ -599,11 +599,17 @@ ipcMain.handle("qbit:pet-cursor-action", async (event, action, args = {}) => {
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Coordenadas no válidas.");
   sendPetCursorState({ visible: true, x, y, mode: "hand" });
   if (action === "tap") {
+    const { response } = await dialog.showMessageBox(petWindow && !petWindow.isDestroyed() ? petWindow : undefined, { type: "question", title: "QBIT quiere tocar algo", message: "La mascota quiere activar un control de la pantalla.", detail: "Posición aproximada: " + x + ", " + y + ". ¿Le das permiso para tocarlo esta vez?", buttons: ["Permitir una vez", "Cancelar"], defaultId: 1, cancelId: 1, noLink: true });
+    if (response !== 0) return { ok: false, message: "Cancelaste el toque. No se activó ningún control." };
+    await new Promise(resolve => setTimeout(resolve, 350));
     const result = await invokePetScreenElement(x, y);
     return { ok: true, message: "Toqué el elemento de la pantalla. " + result };
   }
   if (action === "drag") {
     const x2 = Number(args.x2), y2 = Number(args.y2);
+    const { response } = await dialog.showMessageBox(petWindow && !petWindow.isDestroyed() ? petWindow : undefined, { type: "question", title: "QBIT quiere arrastrar algo", message: "La mascota quiere arrastrar un elemento de la pantalla.", detail: "Desde (" + x + ", " + y + ") hasta (" + x2 + ", " + y2 + "). Durante el arrastre se moverá el puntero real de Windows.", buttons: ["Permitir una vez", "Cancelar"], defaultId: 1, cancelId: 1, noLink: true });
+    if (response !== 0) return { ok: false, message: "Cancelaste el arrastre. No se movió nada." };
+    await new Promise(resolve => setTimeout(resolve, 350));
     sendPetCursorState({ visible: true, x: x2, y: y2, mode: "hand" });
     const result = await dragPetScreenElement(x, y, x2, y2);
     return { ok: true, message: "Terminé el arrastre. " + result };
