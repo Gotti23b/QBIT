@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.51";
+  const QBIT_VERSION = "1.5.52";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -11,6 +11,9 @@
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let speechRecognition = null;
   let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
+  let availableSpeechVoices = [];
+  const selectedVoiceKey = "qbit-speech-voice";
+  let selectedVoiceId = localStorage.getItem(selectedVoiceKey) || "";
   function voiceRecognitionErrorMessage(code){
     const messages={
       "not-allowed":"El navegador bloqueó el micrófono. Permití el acceso al micrófono para QBIT desde los permisos del sitio.",
@@ -29,15 +32,42 @@
     window.speechSynthesis.cancel();
     const utterance=new SpeechSynthesisUtterance(clean);
     utterance.lang="es-AR";
+    const selectedVoice=availableSpeechVoices.find(voice=>voice.voiceURI===selectedVoiceId||voice.name===selectedVoiceId);
+    if(selectedVoice)utterance.voice=selectedVoice;
     utterance.rate=1;
     utterance.pitch=1;
     window.speechSynthesis.speak(utterance);
+  }
+  function renderVoiceSelector(){
+    const selector=$("voiceSelector");if(!selector)return;
+    const previous=selectedVoiceId;
+    selector.replaceChildren();
+    const automatic=document.createElement("option");automatic.value="";automatic.textContent="Voz automática";selector.append(automatic);
+    availableSpeechVoices.forEach(voice=>{
+      const option=document.createElement("option");option.value=voice.voiceURI||voice.name;
+      option.textContent=voice.name+" · "+(voice.lang||"idioma desconocido")+(voice.default?" · predeterminada":"");
+      selector.append(option);
+    });
+    selector.value=availableSpeechVoices.some(voice=>(voice.voiceURI||voice.name)===previous)?previous:"";
+    if(selector.value!==previous){selectedVoiceId="";try{localStorage.removeItem(selectedVoiceKey);}catch{}}
+    selector.disabled=availableSpeechVoices.length===0;
+    selector.title=availableSpeechVoices.length?"Elegí la voz que usa QBIT al responder":"El sistema todavía no informó voces disponibles";
+  }
+  function loadSpeechVoices(){
+    if(!("speechSynthesis" in window))return;
+    availableSpeechVoices=window.speechSynthesis.getVoices();renderVoiceSelector();
   }
   function renderVoiceControls(){
     const output=$("voiceOutputToggle"),input=$("voiceInputButton");
     if(output){output.textContent=voiceOutputEnabled?"🔊 Voz ON":"🔊 Voz OFF";output.setAttribute("aria-pressed",String(voiceOutputEnabled));}
     if(input){input.disabled=!SpeechRecognition;input.title=SpeechRecognition?"Dictar un mensaje puntual a QBIT":"Este navegador no admite dictado por voz";}
+    renderVoiceSelector();
   }
+  $("voiceSelector")?.addEventListener("change",event=>{
+    selectedVoiceId=event.target.value;
+    try{if(selectedVoiceId)localStorage.setItem(selectedVoiceKey,selectedVoiceId);else localStorage.removeItem(selectedVoiceKey);}catch{}
+  });
+  if("speechSynthesis" in window){loadSpeechVoices();window.speechSynthesis.addEventListener?.("voiceschanged",loadSpeechVoices);setTimeout(loadSpeechVoices,500);}
   $("voiceOutputToggle")?.addEventListener("click",()=>{
     voiceOutputEnabled=!voiceOutputEnabled;
     try{localStorage.setItem("qbit-voice-output",String(voiceOutputEnabled));}catch{}
