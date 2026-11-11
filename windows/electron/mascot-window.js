@@ -207,7 +207,7 @@
         "Pantalla: "+vision.screen.width+"x"+vision.screen.height,
         "TEXTO OCR:\\n"+visibleText.slice(0,5500),
         "ELEMENTOS CON COORDENADAS:\\n"+items,
-        "Si actuás, devolvé exactamente un bloque ```qbit con JSON: {\\"artifact\\":\\"pet_cursor\\",\\"args\\":{\\"action\\":\\"point|tap|drag\\",\\"x\\":100,\\"y\\":200,\\"x2\\":300,\\"y2\\":400}}. Para point/tap omití x2 e y2."
+        'Si actuás, devolvé exactamente un bloque ```qbit con JSON: {"artifact":"pet_cursor","args":{"action":"point|tap|drag","x":100,"y":200,"x2":300,"y2":400}}. Para point/tap omití x2 e y2.'
       ].join("\\n\\n");
       const sent = await api.sendMessage(prompt);
       if (!sent) throw new Error("No pude enviar la pantalla a la IA.");
