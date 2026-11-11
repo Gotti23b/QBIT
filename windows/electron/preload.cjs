@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   showNotification: (title, message) => ipcRenderer.invoke("qbit:show-notification", title, message),
   setTimer: (seconds, label) => ipcRenderer.invoke("qbit:set-timer", seconds, label),
   cancelTimer: id => ipcRenderer.invoke("qbit:cancel-timer", id),
+  getSystemSpeechVoices: () => ipcRenderer.invoke("qbit:tts-voices"),
+  speakSystemVoice: (text, voiceId) => ipcRenderer.invoke("qbit:tts-speak", String(text).slice(0, 3500), String(voiceId)),
+  stopSystemVoice: () => ipcRenderer.invoke("qbit:tts-stop"),
   getAudioDevices: () => ipcRenderer.invoke("qbit:audio-devices"),
   writeClipboard: text => ipcRenderer.invoke("qbit:clipboard-write", text),
   checkForUpdates: () => ipcRenderer.invoke("qbit:update-check"),
@@ -65,6 +68,9 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   resetPetPosition: () => ipcRenderer.invoke("qbit:pet-position-reset")
 }));
 contextBridge.exposeInMainWorld("qbitPet", Object.freeze({
+  getSystemSpeechVoices: () => ipcRenderer.invoke("qbit:tts-voices"),
+  speakSystemVoice: (text, voiceId) => ipcRenderer.invoke("qbit:tts-speak", String(text).slice(0, 3500), String(voiceId)),
+  stopSystemVoice: () => ipcRenderer.invoke("qbit:tts-stop"),
   resizePet: expanded => ipcRenderer.invoke("qbit:pet-resize", Boolean(expanded)),
   getPosition: () => ipcRenderer.invoke("qbit:pet-position"),
   moveTo: (x, y) => ipcRenderer.invoke("qbit:pet-move", Number(x), Number(y)),
