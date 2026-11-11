@@ -844,7 +844,7 @@ ipcMain.handle("qbit:tts-speak", async (event, text, voiceId) => {
   const id = String(voiceId || "").slice(0, 500);
   if (!clean || !id) throw new Error("Falta el texto o la voz.");
   stopQbitTts(event.sender.id);
-  const script = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Speech -ErrorAction Stop; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; try { $voice=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + Buffer.from(id, "utf8").toString("base64") + "')); $text=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + Buffer.from(clean, "utf8").toString("base64") + "')); $s.SelectVoice($voice); $s.Speak($text) } finally { $s.Dispose() }";
+  const script = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Speech -ErrorAction Stop; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; try { $voiceId=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + Buffer.from(id, "utf8").toString("base64") + "')); $text=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + Buffer.from(clean, "utf8").toString("base64") + "')); $voice=$s.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Id -eq $voiceId } | Select-Object -First 1; if($null -eq $voice){throw 'La voz seleccionada ya no está instalada.'}; $s.SelectVoice($voice.VoiceInfo.Name); $s.Speak($text) } finally { $s.Dispose() }";
   const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-EncodedCommand", encodePowerShell(script)], { windowsHide: true, shell: false, stdio: ["ignore", "ignore", "pipe"] });
   qbitTtsProcesses.set(event.sender.id, child);
   let stderr = "";
