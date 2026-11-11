@@ -840,7 +840,7 @@ ipcMain.handle("qbit:tts-voices", async event => {
 });
 ipcMain.handle("qbit:tts-speak", async (event, text, voiceId) => {
   if (!isQbitTtsSender(event.sender)) throw new Error("No autorizado.");
-  const clean = String(text || "").replace(/\\s+/g, " ").trim().slice(0, 3500);
+  const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 3500);
   const id = String(voiceId || "").slice(0, 500);
   if (!clean || !id) throw new Error("Falta el texto o la voz.");
   stopQbitTts(event.sender.id);
