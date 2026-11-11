@@ -16,6 +16,7 @@ let connectorServer=null,connectorSocket=null;
 const connectorPending=new Map();
 const webArtifactPending=new Map();
 let petExpanded = false;
+let petOcrWorkerPromise = null;
 const DEFAULT_PET_SETTINGS = Object.freeze({ visible: true, size: "normal", animations: true });
 let petSettings = { ...DEFAULT_PET_SETTINGS };
 function petSettingsPath() { return path.join(app.getPath("userData"), "pet-settings.json"); }
@@ -497,6 +498,65 @@ async function openAnything(query) {
 }
 
 
+async function getPetOcrWorker() {
+  if (!petOcrWorkerPromise) {
+    petOcrWorkerPromise = (async () => {
+      const { createWorker } = require("tesseract.js");
+      return createWorker("spa", 1, {
+        cachePath: path.join(app.getPath("userData"), "ocr-cache"),
+        logger: () => {}
+      });
+    })().catch(error => {
+      petOcrWorkerPromise = null;
+      throw error;
+    });
+  }
+  return petOcrWorkerPromise;
+}
+
+ipcMain.handle("qbit:pet-observe-screen", async event => {
+  if (!petWindow || petWindow.isDestroyed() || event.sender !== petWindow.webContents) {
+    throw new Error("Solicitud no autorizada.");
+  }
+  const display = screen.getPrimaryDisplay();
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: 1600, height: 900 },
+    fetchWindowIcons: false
+  });
+  if (!sources.length) throw new Error("Windows no devolvió ninguna pantalla para observar.");
+  const source = sources.find(item => String(item.display_id) === String(display.id)) || sources[0];
+  if (!source.thumbnail || source.thumbnail.isEmpty()) throw new Error("No pude capturar la pantalla.");
+  const imageSize = source.thumbnail.getSize();
+  const worker = await getPetOcrWorker();
+  const { data } = await worker.recognize(source.thumbnail.toPNG());
+  const items = (data.lines || [])
+    .filter(line => String(line.text || "").trim())
+    .slice(0, 60)
+    .map(line => {
+      const box = line.bbox || {};
+      const x0 = Number(box.x0) || 0;
+      const y0 = Number(box.y0) || 0;
+      const x1 = Number(box.x1) || x0;
+      const y1 = Number(box.y1) || y0;
+      return {
+        text: String(line.text || "").trim().slice(0, 300),
+        x: Math.round(display.bounds.x + x0 * display.bounds.width / imageSize.width),
+        y: Math.round(display.bounds.y + y0 * display.bounds.height / imageSize.height),
+        width: Math.max(0, Math.round((x1 - x0) * display.bounds.width / imageSize.width)),
+        height: Math.max(0, Math.round((y1 - y0) * display.bounds.height / imageSize.height)),
+        confidence: Math.round(Number(line.confidence) || 0)
+      };
+    });
+  return {
+    ok: true,
+    text: String(data.text || "").trim().slice(0, 9000),
+    items,
+    screen: { width: display.bounds.width, height: display.bounds.height, scaleFactor: display.scaleFactor },
+    capturedAt: new Date().toISOString()
+  };
+});
+
 ipcMain.handle("qbit:pet-settings-get", event => {
   if ((!mainWindow || event.sender !== mainWindow.webContents) && (!petWindow || event.sender !== petWindow.webContents)) throw new Error("Solicitud no autorizada.");
   return { ...petSettings };
@@ -559,7 +619,7 @@ ipcMain.handle("qbit:pet-move", (event, x, y) => {
 });
 ipcMain.handle("qbit:pet-send-message", (event, rawText) => {
   if (!petWindow || event.sender !== petWindow.webContents) return false;
-  if (typeof rawText !== "string" || !rawText.trim() || rawText.length > 500) throw new Error("El mensaje no es válido.");
+  if (typeof rawText !== "string" || !rawText.trim() || rawText.length > 12000) throw new Error("El mensaje no es válido.");
   const message = rawText.trim();
   // La mascota usa el renderer principal oculto; nunca mostrarlo ni enfocarlo.
   if (!mainWindow || mainWindow.isDestroyed()) createWindow(false);
@@ -889,7 +949,7 @@ app.whenReady().then(() => {
   if (!backgroundLaunch) createPetWindow();
   setupAutoUpdater();
 });
-app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); });
+app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); if (petOcrWorkerPromise) petOcrWorkerPromise.then(worker => worker.terminate()).catch(() => {}); });
 app.on("window-all-closed", () => {
   if (isQuitting) app.quit();
 });
