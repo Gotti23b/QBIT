@@ -29,6 +29,9 @@
       <button id="petVoiceOutput" type="button" aria-pressed="false" title="Activar o desactivar respuestas habladas">🔊 Voz OFF</button>
       <button id="petVoiceInput" type="button" title="Dictar un mensaje puntual">🎤 Hablarle</button>
     </div>
+    <label class="pet-voice-selector-label" for="petVoiceSelector">Voz de la mascota
+      <select id="petVoiceSelector" aria-label="Elegir voz de la mascota"><option value="">Voz automática</option></select>
+    </label>
     <form id="petForm" class="pet-form">
       <input id="petInput" maxlength="500" autocomplete="off" placeholder="Escribile a QBIT…" aria-label="Mensaje para QBIT">
       <button type="submit" aria-label="Enviar mensaje">➤</button>
