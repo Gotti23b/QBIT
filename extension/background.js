@@ -84,10 +84,44 @@ async function sendConsolePrompt(message) {
   });
 }
 
+function providerKeyForUrl(rawUrl){
+  try{
+    const host=new URL(rawUrl).hostname.toLowerCase();
+    return Object.entries(PROVIDERS).find(([,patterns])=>patterns.some(pattern=>{
+      const match=pattern.match(/^https:\/\/([^/]+)/);if(!match)return false;
+      const expected=match[1].replace(/^\*\./,"");
+      return host===expected||host.endsWith("."+expected);
+    }))?.[0]||null;
+  }catch{return null;}
+}
+async function findEmbeddedAIFrame(providerKey){
+  const qbitTabs=await chrome.tabs.query({url:QBIT_WEB_URLS});
+  qbitTabs.sort((a,b)=>Number(b.active)-Number(a.active)||(b.lastAccessed||0)-(a.lastAccessed||0));
+  for(const tab of qbitTabs){
+    if(!Number.isInteger(tab.id))continue;
+    const frames=await chrome.webNavigation.getAllFrames({tabId:tab.id}).catch(()=>[]);
+    const frame=frames.find(item=>item.frameId!==0&&providerKeyForUrl(item.url)&&(providerKey==="auto"||providerKeyForUrl(item.url)===providerKey));
+    if(frame)return {tab,frameId:frame.frameId};
+  }
+  return null;
+}
 async function runAI(message, requestedProvider) {
   const providerKey = String(requestedProvider || "auto").toLowerCase();
   const urlPatterns = providerKey === "auto" ? Object.values(PROVIDERS).flat() : PROVIDERS[providerKey];
   if (!urlPatterns) throw new Error("No reconozco ese proveedor de IA.");
+  const embedded=await findEmbeddedAIFrame(providerKey);
+  if(embedded){
+    const payload={type:"QBIT_AI_PROMPT",message:String(message||"").slice(0,12000)};
+    let result;
+    try{result=await chrome.tabs.sendMessage(embedded.tab.id,payload,{frameId:embedded.frameId});}
+    catch(error){
+      await chrome.scripting.executeScript({target:{tabId:embedded.tab.id,frameIds:[embedded.frameId]},files:["ai-provider.js"]});
+      await new Promise(resolve=>setTimeout(resolve,250));
+      result=await chrome.tabs.sendMessage(embedded.tab.id,payload,{frameId:embedded.frameId});
+    }
+    if(!result?.ok)throw new Error(result?.error||"La IA integrada no devolvió una respuesta.");
+    return result;
+  }
   const tabs = await chrome.tabs.query({ url: urlPatterns });
   if (!tabs.length) throw new Error("Abrí e iniciá sesión en una pestaña de ChatGPT o Arena.ai. También podés usar Gemini, Claude, DeepSeek, Qwen o Meta AI.");
   const tab = tabs.sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];

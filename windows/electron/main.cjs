@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session } = require("electron");
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -15,6 +15,8 @@ let tray;
 let isQuitting = false;
 const backgroundLaunch = process.argv.includes("--qbit-background");
 let connectorServer=null,connectorSocket=null;
+let embeddedBrowserView=null;
+let embeddedBrowserState={url:"https://www.google.com/",title:"Google",loading:true,error:""};
 const connectorPending=new Map();
 const webArtifactPending=new Map();
 let petExpanded = false;
@@ -46,6 +48,78 @@ webArtifactPending.set(id,{socket,timer});mainWindow.show();mainWindow.focus();m
 }});socket.on("close",()=>{if(connectorSocket===socket)connectorSocket=null;for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("La extensión se desconectó."));connectorPending.delete(id);}for(const [id,p] of webArtifactPending){clearTimeout(p.timer);webArtifactPending.delete(id);}if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:!!connectorServer,connected:false});});socket.on("error",()=>{});if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:true,connected:true});});});}
 function stopConnectorServer(){for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("El conector se desconectó."));connectorPending.delete(id);}if(connectorSocket){try{connectorSocket.close(1000,"Desconectado desde QBIT");}catch{}connectorSocket=null;}if(connectorServer){try{connectorServer.close();}catch{}connectorServer=null;}return {ok:true};}
 function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));if(!connectorConnected())return Promise.reject(new Error("La extensión no está conectada. Iniciá el conector y tocá Conectar en el icono de QBIT Extension."));const id=require("node:crypto").randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}});}
+
+const EMBEDDED_AI_HOSTS=["chatgpt.com","chat.openai.com","arena.ai","gemini.google.com","claude.ai","chat.deepseek.com","chat.qwen.ai","meta.ai","www.meta.ai"];
+function isEmbeddedAIHost(host){return EMBEDDED_AI_HOSTS.some(item=>host===item||host.endsWith("."+item));}
+function embeddedBrowserSession(){return session.fromPartition("persist:qbit-ai-browser");}
+function publishEmbeddedBrowserState(extra={}) {
+  if(!embeddedBrowserView||embeddedBrowserView.webContents.isDestroyed())return;
+  embeddedBrowserState={...embeddedBrowserState,url:embeddedBrowserView.webContents.getURL()||embeddedBrowserState.url,title:embeddedBrowserView.webContents.getTitle()||embeddedBrowserState.title,loading:embeddedBrowserView.webContents.isLoading(),...extra};
+  if(mainWindow&&!mainWindow.isDestroyed()&&!mainWindow.webContents.isDestroyed())mainWindow.webContents.send("qbit:embedded-browser-state",embeddedBrowserState);
+}
+function createEmbeddedBrowserView(){
+  if(!mainWindow||mainWindow.isDestroyed())return null;
+  if(embeddedBrowserView&&!embeddedBrowserView.webContents.isDestroyed())return embeddedBrowserView;
+  embeddedBrowserView=new WebContentsView({webPreferences:{session:embeddedBrowserSession(),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false}});
+  embeddedBrowserView.setBounds({x:0,y:0,width:1,height:1});
+  embeddedBrowserView.setVisible(false);
+  embeddedBrowserView.setBackgroundColor("#ffffff");
+  embeddedBrowserView.setBorderRadius(10);
+  mainWindow.contentView.addChildView(embeddedBrowserView);
+  const contents=embeddedBrowserView.webContents;
+  contents.setBackgroundThrottling(false);
+  contents.setWindowOpenHandler(({url})=>{
+    try{const target=new URL(url);if(target.protocol==="https:")contents.loadURL(target.href).catch(error=>publishEmbeddedBrowserState({error:error.message}));}catch{}
+    return {action:"deny"};
+  });
+  contents.on("will-navigate",(event,url)=>{try{if(new URL(url).protocol!=="https:")event.preventDefault();}catch{event.preventDefault();}});
+  contents.on("will-redirect",(event,url)=>{try{if(new URL(url).protocol!=="https:")event.preventDefault();}catch{event.preventDefault();}});
+  contents.on("did-start-loading",()=>publishEmbeddedBrowserState({loading:true,error:""}));
+  contents.on("did-stop-loading",()=>publishEmbeddedBrowserState({loading:false}));
+  contents.on("did-navigate",(_event,url)=>publishEmbeddedBrowserState({url,error:""}));
+  contents.on("page-title-updated",(_event,title)=>publishEmbeddedBrowserState({title}));
+  contents.on("did-fail-load",(_event,code,description,url,isMainFrame)=>{
+    if(isMainFrame&&code!==-3)publishEmbeddedBrowserState({loading:false,error:String(description||"No se pudo cargar la página.")+" · "+String(url||"")});
+  });
+  contents.loadURL("https://www.google.com/").catch(error=>publishEmbeddedBrowserState({loading:false,error:error.message||String(error)}));
+  return embeddedBrowserView;
+}
+function destroyEmbeddedBrowserView(){
+  if(!embeddedBrowserView)return;
+  try{if(mainWindow&&!mainWindow.isDestroyed())mainWindow.contentView.removeChildView(embeddedBrowserView);}catch{}
+  try{if(!embeddedBrowserView.webContents.isDestroyed())embeddedBrowserView.webContents.close();}catch{}
+  embeddedBrowserView=null;
+}
+function embeddedAiScriptPath(){
+  const candidates=[path.join(process.resourcesPath||"","browser-extension","ai-provider.js"),path.join(app.getAppPath(),"browser-extension","ai-provider.js"),path.join(getAppRoot(),"browser-extension","ai-provider.js")];
+  return candidates.find(candidate=>candidate&&fs.existsSync(candidate))||null;
+}
+async function waitForEmbeddedBrowserLoad(contents,timeout=20000){
+  if(!contents.isLoadingMainFrame())return;
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{cleanup();reject(new Error("La IA todavía está cargando. Esperá unos segundos y volvé a intentar."));},timeout);
+    const done=()=>{cleanup();resolve();};
+    const failed=(_event,code,description,_url,isMainFrame)=>{if(isMainFrame&&code!==-3){cleanup();reject(new Error(description||"No se pudo cargar la IA."));}};
+    const cleanup=()=>{clearTimeout(timer);contents.removeListener("did-finish-load",done);contents.removeListener("did-fail-load",failed);};
+    contents.once("did-finish-load",done);contents.on("did-fail-load",failed);
+  });
+}
+async function askEmbeddedBrowserAI(message){
+  if(typeof message!=="string"||!message.trim()||message.length>12000)throw new Error("Mensaje no válido.");
+  const view=createEmbeddedBrowserView(),contents=view.webContents;
+  const currentUrl=contents.getURL();
+  let host="";try{host=new URL(currentUrl).hostname.toLowerCase();}catch{}
+  if(!isEmbeddedAIHost(host))return {available:false};
+  await waitForEmbeddedBrowserLoad(contents);
+  const scriptPath=embeddedAiScriptPath();
+  if(!scriptPath)throw new Error("No encontré el motor de conexión de IA incluido con QBIT.");
+  const source=await fs.promises.readFile(scriptPath,"utf8");
+  await contents.executeJavaScript(source,true);
+  const payload=JSON.stringify(message.slice(0,12000));
+  const result=await contents.executeJavaScript(`(async()=>{const bridge=window.__QBIT_AI_BRIDGE;if(!bridge||typeof bridge.ask!=="function")return {ok:false,error:"No pude iniciar el puente de IA en esta página."};return await bridge.ask(${payload});})()`,true);
+  if(!result?.ok)return {available:true,ok:false,error:String(result?.error||"La IA no devolvió una respuesta.")};
+  return {available:true,...result};
+}
 
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 // QBIT baja la versión nueva en segundo plano y pregunta: reiniciar ahora o seguir
@@ -237,6 +311,7 @@ function createWindow(show = true) {
     show: false,
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
+  createEmbeddedBrowserView();
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("https://") || url.startsWith("http://")) shell.openExternal(url).catch(() => {});
     return { action: "deny" };
@@ -250,7 +325,7 @@ function createWindow(show = true) {
       mainWindow.hide();
     }
   });
-  mainWindow.on("closed", () => { mainWindow = null; });
+  mainWindow.on("closed", () => { destroyEmbeddedBrowserView(); mainWindow = null; });
   mainWindow.loadFile(path.join(getAppRoot(), "index.html"));
   if (show) mainWindow.once("ready-to-show", () => mainWindow?.show());
 }
@@ -785,6 +860,35 @@ ipcMain.handle("qbit:web-artifact-result",(e,id,result)=>{
   return {ok:true};
 });
 ipcMain.handle("qbit:show-window",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");mainWindow.show();mainWindow.focus();return {ok:true};});
+
+ipcMain.handle("qbit:embedded-browser-bounds",(event,bounds={})=>{
+  if(!mainWindow||event.sender!==mainWindow.webContents)throw new Error("Solicitud no autorizada.");
+  const view=createEmbeddedBrowserView(),size=mainWindow.getContentSize();
+  const x=Math.max(0,Math.min(Math.round(Number(bounds.x)||0),size[0]));
+  const y=Math.max(0,Math.min(Math.round(Number(bounds.y)||0),size[1]));
+  const width=Math.max(0,Math.min(Math.round(Number(bounds.width)||0),size[0]-x));
+  const height=Math.max(0,Math.min(Math.round(Number(bounds.height)||0),size[1]-y));
+  const visible=!!bounds.visible&&width>40&&height>40;
+  if(visible)view.setBounds({x,y,width,height});
+  view.setVisible(visible);
+  return {ok:true,visible};
+});
+ipcMain.handle("qbit:embedded-browser-navigate",async(event,rawUrl)=>{
+  if(!mainWindow||event.sender!==mainWindow.webContents)throw new Error("Solicitud no autorizada.");
+  const raw=String(rawUrl||"").trim();if(raw.length>2048)throw new Error("La dirección es demasiado larga.");
+  let target;try{target=new URL(raw);}catch{throw new Error("Escribí una dirección web válida.");}
+  if(target.protocol!=="https:"||target.username||target.password)throw new Error("El navegador integrado solo permite direcciones HTTPS.");
+  const view=createEmbeddedBrowserView();await view.webContents.loadURL(target.href);
+  return {ok:true,url:view.webContents.getURL()};
+});
+ipcMain.handle("qbit:embedded-browser-status",event=>{
+  if(!mainWindow||event.sender!==mainWindow.webContents)throw new Error("Solicitud no autorizada.");
+  createEmbeddedBrowserView();return {...embeddedBrowserState,url:embeddedBrowserView.webContents.getURL()||embeddedBrowserState.url,title:embeddedBrowserView.webContents.getTitle()||embeddedBrowserState.title,loading:embeddedBrowserView.webContents.isLoading()};
+});
+ipcMain.handle("qbit:embedded-browser-ask",async(event,message)=>{
+  if(!mainWindow||event.sender!==mainWindow.webContents)throw new Error("Solicitud no autorizada.");
+  return await askEmbeddedBrowserAI(String(message||""));
+});
 ipcMain.handle("qbit:connector-start",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return startConnectorServer();});
 ipcMain.handle("qbit:connector-stop",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return stopConnectorServer();});
 ipcMain.handle("qbit:connector-status",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return {running:!!connectorServer,connected:connectorConnected()};});
@@ -1079,7 +1183,7 @@ app.whenReady().then(() => {
   if (!backgroundLaunch) createPetWindow();
   setupAutoUpdater();
 });
-app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); if (petCursorHideTimer) clearTimeout(petCursorHideTimer); if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.destroy(); if (petOcrWorkerPromise) petOcrWorkerPromise.then(worker => worker.terminate()).catch(() => {}); });
+app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); destroyEmbeddedBrowserView(); if (petCursorHideTimer) clearTimeout(petCursorHideTimer); if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.destroy(); if (petOcrWorkerPromise) petOcrWorkerPromise.then(worker => worker.terminate()).catch(() => {}); });
 app.on("window-all-closed", () => {
   if (isQuitting) app.quit();
 });

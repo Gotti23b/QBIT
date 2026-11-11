@@ -572,3 +572,20 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 .connector-browser-heading p{margin:0;font-size:12px}
 .connector-browser-frame{display:block;width:100%;height:min(68vh,720px);min-height:420px;border:1px solid var(--line);border-radius:10px;background:#fff}
 @media(max-width:640px){.connector-browser{padding:10px}.connector-browser-heading{align-items:flex-start;flex-direction:column}.connector-browser-frame{height:65vh;min-height:360px}}
+
+
+/* Navegador integrado de QBIT */
+.connector-browser{margin:22px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
+.connector-browser-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.connector-browser-heading h3{margin:0 0 5px}
+.connector-browser-heading p{margin:0;font-size:12px}
+.connector-browser-toolbar{display:flex;gap:8px;margin:10px 0}
+.connector-browser-toolbar input{min-width:0;flex:1}
+.connector-browser-toolbar button{flex:0 0 auto}
+.connector-browser-shortcuts{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 12px}
+.connector-browser-shortcuts button{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-size:12px}
+.connector-browser-shortcuts button:hover{border-color:var(--cyan);color:var(--cyan)}
+.connector-browser-viewport{position:relative;width:100%;height:min(68vh,720px);min-height:420px;overflow:hidden;border:1px solid var(--line);border-radius:10px;background:#fff}
+.connector-browser-fallback{display:block;width:100%;height:100%;border:0;background:#fff}
+.connector-browser-desktop-hint{position:absolute;inset:0;display:grid;place-items:center;padding:20px;color:#617080;background:#fff;text-align:center;font-size:13px}
+@media(max-width:640px){.connector-browser{padding:10px}.connector-browser-heading{align-items:flex-start;flex-direction:column}.connector-browser-viewport{height:62vh;min-height:340px}.connector-browser-toolbar{align-items:stretch}.connector-browser-toolbar button{min-width:60px}}
