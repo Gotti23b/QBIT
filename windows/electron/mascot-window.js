@@ -13,6 +13,9 @@
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let speechRecognition = null;
   let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
+  let availableSpeechVoices = [];
+  const selectedVoiceKey = "qbit-speech-voice";
+  let selectedVoiceId = localStorage.getItem(selectedVoiceKey) || "";
   function voiceRecognitionErrorMessage(code) {
     const messages = {
       "not-allowed": "El navegador bloqueó el micrófono. Permití el acceso al micrófono para QBIT desde los permisos del sitio.",
@@ -56,14 +59,51 @@
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = "es-AR";
+    const selectedVoice = availableSpeechVoices.find(voice => voice.voiceURI === selectedVoiceId || voice.name === selectedVoiceId);
+    if (selectedVoice) utterance.voice = selectedVoice;
     utterance.rate = 1;
     window.speechSynthesis.speak(utterance);
+  }
+  const voiceSelector = document.getElementById("petVoiceSelector");
+  function renderVoiceSelector() {
+    if (!voiceSelector) return;
+    const previous = selectedVoiceId;
+    voiceSelector.replaceChildren();
+    const automatic = document.createElement("option");
+    automatic.value = "";
+    automatic.textContent = "Voz automática";
+    voiceSelector.append(automatic);
+    availableSpeechVoices.forEach(voice => {
+      const option = document.createElement("option");
+      option.value = voice.voiceURI || voice.name;
+      option.textContent = voice.name + " · " + (voice.lang || "idioma desconocido") + (voice.default ? " · predeterminada" : "");
+      voiceSelector.append(option);
+    });
+    voiceSelector.value = availableSpeechVoices.some(voice => (voice.voiceURI || voice.name) === previous) ? previous : "";
+    if (voiceSelector.value !== previous) { selectedVoiceId = ""; try { localStorage.removeItem(selectedVoiceKey); } catch {} }
+    voiceSelector.disabled = availableSpeechVoices.length === 0;
+    voiceSelector.title = availableSpeechVoices.length ? "Elegí la voz de la mascota" : "El sistema todavía no informó voces disponibles";
+  }
+  function loadSpeechVoices() {
+    if (!("speechSynthesis" in window)) return;
+    availableSpeechVoices = window.speechSynthesis.getVoices();
+    renderVoiceSelector();
   }
   function renderVoiceButtons() {
     voiceOutputButton.textContent = voiceOutputEnabled ? "🔊 Voz ON" : "🔊 Voz OFF";
     voiceOutputButton.setAttribute("aria-pressed", String(voiceOutputEnabled));
     voiceInputButton.disabled = !SpeechRecognition;
     voiceInputButton.title = SpeechRecognition ? "Dictar un mensaje puntual a QBIT" : "Este sistema no admite dictado por voz";
+    renderVoiceSelector();
+  }
+  voiceSelector?.addEventListener("change", event => {
+    selectedVoiceId = event.target.value;
+    try { if (selectedVoiceId) localStorage.setItem(selectedVoiceKey, selectedVoiceId); else localStorage.removeItem(selectedVoiceKey); } catch {}
+  });
+  if ("speechSynthesis" in window) {
+    loadSpeechVoices();
+    window.speechSynthesis.addEventListener?.("voiceschanged", loadSpeechVoices);
+    setTimeout(loadSpeechVoices, 500);
   }
   voiceOutputButton.addEventListener("click", () => {
     voiceOutputEnabled = !voiceOutputEnabled;
