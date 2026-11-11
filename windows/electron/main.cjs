@@ -207,6 +207,19 @@ function runWindowsCommand(file, args, timeout = 8000) {
   });
 }
 
+const qbitTtsProcesses = new Map();
+function isQbitTtsSender(sender) {
+  return [mainWindow, petWindow].some(win => win && !win.isDestroyed() && win.webContents === sender);
+}
+function encodePowerShell(script) {
+  return Buffer.from(script, "utf16le").toString("base64");
+}
+function stopQbitTts(senderId) {
+  const child = qbitTtsProcesses.get(senderId);
+  if (child && !child.killed) child.kill();
+  qbitTtsProcesses.delete(senderId);
+}
+
 function createWindow(show = true) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (show) {
@@ -817,6 +830,37 @@ ipcMain.handle("qbit:read-text-file",async(_e,q)=>{const x=await findArtifactFil
 ipcMain.handle("qbit:show-notification",async(_e,title,message)=>{const t=String(title||"QBIT").slice(0,80),b=String(message||"").slice(0,240);if(!b.trim())throw new Error("La notificación necesita un mensaje.");new Notification({title:t,body:b}).show();return{ok:true,message:"Notificación mostrada."};});
 ipcMain.handle("qbit:set-timer",async(_e,seconds,label)=>{const d=Number(seconds);if(!Number.isInteger(d)||d<1||d>86400)throw new Error("El temporizador debe durar entre 1 y 86400 segundos.");const id="default",title=String(label||"Temporizador").slice(0,80),prev=qbitTimers.get(id);if(prev)clearTimeout(prev);const timer=setTimeout(()=>{qbitTimers.delete(id);new Notification({title:"QBIT · "+title,body:"¡Terminó el temporizador!"}).show();},d*1000);qbitTimers.set(id,timer);return{ok:true,message:"Temporizador iniciado: "+title+" ("+d+" segundos)."};});
 ipcMain.handle("qbit:cancel-timer",async(_e,id)=>{const key=String(id||"default"),timer=qbitTimers.get(key);if(!timer)return{ok:true,message:"No había un temporizador activo con ese ID."};clearTimeout(timer);qbitTimers.delete(key);return{ok:true,message:"Temporizador cancelado."};});
+ipcMain.handle("qbit:tts-voices", async event => {
+  if (!isQbitTtsSender(event.sender)) throw new Error("No autorizado.");
+  const script = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Speech -ErrorAction Stop; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; try { $items=@($s.GetInstalledVoices() | Where-Object { $_.Enabled } | ForEach-Object { [pscustomobject]@{ name=$_.VoiceInfo.Name; culture=$_.VoiceInfo.Culture.Name; id=$_.VoiceInfo.Id } }); ConvertTo-Json -InputObject $items -Compress -Depth 4 } finally { $s.Dispose() }";
+  const raw = await runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-Command", script], 15000);
+  let voices = JSON.parse(raw || "[]");
+  if (!Array.isArray(voices)) voices = [voices];
+  return voices.filter(v => v && typeof v.name === "string" && typeof v.id === "string");
+});
+ipcMain.handle("qbit:tts-speak", async (event, text, voiceId) => {
+  if (!isQbitTtsSender(event.sender)) throw new Error("No autorizado.");
+  const clean = String(text || "").replace(/\\s+/g, " ").trim().slice(0, 3500);
+  const id = String(voiceId || "").slice(0, 500);
+  if (!clean || !id) throw new Error("Falta el texto o la voz.");
+  stopQbitTts(event.sender.id);
+  const script = "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Speech -ErrorAction Stop; $s=New-Object System.Speech.Synthesis.SpeechSynthesizer; try { $voice=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + Buffer.from(id, "utf8").toString("base64") + "')); $text=[System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + Buffer.from(clean, "utf8").toString("base64") + "')); $s.SelectVoice($voice); $s.Speak($text) } finally { $s.Dispose() }";
+  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-EncodedCommand", encodePowerShell(script)], { windowsHide: true, shell: false, stdio: ["ignore", "ignore", "pipe"] });
+  qbitTtsProcesses.set(event.sender.id, child);
+  let stderr = "";
+  child.stderr?.on("data", chunk => { stderr += chunk.toString(); });
+  child.on("error", error => { if (qbitTtsProcesses.get(event.sender.id) === child) qbitTtsProcesses.delete(event.sender.id); console.warn("[QBIT TTS]", error.message); });
+  child.on("close", code => {
+    if (qbitTtsProcesses.get(event.sender.id) === child) qbitTtsProcesses.delete(event.sender.id);
+    if (code !== 0 && stderr.trim()) console.warn("[QBIT TTS]", stderr.trim());
+  });
+  return { ok: true };
+});
+ipcMain.handle("qbit:tts-stop", event => {
+  if (!isQbitTtsSender(event.sender)) throw new Error("No autorizado.");
+  stopQbitTts(event.sender.id);
+  return { ok: true };
+});
 ipcMain.handle("qbit:audio-devices",async()=>{const raw=await runWindowsCommand("powershell.exe",["-NoProfile","-NonInteractive","-Command","Get-CimInstance Win32_SoundDevice | Select-Object Name,Status | ConvertTo-Json -Compress"],8000);let a=JSON.parse(raw||"[]");if(!Array.isArray(a))a=[a];return{ok:true,message:a.length?"Dispositivos de audio detectados:\n"+a.map(x=>"• "+x.Name+" · "+(x.Status||"estado no disponible")).join("\n"):"Windows no informó dispositivos de audio."};});
 
 ipcMain.handle("qbit:clipboard-write", async (_event, value) => {
