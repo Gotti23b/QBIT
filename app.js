@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.52";
+  const QBIT_VERSION = "1.5.53";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -12,6 +12,8 @@
   let speechRecognition = null;
   let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
   let availableSpeechVoices = [];
+  let availableSystemSpeechVoices = [];
+  let systemSpeechVoicesLoaded = false;
   const selectedVoiceKey = "qbit-speech-voice";
   let selectedVoiceId = localStorage.getItem(selectedVoiceKey) || "";
   function voiceRecognitionErrorMessage(code){
@@ -26,9 +28,17 @@
     return messages[code]||("Falló el reconocimiento de voz ("+String(code||"error desconocido")+"). Probá de nuevo.");
   }
   function speakQbitText(text){
-    if(!voiceOutputEnabled || !("speechSynthesis" in window))return;
-    const clean=String(text||"").replace(/\s+/g," ").trim().slice(0,3500);
+    if(!voiceOutputEnabled)return;
+    const clean=String(text||"").replace(/\\s+/g," ").trim().slice(0,3500);
     if(!clean)return;
+    if(selectedVoiceId.startsWith("sapi:")&&window.qbitPC?.speakSystemVoice){
+      window.speechSynthesis?.cancel();
+      const voice=availableSystemSpeechVoices.find(item=>"sapi:"+item.id===selectedVoiceId);
+      if(voice)void window.qbitPC.speakSystemVoice(clean,voice.id).catch(error=>console.warn("[QBIT TTS]",error));
+      return;
+    }
+    if(!("speechSynthesis" in window))return;
+    window.qbitPC?.stopSystemVoice?.();
     window.speechSynthesis.cancel();
     const utterance=new SpeechSynthesisUtterance(clean);
     utterance.lang="es-AR";
@@ -48,14 +58,26 @@
       option.textContent=voice.name+" · "+(voice.lang||"idioma desconocido")+(voice.default?" · predeterminada":"");
       selector.append(option);
     });
-    selector.value=availableSpeechVoices.some(voice=>(voice.voiceURI||voice.name)===previous)?previous:"";
+    availableSystemSpeechVoices.forEach(voice=>{
+      const option=document.createElement("option");option.value="sapi:"+voice.id;
+      option.textContent=/rhvoice|mateo/i.test(voice.name)?"RHVoice · "+voice.name:"Windows · "+voice.name;
+      selector.append(option);
+    });
+    if(previous.startsWith("sapi:")&&!systemSpeechVoicesLoaded){
+      const pending=document.createElement("option");pending.value=previous;pending.textContent="Cargando voz del sistema…";selector.append(pending);
+    }
+    const exists=availableSpeechVoices.some(voice=>(voice.voiceURI||voice.name)===previous)||availableSystemSpeechVoices.some(voice=>"sapi:"+voice.id===previous);
+    selector.value=exists||(!systemSpeechVoicesLoaded&&previous.startsWith("sapi:"))?previous:"";
     if(selector.value!==previous){selectedVoiceId="";try{localStorage.removeItem(selectedVoiceKey);}catch{}}
-    selector.disabled=availableSpeechVoices.length===0;
-    selector.title=availableSpeechVoices.length?"Elegí la voz que usa QBIT al responder":"El sistema todavía no informó voces disponibles";
+    selector.disabled=availableSpeechVoices.length===0&&availableSystemSpeechVoices.length===0&&systemSpeechVoicesLoaded;
+    selector.title=availableSystemSpeechVoices.length?"Elegí una voz del navegador o una voz SAPI de Windows":"Elegí la voz que usa QBIT al responder";
   }
-  function loadSpeechVoices(){
-    if(!("speechSynthesis" in window))return;
-    availableSpeechVoices=window.speechSynthesis.getVoices();renderVoiceSelector();
+  async function loadSpeechVoices(){
+    if("speechSynthesis" in window)availableSpeechVoices=window.speechSynthesis.getVoices();
+    if(window.qbitPC?.getSystemSpeechVoices){
+      try{availableSystemSpeechVoices=await window.qbitPC.getSystemSpeechVoices();}catch(error){console.warn("[QBIT TTS] No se pudieron cargar las voces SAPI:",error);}
+    }
+    systemSpeechVoicesLoaded=true;renderVoiceSelector();
   }
   function renderVoiceControls(){
     const output=$("voiceOutputToggle"),input=$("voiceInputButton");
@@ -67,11 +89,12 @@
     selectedVoiceId=event.target.value;
     try{if(selectedVoiceId)localStorage.setItem(selectedVoiceKey,selectedVoiceId);else localStorage.removeItem(selectedVoiceKey);}catch{}
   });
-  if("speechSynthesis" in window){loadSpeechVoices();window.speechSynthesis.addEventListener?.("voiceschanged",loadSpeechVoices);setTimeout(loadSpeechVoices,500);}
+  void loadSpeechVoices();
+  if("speechSynthesis" in window){window.speechSynthesis.addEventListener?.("voiceschanged",()=>{availableSpeechVoices=window.speechSynthesis.getVoices();renderVoiceSelector();});setTimeout(()=>{availableSpeechVoices=window.speechSynthesis.getVoices();renderVoiceSelector();},500);}
   $("voiceOutputToggle")?.addEventListener("click",()=>{
     voiceOutputEnabled=!voiceOutputEnabled;
     try{localStorage.setItem("qbit-voice-output",String(voiceOutputEnabled));}catch{}
-    if(!voiceOutputEnabled&&"speechSynthesis" in window)window.speechSynthesis.cancel();
+    if(!voiceOutputEnabled){window.speechSynthesis?.cancel();void window.qbitPC?.stopSystemVoice?.();}
     renderVoiceControls();
   });
   $("voiceInputButton")?.addEventListener("click",()=>{
