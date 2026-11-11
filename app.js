@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.53";
+  const QBIT_VERSION = "1.5.55";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -219,6 +219,19 @@
     if(name==="volume_set"){const level=Number(args.level);if(!Number.isInteger(level)||level<0||level>100)throw new Error("El volumen debe ser un entero entre 0 y 100.");return await pc.volume("set",level);}
     if(name==="audio_mute")return await pc.volume("mute");
     if(name==="clipboard_write")return await pc.writeClipboard(String(args.text??""));
+    if(name==="pet_cursor"){
+      const action=String(args.action||"point");
+      const x=Number(args.x),y=Number(args.y);
+      if(!Number.isInteger(x)||!Number.isInteger(y))throw new Error("La IA no indicó coordenadas válidas.");
+      if(action==="point")return await pc.movePetCursor(x,y,"pointer");
+      if(action==="tap")return await pc.actPetCursor("tap",{x,y});
+      if(action==="drag"){
+        const x2=Number(args.x2),y2=Number(args.y2);
+        if(!Number.isInteger(x2)||!Number.isInteger(y2))throw new Error("Falta el destino del arrastre.");
+        return await pc.actPetCursor("drag",{x,y,x2,y2});
+      }
+      throw new Error("Acción de cursor no válida.");
+    }
 
     throw new Error("Artifact desconocido o no habilitado: "+name);
   }
@@ -245,6 +258,7 @@
     create_file:"crear un archivo de texto en Documentos, Descargas o Escritorio",
     search_files:"buscar archivos por nombre",
     clipboard_write:"copiar texto al portapapeles",
+    pet_cursor:"mover la manito de QBIT, tocar un control o arrastrar un elemento de la pantalla",
     empty_recycle_bin:"vaciar la Papelera de reciclaje (acción irreversible)",
     get_processes:"consultar los procesos activos",
     cpu_usage:"consultar el uso del procesador",
@@ -337,7 +351,8 @@
     const name=String(call?.artifact||"");const args=call?.args&&typeof call.args==="object"?{...call.args}:Object.fromEntries(Object.entries(call||{}).filter(([key])=>key!=="artifact"));
     delete args.__allowed;
     if(!AI_ARTIFACTS[name])return "La IA pidió un artifact que no existe: "+name;
-    if(!AI_ARTIFACTS_NO_CONFIRM.has(name)&&!loadAlwaysAllow().has(name)){
+    const petCursorNeedsConfirm = name==="pet_cursor" && args.action!=="point";
+    if((petCursorNeedsConfirm || (!AI_ARTIFACTS_NO_CONFIRM.has(name)&&!loadAlwaysAllow().has(name))) && !(name==="pet_cursor" && args.action==="point")){
       const detail=args.query?" (\""+String(args.query).slice(0,80)+"\")":args.action==="set"?" al "+args.level+"%":args.action?" ("+args.action+")":"";
       const answer=await askPermission(name,detail);
       if(answer==="deny")return "Cancelaste el artifact "+name+".";
