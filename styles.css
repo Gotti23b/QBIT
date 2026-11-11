@@ -555,3 +555,11 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 /* Acciones de cada dispositivo vinculado */
 .cloud-device-card-actions{display:flex;justify-content:flex-end;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)}
 .cloud-device-delete{min-height:34px}
+
+
+/* Selector de voz para respuestas habladas */
+.voice-selector-label{display:flex;align-items:center;gap:7px;margin-left:2px;color:var(--muted);font-size:10px;white-space:nowrap}
+.voice-selector{max-width:min(245px,35vw);min-height:34px;padding:6px 27px 6px 9px;border:1px solid var(--line);border-radius:9px;background:#0c1823;color:var(--text);font:inherit;font-size:11px;cursor:pointer}
+.voice-selector:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.voice-selector:disabled{opacity:.55;cursor:wait}
+@media(max-width:620px){.composer-tools{flex-wrap:wrap}.voice-selector-label{flex:1 1 100%;margin:3px 0 0}.voice-selector{max-width:100%;flex:1}}
