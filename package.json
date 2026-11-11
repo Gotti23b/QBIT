@@ -1,6 +1,6 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.54",
+  "version": "1.5.55",
   "description": "QBIT Desktop",
   "private": true,
   "main": "windows/electron/main.cjs",
