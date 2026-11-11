@@ -9,6 +9,8 @@ try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = n
 
 let mainWindow;
 let petWindow;
+let petCursorWindow = null;
+let petCursorHideTimer = null;
 let tray;
 let isQuitting = false;
 const backgroundLaunch = process.argv.includes("--qbit-background");
@@ -498,6 +500,117 @@ async function openAnything(query) {
 }
 
 
+function createPetCursorWindow() {
+  if (petCursorWindow && !petCursorWindow.isDestroyed()) return petCursorWindow;
+  const bounds = screen.getPrimaryDisplay().bounds;
+  petCursorWindow = new BrowserWindow({
+    x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
+    frame: false, transparent: true, backgroundColor: "#00000000",
+    hasShadow: false, resizable: false, movable: false, focusable: false,
+    skipTaskbar: true, alwaysOnTop: true, fullscreenable: false, show: false,
+    webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  petCursorWindow.setAlwaysOnTop(true, "screen-saver");
+  petCursorWindow.setIgnoreMouseEvents(true, { forward: true });
+  petCursorWindow.on("closed", () => { petCursorWindow = null; });
+  petCursorWindow.loadFile(path.join(__dirname, "pet-cursor.html"));
+  petCursorWindow.once("ready-to-show", () => petCursorWindow?.showInactive());
+  return petCursorWindow;
+}
+
+function sendPetCursorState(state) {
+  const win = createPetCursorWindow();
+  const display = screen.getPrimaryDisplay();
+  const payload = { ...state, originX: display.bounds.x, originY: display.bounds.y };
+  const send = () => { if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.webContents.send("qbit:pet-cursor-state", payload); };
+  if (win.webContents.isLoading()) win.webContents.once("did-finish-load", send); else send();
+  win.showInactive();
+  win.setAlwaysOnTop(true, "screen-saver");
+}
+
+async function invokePetScreenElement(x, y) {
+  const px = Math.round(Number(x)), py = Math.round(Number(y));
+  if (!Number.isFinite(px) || !Number.isFinite(py)) throw new Error("Coordenadas no válidas.");
+  const script = `
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$point = New-Object System.Windows.Point(${px}, ${py})
+$element = [System.Windows.Automation.AutomationElement]::FromPoint($point)
+$walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+$depth = 0
+while ($null -ne $element -and $depth -lt 9) {
+  foreach ($patternId in @([System.Windows.Automation.InvokePattern]::Pattern,[System.Windows.Automation.SelectionItemPattern]::Pattern,[System.Windows.Automation.TogglePattern]::Pattern)) {
+    $pattern = $null
+    if ($element.TryGetCurrentPattern($patternId,[ref]$pattern)) {
+      if ($pattern -is [System.Windows.Automation.InvokePattern]) { $pattern.Invoke(); "clicked"; exit 0 }
+      if ($pattern -is [System.Windows.Automation.SelectionItemPattern]) { $pattern.Select(); "selected"; exit 0 }
+      if ($pattern -is [System.Windows.Automation.TogglePattern]) { $pattern.Toggle(); "toggled"; exit 0 }
+    }
+  }
+  $element = $walker.GetParent($element)
+  $depth++
+}
+throw "No encontré un control que se pueda activar en esa posición."
+`;
+  return runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShell(script)], 12000);
+}
+
+async function dragPetScreenElement(x1, y1, x2, y2) {
+  const values = [x1, y1, x2, y2].map(Number);
+  if (!values.every(Number.isFinite)) throw new Error("Coordenadas de arrastre no válidas.");
+  const [sx, sy, ex, ey] = values.map(Math.round);
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class QbitPetMouse {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+}
+"@
+[QbitPetMouse]::SetCursorPos(${sx},${sy}) | Out-Null
+Start-Sleep -Milliseconds 180
+[QbitPetMouse]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
+Start-Sleep -Milliseconds 120
+[QbitPetMouse]::SetCursorPos(${ex},${ey}) | Out-Null
+Start-Sleep -Milliseconds 250
+[QbitPetMouse]::mouse_event(0x0004,0,0,0,[UIntPtr]::Zero)
+"dragged"
+`;
+  return runWindowsCommand("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encodePowerShell(script)], 12000);
+}
+
+ipcMain.handle("qbit:pet-cursor-move", (event, x, y, mode = "pointer") => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  const px = Number(x), py = Number(y);
+  const display = screen.getPrimaryDisplay();
+  if (!Number.isFinite(px) || !Number.isFinite(py) || px < display.bounds.x || py < display.bounds.y || px >= display.bounds.x + display.bounds.width || py >= display.bounds.y + display.bounds.height) throw new Error("El punto está fuera de la pantalla principal.");
+  sendPetCursorState({ visible: true, x: px, y: py, mode: mode === "hand" ? "hand" : "pointer" });
+  if (petCursorHideTimer) clearTimeout(petCursorHideTimer);
+  petCursorHideTimer = setTimeout(() => {
+    if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.webContents.send("qbit:pet-cursor-state", { visible: false });
+  }, 6500);
+  return { ok: true };
+});
+
+ipcMain.handle("qbit:pet-cursor-action", async (event, action, args = {}) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error("Solicitud no autorizada.");
+  const x = Number(args.x), y = Number(args.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error("Coordenadas no válidas.");
+  sendPetCursorState({ visible: true, x, y, mode: "hand" });
+  if (action === "tap") {
+    const result = await invokePetScreenElement(x, y);
+    return { ok: true, message: "Toqué el elemento de la pantalla. " + result };
+  }
+  if (action === "drag") {
+    const x2 = Number(args.x2), y2 = Number(args.y2);
+    sendPetCursorState({ visible: true, x: x2, y: y2, mode: "hand" });
+    const result = await dragPetScreenElement(x, y, x2, y2);
+    return { ok: true, message: "Terminé el arrastre. " + result };
+  }
+  throw new Error("Acción de cursor no reconocida.");
+});
+
 async function getPetOcrWorker() {
   if (!petOcrWorkerPromise) {
     petOcrWorkerPromise = (async () => {
@@ -949,7 +1062,7 @@ app.whenReady().then(() => {
   if (!backgroundLaunch) createPetWindow();
   setupAutoUpdater();
 });
-app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); if (petOcrWorkerPromise) petOcrWorkerPromise.then(worker => worker.terminate()).catch(() => {}); });
+app.on("before-quit", () => { isQuitting = true; stopConnectorServer(); if (petCursorHideTimer) clearTimeout(petCursorHideTimer); if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.destroy(); if (petOcrWorkerPromise) petOcrWorkerPromise.then(worker => worker.terminate()).catch(() => {}); });
 app.on("window-all-closed", () => {
   if (isQuitting) app.quit();
 });
