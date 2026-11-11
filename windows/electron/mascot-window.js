@@ -14,6 +14,8 @@
   let speechRecognition = null;
   let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
   let availableSpeechVoices = [];
+  let availableSystemSpeechVoices = [];
+  let systemSpeechVoicesLoaded = false;
   const selectedVoiceKey = "qbit-speech-voice";
   let selectedVoiceId = localStorage.getItem(selectedVoiceKey) || "";
   function voiceRecognitionErrorMessage(code) {
@@ -53,9 +55,17 @@
   }
 
   function speakReply(text) {
-    if (!voiceOutputEnabled || !("speechSynthesis" in window)) return;
-    const clean = String(text || "").replace(/\s+/g, " ").trim().slice(0, 3500);
+    if (!voiceOutputEnabled) return;
+    const clean = String(text || "").replace(/\\s+/g, " ").trim().slice(0, 3500);
     if (!clean) return;
+    if (selectedVoiceId.startsWith("sapi:") && api?.speakSystemVoice) {
+      window.speechSynthesis?.cancel();
+      const voice = availableSystemSpeechVoices.find(item => "sapi:" + item.id === selectedVoiceId);
+      if (voice) void api.speakSystemVoice(clean, voice.id).catch(error => console.warn("[QBIT TTS]", error));
+      return;
+    }
+    if (!("speechSynthesis" in window)) return;
+    void api?.stopSystemVoice?.();
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = "es-AR";
@@ -79,14 +89,30 @@
       option.textContent = voice.name + " · " + (voice.lang || "idioma desconocido") + (voice.default ? " · predeterminada" : "");
       voiceSelector.append(option);
     });
-    voiceSelector.value = availableSpeechVoices.some(voice => (voice.voiceURI || voice.name) === previous) ? previous : "";
+    availableSystemSpeechVoices.forEach(voice => {
+      const option = document.createElement("option");
+      option.value = "sapi:" + voice.id;
+      option.textContent = /rhvoice|mateo/i.test(voice.name) ? "RHVoice · " + voice.name : "Windows · " + voice.name;
+      voiceSelector.append(option);
+    });
+    if (previous.startsWith("sapi:") && !systemSpeechVoicesLoaded) {
+      const pending = document.createElement("option");
+      pending.value = previous;
+      pending.textContent = "Cargando voz del sistema…";
+      voiceSelector.append(pending);
+    }
+    const exists = availableSpeechVoices.some(voice => (voice.voiceURI || voice.name) === previous) || availableSystemSpeechVoices.some(voice => "sapi:" + voice.id === previous);
+    voiceSelector.value = exists || (!systemSpeechVoicesLoaded && previous.startsWith("sapi:")) ? previous : "";
     if (voiceSelector.value !== previous) { selectedVoiceId = ""; try { localStorage.removeItem(selectedVoiceKey); } catch {} }
-    voiceSelector.disabled = availableSpeechVoices.length === 0;
-    voiceSelector.title = availableSpeechVoices.length ? "Elegí la voz de la mascota" : "El sistema todavía no informó voces disponibles";
+    voiceSelector.disabled = availableSpeechVoices.length === 0 && availableSystemSpeechVoices.length === 0 && systemSpeechVoicesLoaded;
+    voiceSelector.title = availableSystemSpeechVoices.length ? "Elegí una voz del navegador o una voz SAPI de Windows" : "Elegí la voz de la mascota";
   }
-  function loadSpeechVoices() {
-    if (!("speechSynthesis" in window)) return;
-    availableSpeechVoices = window.speechSynthesis.getVoices();
+  async function loadSpeechVoices() {
+    if ("speechSynthesis" in window) availableSpeechVoices = window.speechSynthesis.getVoices();
+    if (api?.getSystemSpeechVoices) {
+      try { availableSystemSpeechVoices = await api.getSystemSpeechVoices(); } catch (error) { console.warn("[QBIT TTS] No se pudieron cargar las voces SAPI:", error); }
+    }
+    systemSpeechVoicesLoaded = true;
     renderVoiceSelector();
   }
   function renderVoiceButtons() {
@@ -100,15 +126,15 @@
     selectedVoiceId = event.target.value;
     try { if (selectedVoiceId) localStorage.setItem(selectedVoiceKey, selectedVoiceId); else localStorage.removeItem(selectedVoiceKey); } catch {}
   });
+  void loadSpeechVoices();
   if ("speechSynthesis" in window) {
-    loadSpeechVoices();
-    window.speechSynthesis.addEventListener?.("voiceschanged", loadSpeechVoices);
-    setTimeout(loadSpeechVoices, 500);
+    window.speechSynthesis.addEventListener?.("voiceschanged", () => { availableSpeechVoices = window.speechSynthesis.getVoices(); renderVoiceSelector(); });
+    setTimeout(() => { availableSpeechVoices = window.speechSynthesis.getVoices(); renderVoiceSelector(); }, 500);
   }
   voiceOutputButton.addEventListener("click", () => {
     voiceOutputEnabled = !voiceOutputEnabled;
     try { localStorage.setItem("qbit-voice-output", String(voiceOutputEnabled)); } catch {}
-    if (!voiceOutputEnabled && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (!voiceOutputEnabled) { window.speechSynthesis?.cancel(); void api?.stopSystemVoice?.(); }
     renderVoiceButtons();
   });
   voiceInputButton.addEventListener("click", () => {
