@@ -60,7 +60,7 @@
     });
     availableSystemSpeechVoices.forEach(voice=>{
       const option=document.createElement("option");option.value="sapi:"+voice.id;
-      option.textContent=/rhvoice|mateo/i.test(voice.name)?"RHVoice · "+voice.name:"Windows · "+voice.name;
+      option.textContent=/rhvoice|mateo/i.test(voice.name)?"RHVoice · "+voice.name.replace(/^RHVoice(?:-Plus)?[\\s-]*/i,""):"Windows · "+voice.name;
       selector.append(option);
     });
     if(previous.startsWith("sapi:")&&!systemSpeechVoicesLoaded){
