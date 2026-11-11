@@ -528,13 +528,21 @@ function sendPetCursorState(state) {
   win.setAlwaysOnTop(true, "screen-saver");
 }
 
+function schedulePetCursorHide(delay = 6500) {
+  if (petCursorHideTimer) clearTimeout(petCursorHideTimer);
+  petCursorHideTimer = setTimeout(() => {
+    if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.webContents.send("qbit:pet-cursor-state", { visible: false });
+  }, delay);
+}
+
 async function invokePetScreenElement(x, y) {
   const px = Math.round(Number(x)), py = Math.round(Number(y));
   if (!Number.isFinite(px) || !Number.isFinite(py)) throw new Error("Coordenadas no válidas.");
   const script = `
+Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-$point = New-Object System.Windows.Point(${px}, ${py})
+$point = [System.Windows.Point]::new(${px}, ${py})
 $element = [System.Windows.Automation.AutomationElement]::FromPoint($point)
 $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
 $depth = 0
@@ -586,10 +594,7 @@ ipcMain.handle("qbit:pet-cursor-move", (event, x, y, mode = "pointer") => {
   const display = screen.getPrimaryDisplay();
   if (!Number.isFinite(px) || !Number.isFinite(py) || px < display.bounds.x || py < display.bounds.y || px >= display.bounds.x + display.bounds.width || py >= display.bounds.y + display.bounds.height) throw new Error("El punto está fuera de la pantalla principal.");
   sendPetCursorState({ visible: true, x: px, y: py, mode: mode === "hand" ? "hand" : "pointer" });
-  if (petCursorHideTimer) clearTimeout(petCursorHideTimer);
-  petCursorHideTimer = setTimeout(() => {
-    if (petCursorWindow && !petCursorWindow.isDestroyed()) petCursorWindow.webContents.send("qbit:pet-cursor-state", { visible: false });
-  }, 6500);
+  schedulePetCursorHide();
   return { ok: true };
 });
 
@@ -600,18 +605,24 @@ ipcMain.handle("qbit:pet-cursor-action", async (event, action, args = {}) => {
   sendPetCursorState({ visible: true, x, y, mode: "hand" });
   if (action === "tap") {
     const { response } = await dialog.showMessageBox(petWindow && !petWindow.isDestroyed() ? petWindow : undefined, { type: "question", title: "QBIT quiere tocar algo", message: "La mascota quiere activar un control de la pantalla.", detail: "Posición aproximada: " + x + ", " + y + ". ¿Le das permiso para tocarlo esta vez?", buttons: ["Permitir una vez", "Cancelar"], defaultId: 1, cancelId: 1, noLink: true });
-    if (response !== 0) return { ok: false, message: "Cancelaste el toque. No se activó ningún control." };
+    if (response !== 0) { schedulePetCursorHide(1000); return { ok: false, message: "Cancelaste el toque. No se activó ningún control." }; }
     await new Promise(resolve => setTimeout(resolve, 350));
     const result = await invokePetScreenElement(x, y);
+    schedulePetCursorHide(3500);
     return { ok: true, message: "Toqué el elemento de la pantalla. " + result };
   }
   if (action === "drag") {
     const x2 = Number(args.x2), y2 = Number(args.y2);
     const { response } = await dialog.showMessageBox(petWindow && !petWindow.isDestroyed() ? petWindow : undefined, { type: "question", title: "QBIT quiere arrastrar algo", message: "La mascota quiere arrastrar un elemento de la pantalla.", detail: "Desde (" + x + ", " + y + ") hasta (" + x2 + ", " + y2 + "). Durante el arrastre se moverá el puntero real de Windows.", buttons: ["Permitir una vez", "Cancelar"], defaultId: 1, cancelId: 1, noLink: true });
-    if (response !== 0) return { ok: false, message: "Cancelaste el arrastre. No se movió nada." };
-    await new Promise(resolve => setTimeout(resolve, 350));
+    if (response !== 0) { schedulePetCursorHide(1000); return { ok: false, message: "Cancelaste el arrastre. No se movió nada." }; }
+    const display = screen.getPrimaryDisplay().bounds;
+    if (![x2, y2].every(Number.isFinite) || x2 < display.x || y2 < display.y || x2 >= display.x + display.width || y2 >= display.y + display.height) throw new Error("El destino del arrastre está fuera de la pantalla principal.");
+    await new Promise(resolve => setTimeout(resolve, 250));
+    sendPetCursorState({ visible: true, x, y, mode: "hand" });
+    await new Promise(resolve => setTimeout(resolve, 120));
     sendPetCursorState({ visible: true, x: x2, y: y2, mode: "hand" });
     const result = await dragPetScreenElement(x, y, x2, y2);
+    schedulePetCursorHide(3500);
     return { ok: true, message: "Terminé el arrastre. " + result };
   }
   throw new Error("Acción de cursor no reconocida.");
