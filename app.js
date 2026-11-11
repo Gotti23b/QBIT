@@ -29,7 +29,7 @@
   }
   function speakQbitText(text){
     if(!voiceOutputEnabled)return;
-    const clean=String(text||"").replace(/\\s+/g," ").trim().slice(0,3500);
+    const clean=String(text||"").replace(/\s+/g," ").trim().slice(0,3500);
     if(!clean)return;
     if(selectedVoiceId.startsWith("sapi:")&&window.qbitPC?.speakSystemVoice){
       window.speechSynthesis?.cancel();
@@ -60,7 +60,7 @@
     });
     availableSystemSpeechVoices.forEach(voice=>{
       const option=document.createElement("option");option.value="sapi:"+voice.id;
-      option.textContent=/rhvoice|mateo/i.test(voice.name)?"RHVoice · "+voice.name.replace(/^RHVoice(?:-Plus)?[\\s-]*/i,""):"Windows · "+voice.name;
+      option.textContent=/rhvoice|mateo/i.test(voice.name)?"RHVoice · "+voice.name.replace(/^RHVoice(?:-Plus)?[\s-]*/i,""):"Windows · "+voice.name;
       selector.append(option);
     });
     if(previous.startsWith("sapi:")&&!systemSpeechVoicesLoaded){
