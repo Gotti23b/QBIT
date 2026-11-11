@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.5.49";
+  const QBIT_VERSION = "1.5.51";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -11,6 +11,17 @@
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let speechRecognition = null;
   let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
+  function voiceRecognitionErrorMessage(code){
+    const messages={
+      "not-allowed":"El navegador bloqueó el micrófono. Permití el acceso al micrófono para QBIT desde los permisos del sitio.",
+      "service-not-allowed":"El navegador no permite usar el servicio de reconocimiento de voz. Revisá los permisos del sitio o probá Chrome/Edge.",
+      "audio-capture":"No pude acceder al micrófono. Comprobá que esté conectado y que ninguna otra aplicación lo esté usando.",
+      "network":"El servicio de reconocimiento de voz no respondió. Revisá tu conexión a internet e intentá de nuevo.",
+      "no-speech":"No detecté voz. Tocá Hablarle y empezá a hablar cuando aparezca «Escuchando…».",
+      "language-not-supported":"Este navegador no admite español (Argentina) para el reconocimiento de voz."
+    };
+    return messages[code]||("Falló el reconocimiento de voz ("+String(code||"error desconocido")+"). Probá de nuevo.");
+  }
   function speakQbitText(text){
     if(!voiceOutputEnabled || !("speechSynthesis" in window))return;
     const clean=String(text||"").replace(/\s+/g," ").trim().slice(0,3500);
@@ -43,9 +54,10 @@
       const transcript=String(event.results?.[0]?.[0]?.transcript||"").trim();
       if(transcript){$("chatInput").value=transcript;$("sendForm").requestSubmit();}
     };
-    recognition.onerror=event=>{if(event.error!=="no-speech"&&event.error!=="aborted")bubble("QBIT","No pude reconocer la voz. Revisá el permiso del micrófono e intentá de nuevo.","bot");};
+    recognition.onerror=event=>{if(event.error!=="aborted")bubble("QBIT",voiceRecognitionErrorMessage(event.error),"bot");};
+    recognition.onnomatch=()=>bubble("QBIT",voiceRecognitionErrorMessage("no-speech"),"bot");
     recognition.onend=()=>{if(speechRecognition===recognition)speechRecognition=null;button.textContent="🎤 Hablarle";button.disabled=false;};
-    try{recognition.start();}catch{button.textContent="🎤 Hablarle";button.disabled=false;speechRecognition=null;}
+    try{recognition.start();}catch(error){button.textContent="🎤 Hablarle";button.disabled=false;speechRecognition=null;bubble("QBIT",voiceRecognitionErrorMessage(error?.name||"start-failed"),"bot");}
   });
   renderVoiceControls();
   function renderDesktopControlStatus(){
