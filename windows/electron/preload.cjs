@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   stopSystemVoice: () => ipcRenderer.invoke("qbit:tts-stop"),
   getAudioDevices: () => ipcRenderer.invoke("qbit:audio-devices"),
   writeClipboard: text => ipcRenderer.invoke("qbit:clipboard-write", text),
+  movePetCursor: (x, y, mode) => ipcRenderer.invoke("qbit:pet-cursor-move", Number(x), Number(y), String(mode || "pointer")),
+  actPetCursor: (action, args) => ipcRenderer.invoke("qbit:pet-cursor-action", String(action), args || {}),
   checkForUpdates: () => ipcRenderer.invoke("qbit:update-check"),
   getAppVersion: () => ipcRenderer.invoke("qbit:app-version"),
   onUpdateState: callback => {
@@ -66,6 +68,9 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   getPetSettings: () => ipcRenderer.invoke("qbit:pet-settings-get"),
   setPetSettings: settings => ipcRenderer.invoke("qbit:pet-settings-set", settings),
   resetPetPosition: () => ipcRenderer.invoke("qbit:pet-position-reset")
+}));
+contextBridge.exposeInMainWorld("qbitCursor", Object.freeze({
+  onState: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:pet-cursor-state", (_event, state) => callback(state)); }
 }));
 contextBridge.exposeInMainWorld("qbitPet", Object.freeze({
   getSystemSpeechVoices: () => ipcRenderer.invoke("qbit:tts-voices"),
