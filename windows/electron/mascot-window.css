@@ -79,3 +79,9 @@ button,input,.no-drag{-webkit-app-region:no-drag}
 @keyframes work{from{transform:translateY(0) rotate(-5deg)}to{transform:translateY(-3px) rotate(5deg)}}
 @media(prefers-reduced-motion:reduce){.cube{animation:none!important}}
 html.no-animations .cube,html.no-animations .pet-button[data-state="working"] .cube{animation:none!important}
+
+
+.pet-voice-selector-label{display:grid;gap:5px;margin-top:9px;color:var(--muted);font-size:10px}
+.pet-voice-selector-label select{width:100%;min-height:36px;padding:7px 10px;border:1px solid #28536a;border-radius:10px;background:#0b1b2a;color:var(--text);font:inherit;font-size:11px;cursor:pointer}
+.pet-voice-selector-label select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.pet-voice-selector-label select:disabled{opacity:.55;cursor:wait}
