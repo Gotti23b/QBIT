@@ -351,8 +351,7 @@
     const name=String(call?.artifact||"");const args=call?.args&&typeof call.args==="object"?{...call.args}:Object.fromEntries(Object.entries(call||{}).filter(([key])=>key!=="artifact"));
     delete args.__allowed;
     if(!AI_ARTIFACTS[name])return "La IA pidió un artifact que no existe: "+name;
-    const petCursorNeedsConfirm = name==="pet_cursor" && args.action!=="point";
-    if((petCursorNeedsConfirm || (!AI_ARTIFACTS_NO_CONFIRM.has(name)&&!loadAlwaysAllow().has(name))) && !(name==="pet_cursor" && args.action==="point")){
+    if(name!=="pet_cursor"&&!AI_ARTIFACTS_NO_CONFIRM.has(name)&&!loadAlwaysAllow().has(name)){
       const detail=args.query?" (\""+String(args.query).slice(0,80)+"\")":args.action==="set"?" al "+args.level+"%":args.action?" ("+args.action+")":"";
       const answer=await askPermission(name,detail);
       if(answer==="deny")return "Cancelaste el artifact "+name+".";
