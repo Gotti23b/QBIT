@@ -1,6 +1,6 @@
 {
   "name": "qbit-desktop",
-  "version": "1.5.53",
+  "version": "1.5.54",
   "description": "QBIT Desktop",
   "private": true,
   "main": "windows/electron/main.cjs",
@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "ws": "^8.18.0",
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.3.9",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "electron": "^35.0.0",
