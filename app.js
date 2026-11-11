@@ -911,7 +911,7 @@
     const r=activeResponses[Math.floor(Math.random()*activeResponses.length)];
     bubble("QBIT",r.content,"bot");
   };
-  window.qbitPC?.onPetMessage?.(message=>{const input=$("chatInput");if(!input)return;petMessagePending=true;input.value=String(message||"").slice(0,500);$("sendForm").requestSubmit();});
+  window.qbitPC?.onPetMessage?.(message=>{const input=$("chatInput");if(!input)return;petMessagePending=true;input.value=String(message||"").slice(0,12000);$("sendForm").requestSubmit();});
   $("clearChat").onclick=()=>newChat();
   $("newChatSidebar")?.addEventListener("click",()=>{newChat();setMobileSidebarOpen(false);});
   $("mobileNewChat")?.addEventListener("click",()=>newChat());
