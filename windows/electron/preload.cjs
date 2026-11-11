@@ -75,7 +75,8 @@ contextBridge.exposeInMainWorld("qbitPet", Object.freeze({
   getPosition: () => ipcRenderer.invoke("qbit:pet-position"),
   moveTo: (x, y) => ipcRenderer.invoke("qbit:pet-move", Number(x), Number(y)),
   showMainWindow: () => ipcRenderer.invoke("qbit:pet-show-main"),
-  sendMessage: message => ipcRenderer.invoke("qbit:pet-send-message", String(message).slice(0, 500)),
+  sendMessage: message => ipcRenderer.invoke("qbit:pet-send-message", String(message).slice(0, 12000)),
+  observeScreen: () => ipcRenderer.invoke("qbit:pet-observe-screen"),
   onPetReply: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:pet-reply", (_event, message) => callback(message)); },
   hidePet: () => ipcRenderer.invoke("qbit:pet-hide"),
   onPetToggle: callback => {
