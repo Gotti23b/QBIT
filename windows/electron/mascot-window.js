@@ -13,6 +13,17 @@
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let speechRecognition = null;
   let voiceOutputEnabled = localStorage.getItem("qbit-voice-output") === "true";
+  function voiceRecognitionErrorMessage(code) {
+    const messages = {
+      "not-allowed": "El navegador bloqueó el micrófono. Permití el acceso al micrófono para QBIT desde los permisos del sitio.",
+      "service-not-allowed": "El navegador no permite usar el servicio de reconocimiento de voz. Revisá los permisos del sitio o probá Chrome/Edge.",
+      "audio-capture": "No pude acceder al micrófono. Comprobá que esté conectado y que ninguna otra aplicación lo esté usando.",
+      "network": "El servicio de reconocimiento de voz no respondió. Revisá tu conexión a internet e intentá de nuevo.",
+      "no-speech": "No detecté voz. Tocá Hablarle y empezá a hablar cuando aparezca «Escuchando…».",
+      "language-not-supported": "Este navegador no admite español (Argentina) para el reconocimiento de voz."
+    };
+    return messages[code] || ("Falló el reconocimiento de voz (" + String(code || "error desconocido") + "). Probá de nuevo.");
+  }
   let sending = false;
   const stateNames = { idle: "tranqui", working: "trabajando", resting: "descansando" };
   let expanded = false;
@@ -77,14 +88,20 @@
       if (transcript) { input.value = transcript; form.requestSubmit(); }
     };
     recognition.onerror = event => {
-      if (event.error !== "no-speech" && event.error !== "aborted") greeting.textContent = "No pude reconocer la voz. Revisá el permiso del micrófono.";
+      if (event.error !== "aborted") greeting.textContent = voiceRecognitionErrorMessage(event.error);
     };
+    recognition.onnomatch = () => { greeting.textContent = voiceRecognitionErrorMessage("no-speech"); };
     recognition.onend = () => {
       if (speechRecognition === recognition) speechRecognition = null;
       voiceInputButton.textContent = "🎤 Hablarle";
       voiceInputButton.disabled = !SpeechRecognition;
     };
-    try { recognition.start(); } catch { speechRecognition = null; voiceInputButton.textContent = "🎤 Hablarle"; voiceInputButton.disabled = false; }
+    try { recognition.start(); } catch (error) {
+      speechRecognition = null;
+      voiceInputButton.textContent = "🎤 Hablarle";
+      voiceInputButton.disabled = !SpeechRecognition;
+      greeting.textContent = voiceRecognitionErrorMessage(error?.name || "start-failed");
+    }
   });
   renderVoiceButtons();
 
