@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "QBIT Extension",
-  "version": "1.5.17",
+  "version": "1.5.18",
   "description": "Conecta QBIT Web con QBIT Desktop y con proveedores de IA del navegador.",
   "permissions": [
     "clipboardRead",
+    "scripting",
     "storage",
     "tabs"
   ],

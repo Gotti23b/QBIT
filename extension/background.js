@@ -84,35 +84,48 @@ async function sendConsolePrompt(message) {
   });
 }
 
+async function sendPromptToTab(tabId, payload) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, payload);
+  } catch (error) {
+    const reason = String(error?.message || error);
+    if (!/receiving end does not exist|could not establish connection|no receiver/i.test(reason)) throw error;
+
+    // La pestaña puede haber estado abierta antes de instalar o recargar la extensión.
+    // Inyectamos el receptor sin activar la pestaña y volvemos a intentar.
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["ai-provider.js"] });
+    await new Promise(resolve => setTimeout(resolve, 250));
+    return await chrome.tabs.sendMessage(tabId, payload);
+  }
+}
+
 async function runAI(message, requestedProvider) {
   const providerKey = String(requestedProvider || "auto").toLowerCase();
   const urlPatterns = providerKey === "auto" ? Object.values(PROVIDERS).flat() : PROVIDERS[providerKey];
   if (!urlPatterns) throw new Error("No reconozco ese proveedor de IA.");
+
   const tabs = await chrome.tabs.query({ url: urlPatterns });
   if (!tabs.length) throw new Error("Abrí e iniciá sesión en una pestaña de ChatGPT o Arena.ai. También podés usar Gemini, Claude, DeepSeek, Qwen o Meta AI.");
+
   const tab = tabs.sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
-  // Traemos la pestaña de IA al frente mientras responde (en segundo plano Chrome
-  // la frena y no habilita el botón Enviar) y después volvemos a la anterior.
-  const [previousTab] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
-  await chrome.tabs.update(tab.id, { active: true });
-  await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
-  await new Promise(resolve => setTimeout(resolve, 400));
-  for (let i = 0; i < 40; i++) { // hasta 20 s si Chrome tuvo que recargarla
+  if (!Number.isInteger(tab.id)) throw new Error("No pude identificar la pestaña de IA.");
+
+  // Esperamos a que termine de cargar, pero nunca activamos la pestaña ni enfocamos la ventana.
+  for (let i = 0; i < 40; i++) {
     const current = await chrome.tabs.get(tab.id).catch(() => null);
     if (!current || current.status === "complete") break;
     await new Promise(resolve => setTimeout(resolve, 500));
   }
-  let result;
-  try {
-    result = await chrome.tabs.sendMessage(tab.id, { type: "QBIT_AI_PROMPT", message: String(message || "").slice(0, 12000) });
-  } finally {
-    if (previousTab?.id && previousTab.id !== tab.id) chrome.tabs.update(previousTab.id, { active: true }).catch(() => {});
-  }
-  console.log("[QBIT] Resultado de la pestaña de IA:", result);
+
+  const result = await sendPromptToTab(tab.id, {
+    type: "QBIT_AI_PROMPT",
+    message: String(message || "").slice(0, 12000)
+  });
+
+  console.log("[QBIT] Resultado de la pestaña de IA en segundo plano:", result);
   if (!result?.ok) throw new Error(result?.error || "La IA no devolvió una respuesta.");
   return result;
 }
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "QBIT_DESKTOP_CONTROL_STATUS") {
     chrome.storage.local.get({qbitDesktopControlEnabled:false},s=>sendResponse({enabled:!!s.qbitDesktopControlEnabled,connected:!!socket&&socket.readyState===WebSocket.OPEN}));return true;
