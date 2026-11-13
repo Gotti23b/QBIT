@@ -14,7 +14,7 @@ let petCursorHideTimer = null;
 let tray;
 let isQuitting = false;
 const backgroundLaunch = process.argv.includes("--qbit-background");
-let connectorServer=null,connectorSocket=null;
+let connectorServer=null,connectorSocket=null,webBridgeSocket=null;
 const connectorPending=new Map();
 const webArtifactPending=new Map();
 let petExpanded = false;
@@ -39,13 +39,111 @@ function sendPetSettings() {
 
 
 function connectorConnected(){return !!connectorSocket&&connectorSocket.readyState===WebSocket.OPEN;}
-function startConnectorServer(){if(connectorServer)return Promise.resolve({ok:true,message:"El conector ya está iniciado."});return new Promise((resolve,reject)=>{const server=new WebSocket.Server({host:"127.0.0.1",port:17614,path:"/qbit-console"});connectorServer=server;server.once("listening",()=>resolve({ok:true,message:"Conector iniciado. Ahora conectá QBIT Extension desde Chrome."}));server.once("error",err=>{connectorServer=null;reject(new Error(err.code==="EADDRINUSE"?"El puerto 17614 ya está ocupado.":err.message));});server.on("connection",(socket,request)=>{if(!/^chrome-extension:\/\/[a-p]{32}$/.test(String(request.headers.origin||""))){socket.close(1008,"Origen no permitido");return;}if(connectorSocket&&connectorSocket.readyState===WebSocket.OPEN)connectorSocket.close();connectorSocket=socket;socket.on("message",raw=>{let msg;try{msg=JSON.parse(String(raw));}catch{return;}if(msg.type==="hello"){socket.send(JSON.stringify({type:"hello_ack"}));const bundled=bundledExtensionVersion();if(bundled&&msg.version&&isNewerVersion(bundled,String(msg.version)))socket.send(JSON.stringify({type:"reload_extension",version:bundled}));return;}if(msg.type==="ai_result"&&typeof msg.id==="string"){const p=connectorPending.get(msg.id);if(!p)return;clearTimeout(p.timer);connectorPending.delete(msg.id);msg.ok&&typeof msg.answer==="string"?p.resolve({answer:msg.answer,provider:String(msg.provider||"IA del navegador")}):p.reject(new Error(String(msg.error||"La IA no pudo responder.")));}if(msg.type==="web_artifact_request"&&typeof msg.id==="string"&&msg.call&&typeof msg.call==="object"){
-if(!mainWindow||mainWindow.isDestroyed()||mainWindow.webContents.isLoading()){socket.send(JSON.stringify({type:"web_artifact_result",id:msg.id,ok:false,error:"QBIT Desktop todavía no está listo."}));return;}
-const id=msg.id;const timer=setTimeout(()=>{const pending=webArtifactPending.get(id);if(!pending)return;webArtifactPending.delete(id);try{pending.socket.send(JSON.stringify({type:"web_artifact_result",id,ok:false,error:"QBIT no recibió la confirmación de la acción."}));}catch{}},120000);
-webArtifactPending.set(id,{socket,timer});mainWindow.show();mainWindow.focus();mainWindow.webContents.send("qbit:web-artifact-request",{id,call:msg.call});return;
-}});socket.on("close",()=>{if(connectorSocket===socket)connectorSocket=null;for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("La extensión se desconectó."));connectorPending.delete(id);}for(const [id,p] of webArtifactPending){clearTimeout(p.timer);webArtifactPending.delete(id);}if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:!!connectorServer,connected:false});});socket.on("error",()=>{});if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:true,connected:true});});});}
-function stopConnectorServer(){for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("El conector se desconectó."));connectorPending.delete(id);}if(connectorSocket){try{connectorSocket.close(1000,"Desconectado desde QBIT");}catch{}connectorSocket=null;}if(connectorServer){try{connectorServer.close();}catch{}connectorServer=null;}return {ok:true};}
-function askBrowserAI(message){if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));if(!connectorConnected())return Promise.reject(new Error("La extensión no está conectada. Iniciá el conector y tocá Conectar en el icono de QBIT Extension."));const id=require("node:crypto").randomUUID();return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}});}
+function webBridgeConnected(){return !!webBridgeSocket&&webBridgeSocket.readyState===WebSocket.OPEN;}
+function notifyConnectorState(){
+  if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send("qbit:connector-state",{running:!!connectorServer,connected:connectorConnected(),webBridgeConnected:webBridgeConnected()});
+}
+function bundledExtensionVersion(){
+  const dir=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");
+  try{return JSON.parse(fs.readFileSync(path.join(dir,"manifest.json"),"utf8")).version||null;}catch{return null;}
+}
+function bundledWebExtensionVersion(){
+  const dir=app.isPackaged?path.join(process.resourcesPath,"extension"):path.join(getAppRoot(),"extension");
+  try{return JSON.parse(fs.readFileSync(path.join(dir,"manifest.json"),"utf8")).version||null;}catch{return null;}
+}
+function startConnectorServer(){
+  if(connectorServer)return Promise.resolve({ok:true,message:"El conector ya está iniciado."});
+  return new Promise((resolve,reject)=>{
+    const server=new WebSocket.Server({host:"127.0.0.1",port:17614,path:"/qbit-console",maxPayload:65536});
+    connectorServer=server;
+    server.once("listening",()=>resolve({ok:true,message:"Puente local iniciado. Las dos extensiones pueden conectarse en paralelo."}));
+    server.once("error",err=>{
+      connectorServer=null;
+      reject(new Error(err.code==="EADDRINUSE"?"El puerto 17614 ya está ocupado. Cerrá la consola independiente de QBIT o la otra instancia de QBIT.":err.message));
+    });
+    server.on("connection",(socket,request)=>{
+      if(!/^chrome-extension:\/\/[a-p]{32}$/.test(String(request.headers.origin||""))){socket.close(1008,"Origen no permitido");return;}
+      socket.qbitRole=null;
+      socket.on("message",raw=>{
+        let msg;
+        try{msg=JSON.parse(String(raw));}catch{return;}
+        if(msg.type==="hello"){
+          const role=msg.role==="desktop-ai"||msg.role==="web-bridge"?msg.role:null;
+          if(!role){socket.close(1008,"Rol de extensión no reconocido");return;}
+          const current=role==="desktop-ai"?connectorSocket:webBridgeSocket;
+          if(current&&current!==socket&&current.readyState===WebSocket.OPEN)current.close(1000,"Se conectó una versión más reciente de QBIT Extension");
+          socket.qbitRole=role;
+          if(role==="desktop-ai")connectorSocket=socket;else webBridgeSocket=socket;
+          socket.send(JSON.stringify({type:"hello_ack",role}));
+          const bundled=role==="desktop-ai"?bundledExtensionVersion():bundledWebExtensionVersion();
+          if(bundled&&msg.version&&isNewerVersion(bundled,String(msg.version)))socket.send(JSON.stringify({type:"reload_extension",version:bundled}));
+          notifyConnectorState();
+          return;
+        }
+        if(msg.type==="ai_result"&&socket.qbitRole==="desktop-ai"&&typeof msg.id==="string"){
+          const pending=connectorPending.get(msg.id);
+          if(!pending)return;
+          clearTimeout(pending.timer);
+          connectorPending.delete(msg.id);
+          msg.ok&&typeof msg.answer==="string"?pending.resolve({answer:msg.answer,provider:String(msg.provider||"IA del navegador")}):pending.reject(new Error(String(msg.error||"La IA no pudo responder.")));
+          return;
+        }
+        if(msg.type==="web_artifact_request"&&socket.qbitRole==="web-bridge"&&typeof msg.id==="string"&&msg.call&&typeof msg.call==="object"){
+          if(!mainWindow||mainWindow.isDestroyed()||mainWindow.webContents.isLoading()){
+            socket.send(JSON.stringify({type:"web_artifact_result",id:msg.id,ok:false,error:"QBIT Desktop todavía no está listo."}));
+            return;
+          }
+          const id=msg.id;
+          const timer=setTimeout(()=>{
+            const pending=webArtifactPending.get(id);
+            if(!pending)return;
+            webArtifactPending.delete(id);
+            try{if(pending.socket.readyState===WebSocket.OPEN)pending.socket.send(JSON.stringify({type:"web_artifact_result",id,ok:false,error:"QBIT no recibió la confirmación de la acción."}));}catch{}
+          },120000);
+          webArtifactPending.set(id,{socket,timer});
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.webContents.send("qbit:web-artifact-request",{id,call:msg.call});
+        }
+      });
+      socket.on("close",()=>{
+        if(connectorSocket===socket){
+          connectorSocket=null;
+          for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("La extensión de IA se desconectó."));connectorPending.delete(id);}
+        }
+        if(webBridgeSocket===socket)webBridgeSocket=null;
+        for(const [id,p] of webArtifactPending){
+          if(p.socket===socket){clearTimeout(p.timer);webArtifactPending.delete(id);}
+        }
+        notifyConnectorState();
+      });
+      socket.on("error",()=>{});
+    });
+  });
+}
+function stopConnectorServer(){
+  for(const [id,p] of connectorPending){clearTimeout(p.timer);p.reject(new Error("El conector se desconectó."));connectorPending.delete(id);}
+  for(const [id,p] of webArtifactPending){clearTimeout(p.timer);webArtifactPending.delete(id);}
+  for(const socket of [connectorSocket,webBridgeSocket]){
+    if(socket){try{socket.close(1000,"Desconectado desde QBIT");}catch{}}
+  }
+  connectorSocket=null;
+  webBridgeSocket=null;
+  if(connectorServer){try{connectorServer.close();}catch{}connectorServer=null;}
+  notifyConnectorState();
+  return {ok:true};
+}
+function askBrowserAI(message){
+  if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));
+  if(!connectorConnected())return Promise.reject(new Error("La extensión de IA no está conectada. Abrí el navegador optimizado y comprobá que QBIT Extension esté habilitada."));
+  const id=require("node:crypto").randomUUID();
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);
+    connectorPending.set(id,{resolve,reject,timer});
+    try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}
+    catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}
+  });
+}
 
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 // QBIT baja la versión nueva en segundo plano y pregunta: reiniciar ahora o seguir
