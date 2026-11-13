@@ -805,6 +805,7 @@ ipcMain.handle("qbit:connector-open-chrome",async e=>{
   fs.mkdirSync(profilePath,{recursive:true});
   const args=[
     `--user-data-dir=${profilePath}`,
+    `--disable-extensions-except=${extensionPath}`,
     `--load-extension=${extensionPath}`,
     "--disable-background-timer-throttling",
     "--disable-backgrounding-occluded-windows",
@@ -812,7 +813,7 @@ ipcMain.handle("qbit:connector-open-chrome",async e=>{
     "--no-first-run",
     "--no-default-browser-check",
     "--new-window",
-    "about:blank"
+    "https://www.google.com/"
   ];
   const child=spawn(browser.file,args,{detached:true,stdio:"ignore",windowsHide:false});
   child.once("error",err=>console.error("[QBIT] No se pudo iniciar el navegador optimizado:",err));
