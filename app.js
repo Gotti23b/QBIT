@@ -562,7 +562,30 @@
     function expression(){let v=term();while(tokens[i]==="+"||tokens[i]==="-"){const op=tokens[i++],n=term();v=op==="+"?v+n:v-n;}return v;}
     try{const result=expression();if(i!==tokens.length||!Number.isFinite(result))return "No puedo resolver esa cuenta (revisá si hay una división por cero).";return "Da "+Number(result.toPrecision(12))+" 🧮";}catch{return null;}
   }
-  function session(u){const changed=user?.id!==u?.id;if(!u&&cloudDeviceId)void stopCloudPresence();user=u;syncPresetToggle();const loggedIn=!!u;const loginView=$("loginView");loginView?.classList.toggle("hidden",loggedIn);loginView?.setAttribute("aria-hidden",String(loggedIn));$("appView").classList.toggle("hidden",!loggedIn);$("userBar").classList.toggle("hidden",!loggedIn);$("userEmail").textContent=u?(u.is_anonymous?"Invitado":(u.email||"Cuenta QBIT")):"";const accountName=$("sidebarAccountName"),accountDetail=$("sidebarAccountDetail");if(accountName)accountName.textContent=u?(u.is_anonymous?"Invitado":(u.email||"Mi cuenta")):"Sin sesión";if(accountDetail)accountDetail.textContent=u?(u.is_anonymous?"Modo invitado":"Cuenta QBIT"):"Elegí cómo entrar";if(changed&&u)loadHistory();if(!u){chatHistory=[];activeChatId=null;}if(u)void startCloudPresence();}
+  let sessionTransition=Promise.resolve();
+  function session(u){
+    sessionTransition=sessionTransition.then(async()=>{
+      const previous=user;
+      const changed=previous?.id!==u?.id;
+      if(changed&&previous&&(cloudDeviceId||cloudTimer||cloudCommandChannel))await stopCloudPresence(previous);
+      user=u;
+      syncPresetToggle();
+      const loggedIn=!!u;
+      const loginView=$("loginView");
+      loginView?.classList.toggle("hidden",loggedIn);
+      loginView?.setAttribute("aria-hidden",String(loggedIn));
+      $("appView").classList.toggle("hidden",!loggedIn);
+      $("userBar").classList.toggle("hidden",!loggedIn);
+      $("userEmail").textContent=u?(u.is_anonymous?"Invitado":(u.email||"Cuenta QBIT")):"";
+      const accountName=$("sidebarAccountName"),accountDetail=$("sidebarAccountDetail");
+      if(accountName)accountName.textContent=u?(u.is_anonymous?"Invitado":(u.email||"Mi cuenta")):"Sin sesión";
+      if(accountDetail)accountDetail.textContent=u?(u.is_anonymous?"Modo invitado":"Cuenta QBIT"):"Elegí cómo entrar";
+      if(changed&&u)loadHistory();
+      if(!u){chatHistory=[];activeChatId=null;}
+      if(u)await startCloudPresence();
+    }).catch(error=>console.warn("[QBIT Auth] No se pudo cambiar la sesión:",error?.message||error));
+    return sessionTransition;
+  }
   function notice(t,error=false){$("adminMsg").textContent=t;$("adminMsg").className=t?(error?"notice error":"notice"):"";}
   function card(title,detail,actions){const c=node("div","item"),h=node("div","item-head"),a=node("div","item-actions");h.append(node("strong","",title));actions.forEach(x=>a.append(x));h.append(a);c.append(h);if(detail)c.append(node("p","muted",detail));return c;}
   async function refresh(){
@@ -1134,13 +1157,13 @@
     }catch(e){console.warn("[QBIT Cloud]",e?.message||e);const s=$("cloudStatus");if(s)s.textContent="No se pudo conectar: "+(e?.message||"error");}
     finally{cloudBusy=false;}
   }
-  async function stopCloudPresence(){
+  async function stopCloudPresence(owner=user){
     if(cloudPlatform()==="android"){
       try{await window.Capacitor?.Plugins?.QBITControl?.stopBackgroundAgent?.();}catch(e){console.warn("[QBIT Cloud] No se pudo detener el agente:",e?.message||e);}
     }
     if(cloudTimer){clearInterval(cloudTimer);cloudTimer=null;}
     if(cloudCommandChannel){const channel=cloudCommandChannel;cloudCommandChannel=null;cloudRealtimeConnected=false;try{await db.removeChannel(channel);}catch{}}
-    if(cloudDeviceId&&user)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",user.id);
+    if(cloudDeviceId&&owner)await db.from("qbit_devices").update({is_online:false}).eq("id",cloudDeviceId).eq("user_id",owner.id);
     cloudDeviceId=null;
   }
 
@@ -1809,7 +1832,7 @@
       if(error)throw error;
       const savedUser=data.session?.user;
       if(savedUser?.is_anonymous){pendingGuestUser=savedUser;session(null);authMessage("Tu sesión de invitado sigue disponible en este dispositivo.");return;}
-      if(savedUser){session(savedUser);await refresh();return;}
+      if(savedUser){await session(savedUser);await refresh();return;}
       session(null);
     }catch(error){session(null);authMessage("No se pudo comprobar la sesión: "+(error?.message||"Error de conexión"),true);}
   }
@@ -1832,7 +1855,7 @@
         guest=data.user;
       }
       if(!guest)throw new Error("Supabase no devolvió una sesión de invitado.");
-      pendingGuestUser=null;session(guest);await refresh();
+      pendingGuestUser=null;await session(guest);await refresh();
     }catch(error){authMessage("No se pudo entrar como invitado: "+(error?.message||"Error de conexión")+". Revisá tu conexión y que los inicios anónimos estén habilitados.",true);}
     finally{guestAuthPending=false;if(button){button.disabled=false;button.textContent="Continuar como invitado";}}
   }
@@ -1866,12 +1889,12 @@
           authData=login.data;
         }
         if(!authData?.session||!authData?.user)throw new Error("La cuenta se creó, pero no se pudo iniciar la sesión. Probá iniciar sesión con el mismo correo y contraseña.");
-        pendingGuestUser=null;session(authData.user);await refresh();
+        pendingGuestUser=null;await session(authData.user);await refresh();
       }else{
         const {data,error}=await db.auth.signInWithPassword({email,password});
         if(error)throw error;
         if(!data.user)throw new Error("No se recibió una cuenta válida.");
-        pendingGuestUser=null;session(data.user);await refresh();
+        pendingGuestUser=null;await session(data.user);await refresh();
       }
     }catch(error){authMessage(error?.message||"No se pudo completar el acceso.",true);}
     finally{submit.disabled=false;}
