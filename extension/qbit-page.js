@@ -61,7 +61,7 @@
     bubble.replaceChildren(Object.assign(document.createElement("small"), { textContent: "QBIT · " }), document.createTextNode("Consultando la IA abierta en el navegador…"));
 
     chrome.runtime.sendMessage({ type: "QBIT_WEB_AI_PROMPT", message })
-      .then(result => {
+      .then(async result => {
         const rawAnswer = result?.ok ? String(result.answer || "").trim() : "No pude consultar la IA: " + (result?.error || "error desconocido");
         const answer = result?.ok ? await processAIAnswer(rawAnswer) : rawAnswer;
         bubble.replaceChildren(Object.assign(document.createElement("small"), { textContent: "QBIT" }), document.createTextNode(answer || "La IA devolvió una respuesta vacía."));
