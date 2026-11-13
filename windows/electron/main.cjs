@@ -68,7 +68,7 @@ function startConnectorServer(){
         let msg;
         try{msg=JSON.parse(String(raw));}catch{return;}
         if(msg.type==="hello"){
-          const role=msg.role==="desktop-ai"||msg.role==="web-bridge"?msg.role:null;
+          const role=msg.role==="desktop-ai"?"desktop-ai":msg.role==="web-bridge"?"web-bridge":!msg.role?"web-bridge":null;
           if(!role){socket.close(1008,"Rol de extensión no reconocido");return;}
           const current=role==="desktop-ai"?connectorSocket:webBridgeSocket;
           if(current&&current!==socket&&current.readyState===WebSocket.OPEN)current.close(1000,"Se conectó una versión más reciente de QBIT Extension");
