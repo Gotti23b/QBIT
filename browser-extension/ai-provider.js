@@ -263,7 +263,7 @@
     return (editor.value ?? editor.innerText ?? "").trim();
   }
   // Consideramos "enviado" si el cuadro se vació, apareció una burbuja nueva o la IA empezó a generar.
-  async function waitSent(editor, previousCount, ms = 2500) {
+  async function waitSent(editor, previousCount, ms = 12000) {
     const until = Date.now() + ms;
     while (Date.now() < until) {
       const current = findFirstVisible("editor") || editor;
@@ -284,17 +284,17 @@
     // La pestaña puede estar recargándose (Chrome la "duerme" si no la usás): esperamos el cuadro hasta 15 s.
     let editor = findFirstVisible("editor");
     const editorWait = Date.now();
-    while (!editor && Date.now() - editorWait < 15000) { await sleep(300); editor = findFirstVisible("editor"); }
+    while (!editor && Date.now() - editorWait < 45000) { await sleep(300); editor = findFirstVisible("editor"); }
     if (!editor) throw new Error(`No encuentro el cuadro de mensaje de ${provider}. Recargá esa pestaña. (diagnóstico: ${diagSummary()})`);
     const idleStarted = Date.now();
-    while (isGenerating() && Date.now() - idleStarted < 120000) await sleep(500);
-    if (isGenerating()) throw new Error(`${provider} todavía está respondiendo otro mensaje.`);
+    while (isGenerating() && Date.now() - idleStarted < 300000) await sleep(500);
+    if (isGenerating()) throw new Error(`${provider} sigue ocupado con otra respuesta. Esperá a que termine y volvé a enviar.`);
     const previous = replyText();
     const previousCount = getReplies().length;
     log("Respuestas antes de enviar:", previousCount, "| diagnóstico:", diagSummary());
     setEditor(editor, message);
     await sleep(250);
-    let send = await waitSendButton(4000);
+    let send = await waitSendButton(15000);
     // Si el botón de enviar no se activó, el sitio no tomó el texto: probamos el plan B (pegado simulado).
     if (!send && !(editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement)) {
       log("El botón de enviar sigue apagado; pruebo pegar el texto.");
@@ -330,7 +330,7 @@
     let changedAt = 0;
     let generationObserved = false;
     let lastLog = 0;
-    while (Date.now() - startedAt < 120000) {
+    while (Date.now() - startedAt < 480000) {
       await sleep(350);
       const nodes = getReplies();
       const content = contentOf(nodes.at(-1));

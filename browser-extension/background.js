@@ -90,7 +90,7 @@ async function sendConsolePrompt(message) {
   await waitForConsole();
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
-    const timer = setTimeout(() => { waiting.delete(id); reject(new Error("La consulta tardó más de cuatro minutos.")); }, 250000);
+    const timer = setTimeout(() => { waiting.delete(id); reject(new Error("La IA todavía no terminó de responder. El mensaje ya fue enviado; revisá la pestaña del proveedor antes de volver a enviarlo.")); }, 510000);
     waiting.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ type: "qbit_prompt", id, provider: "auto", message: String(message).slice(0, 12000) }));
   });

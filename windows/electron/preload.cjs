@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   startConnector: () => ipcRenderer.invoke("qbit:connector-start"),
   stopConnector: () => ipcRenderer.invoke("qbit:connector-stop"),
   getConnectorStatus: () => ipcRenderer.invoke("qbit:connector-status"),
+  onConnectorState: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:connector-state", (_event, state) => callback(state)); },
   openExtensionFolder: () => ipcRenderer.invoke("qbit:connector-open-folder"),
   openChromeExtensions: () => ipcRenderer.invoke("qbit:connector-open-chrome"),
   openQbitBrowser: url => ipcRenderer.invoke("qbit:browser-open", url),

@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.6.1";
+  const QBIT_VERSION = "1.6.2";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -958,9 +958,32 @@
   window.addEventListener("resize",()=>{if(!window.matchMedia("(max-width: 620px)").matches)setMobileSidebarOpen(false);});
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
 
+  let connectorState={running:false,connected:false,webBridgeConnected:false};
   function connectorNotice(message,error=false){const el=$("connectorStatus");if(el){el.textContent=message;el.className=error?"notice error":"notice";}}
+  function renderConnectorState(state){
+    connectorState={...connectorState,...(state||{})};
+    const s=connectorState;
+    const status=s.connected?"Extensión QBIT Desktop AI conectada":s.webBridgeConnected?"Extensión QBIT Web Bridge conectada":s.running?"Servidor activo · esperando las extensiones": "Servidor desconectado";
+    const detail=s.connected&&s.webBridgeConnected?"Las dos extensiones están conectadas.":s.connected?"La extensión de IA está lista para recibir consultas.":s.webBridgeConnected?"La extensión web está lista para enviar acciones a QBIT.":"Conectá las extensiones para usar una pestaña de Chrome, Edge o Brave.";
+    connectorNotice(status+" · "+detail);
+    const start=$("connectorStart"),stop=$("connectorStop");
+    if(start)start.disabled=!!s.running;
+    if(stop)stop.disabled=!s.running;
+    const chrome=$("connectorChrome");if(chrome)chrome.disabled=!window.qbitPC?.isDesktop;
+    const folder=$("connectorFolder");if(folder)folder.disabled=!window.qbitPC?.isDesktop;
+  }
+  async function refreshConnectorStatus(){
+    if(!window.qbitPC?.isDesktop){connectorNotice("Las extensiones y QBIT Browser están disponibles en QBIT Desktop para Windows.",true);return;}
+    try{renderConnectorState(await window.qbitPC.getConnectorStatus());}
+    catch(e){connectorNotice("No pude consultar el estado del conector: "+(e?.message||"error desconocido"),true);}
+  }
+  $("connectorStart")?.addEventListener("click",async()=>{try{const result=await window.qbitPC.startConnector();await refreshConnectorStatus();connectorNotice(result?.message||"Servidor local iniciado. Esperando las extensiones.");}catch(e){connectorNotice(e?.message||"No pude iniciar el conector.",true);}});
+  $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();await refreshConnectorStatus();}catch(e){connectorNotice(e?.message||"No pude detener el conector.",true);}});
+  $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();connectorNotice("Carpeta de extensiones abierta. Cargá browser-extension y extension como extensiones sin empaquetar.");}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta de extensiones.",true);}});
+  $("connectorChrome")?.addEventListener("click",async()=>{try{const result=await window.qbitPC.openChromeExtensions();await refreshConnectorStatus();connectorNotice(result?.message||"Navegador iniciado con las extensiones de QBIT.");}catch(e){connectorNotice(e?.message||"No pude iniciar el navegador con las extensiones.",true);}});
   $("connectorBrowserOpen")?.addEventListener("click",async()=>{try{await window.qbitPC.openQbitBrowser("https://chatgpt.com/");connectorNotice("QBIT Browser está abierto. Iniciá sesión en el proveedor que quieras usar.");}catch(e){connectorNotice(e?.message||"No se pudo abrir QBIT Browser.",true);}});
-  if(!window.qbitPC?.isDesktop)connectorNotice("QBIT Browser está disponible en la aplicación de Windows.",true);
+  window.qbitPC?.onConnectorState?.(renderConnectorState);
+  if(window.qbitPC?.isDesktop)void refreshConnectorStatus();else connectorNotice("Las extensiones y QBIT Browser están disponibles en QBIT Desktop para Windows.",true);
   function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
   async function loadPetSettings(){
     if(!window.qbitPC?.isDesktop){$("petSettingsForm").classList.add("hidden");petSettingsMessage("Esta configuración está disponible en QBIT Desktop para Windows.",true);return;}

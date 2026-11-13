@@ -58,7 +58,7 @@ function startConnectorServer(){
   return new Promise((resolve,reject)=>{
     const server=new WebSocket.Server({host:"127.0.0.1",port:17614,path:"/qbit-console",maxPayload:65536});
     connectorServer=server;
-    server.once("listening",()=>resolve({ok:true,message:"Puente local iniciado. Las dos extensiones pueden conectarse en paralelo."}));
+    server.once("listening",()=>{notifyConnectorState();resolve({ok:true,message:"Puente local iniciado. Las dos extensiones pueden conectarse en paralelo."});});
     server.once("error",err=>{
       connectorServer=null;
       reject(new Error(err.code==="EADDRINUSE"?"El puerto 17614 ya está ocupado. Cerrá la consola independiente de QBIT o la otra instancia de QBIT.":err.message));
@@ -256,12 +256,18 @@ function createQbitBrowser(raw=QBIT_BROWSER_HOME){
 }
 function askBrowserAI(message){
  if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));
- if(!qbitBrowserView||qbitBrowserView.webContents.isDestroyed())return Promise.reject(new Error("Abrí QBIT Browser e iniciá sesión en un proveedor de IA."));
- const w=qbitBrowserView.webContents,provider=qbitBrowserProvider(w.getURL());
- if(!provider)return Promise.reject(new Error("En QBIT Browser, abrí ChatGPT, Gemini, Claude, DeepSeek, Qwen, Arena o Meta AI."));
- if(w.isLoading()||!qbitBrowserReady)return Promise.reject(new Error("La página de IA todavía está cargando. Esperá a que termine y volvé a enviar."));
- const id=require("node:crypto").randomUUID();
- return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}catch(e){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(e);}});
+ const w=qbitBrowserView?.webContents;
+ const provider=w&&!w.isDestroyed()?qbitBrowserProvider(w.getURL()):null;
+ if(provider&&!w.isLoading()&&qbitBrowserReady){
+  const id=require("node:crypto").randomUUID();
+  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La IA sigue procesando la consulta. No se perdió el mensaje; esperá un poco más y volvé a consultar el chat."));},510000);qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}catch(e){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(e);}});
+ }
+ if(connectorSocket&&connectorSocket.readyState===WebSocket.OPEN){
+  const id=require("node:crypto").randomUUID();
+  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La IA todavía no terminó de responder. El mensaje se envió; revisá la conversación en la pestaña del proveedor y volvé a intentar si hace falta."));},510000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(error){clearTimeout(timer);connectorPending.delete(id);reject(new Error("Se perdió la conexión con la extensión de IA: "+(error?.message||error)));}});
+ }
+ if(provider&&(!qbitBrowserReady||w.isLoading()))return Promise.reject(new Error("QBIT Browser todavía está preparando la página. Esperá a que termine de cargar o conectá la extensión del navegador."));
+ return Promise.reject(new Error("No hay una IA conectada. Abrí QBIT Browser o conectá las extensiones desde Conector de IA."));
 }
 ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
 ipcMain.handle("qbit:browser-navigate",(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");return qbitBrowserView.webContents.loadURL(qbitBrowserUrl(url)).then(()=>({ok:true}));});
@@ -919,10 +925,11 @@ ipcMain.handle("qbit:web-artifact-result",(e,id,result)=>{
 ipcMain.handle("qbit:show-window",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");mainWindow.show();mainWindow.focus();return {ok:true};});
 ipcMain.handle("qbit:connector-start",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return startConnectorServer();});
 ipcMain.handle("qbit:connector-stop",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return stopConnectorServer();});
-ipcMain.handle("qbit:connector-status",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return {running:!!connectorServer,connected:connectorConnected()};});
-ipcMain.handle("qbit:connector-open-folder",async e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");const extensionPath=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");const err=await shell.openPath(extensionPath);if(err)throw new Error(err);return {ok:true,path:extensionPath};});
+ipcMain.handle("qbit:connector-status",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return {running:!!connectorServer,connected:connectorConnected(),webBridgeConnected:webBridgeConnected(),extensionVersion:bundledExtensionVersion(),webExtensionVersion:bundledWebExtensionVersion()};});
+ipcMain.handle("qbit:connector-open-folder",async e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");const extensionRoot=app.isPackaged?process.resourcesPath:getAppRoot();const err=await shell.openPath(extensionRoot);if(err)throw new Error(err);return {ok:true,path:extensionRoot};});
 ipcMain.handle("qbit:connector-open-chrome",async e=>{
   if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");
+  await startConnectorServer();
   const roots=[process.env.PROGRAMFILES,process.env["PROGRAMFILES(X86)"],process.env.LOCALAPPDATA].filter(Boolean);
   const candidates=[
     ...roots.map(root=>({name:"Google Chrome",id:"chrome",file:path.join(root,"Google","Chrome","Application","chrome.exe")})),
