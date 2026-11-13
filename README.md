@@ -15,11 +15,12 @@ La consola solo escucha en `127.0.0.1:17614`. También podés iniciarla con `sta
 ## Qué hay en cada carpeta
 
 - `windows/electron/`: la app de escritorio QBIT Desktop. Abre el conector local y lo usa con la extensión de `browser-extension/`.
-- `browser-extension/`: la extensión de Chrome que usa QBIT Desktop. La app la actualiza sola con cada release.
-- `extension/`, `qbit-console.ps1`, `install-qbit-extension.*`, `start-qbit-console.bat`: la versión independiente para usar QBIT web con la consola de PowerShell.
+- `browser-extension/`: **QBIT Desktop AI**, conecta QBIT Desktop con la pestaña de IA del navegador.
+- `extension/`: **QBIT Web Bridge**, conecta QBIT Web con QBIT Desktop para ejecutar Artifacts autorizados.
+- `qbit-console.ps1`, `install-qbit-extension.*`, `start-qbit-console.bat`: modo independiente para usar QBIT Web con la consola de PowerShell, sin QBIT Desktop.
 - `.github/workflows/build-windows.yml`: arma el instalador y publica el release cuando cambia la `version` de `package.json`.
 
-QBIT Desktop y la consola de PowerShell usan el mismo puerto (`127.0.0.1:17614`). Usá solo una de las dos a la vez.
+QBIT Desktop y la consola independiente de PowerShell usan el mismo puerto (`127.0.0.1:17614`). Usá solo uno de esos dos servidores a la vez. Las dos extensiones incluidas en QBIT Desktop se conectan en paralelo al servidor de Electron.
 
 La consola de PowerShell solo reenvía texto: no ejecuta comandos ni lo que escribe la IA.
 
