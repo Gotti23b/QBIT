@@ -25,7 +25,7 @@ function connectConsole() {
   catch (error) { console.warn("[QBIT Extension] No se pudo abrir QBIT Console:", error); scheduleReconnect(); return; }
   socket.onopen = () => {
     retryDelay = 1000;
-    socket.send(JSON.stringify({ type: "hello", extension: chrome.runtime.id, version: chrome.runtime.getManifest().version }));
+    socket.send(JSON.stringify({ type: "hello", role: "desktop-ai", extension: chrome.runtime.id, version: chrome.runtime.getManifest().version }));
     console.info("[QBIT Extension] Conectada a QBIT Console.");
     broadcastConsoleStatus();
   };
