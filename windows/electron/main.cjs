@@ -154,10 +154,6 @@ function isNewerVersion(a, b) {
   for (let i = 0; i < 3; i++) { if ((pa[i] || 0) > (pb[i] || 0)) return true; if ((pa[i] || 0) < (pb[i] || 0)) return false; }
   return false;
 }
-function bundledExtensionVersion() {
-  const dir = app.isPackaged ? path.join(process.resourcesPath, "browser-extension") : path.join(getAppRoot(), "browser-extension");
-  try { return JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8")).version || null; } catch { return null; }
-}
 let updateState = { status: "idle", version: null, message: "" };
 let updatePromptOpen = false;
 function writeUpdaterLog(error, context = "Actualizador") {
