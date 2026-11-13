@@ -799,14 +799,21 @@ ipcMain.handle("qbit:connector-open-chrome",async e=>{
   ];
   const browser=candidates.find(item=>fs.existsSync(item.file));
   if(!browser)throw new Error("No encontré Chrome, Edge ni Brave instalado.");
-  const extensionPath=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");
-  if(!fs.existsSync(path.join(extensionPath,"manifest.json")))throw new Error("No encontré la extensión integrada de QBIT.");
+  const extensionRoot=app.isPackaged?process.resourcesPath:getAppRoot();
+  const extensionPaths=[
+    path.join(extensionRoot,"browser-extension"),
+    path.join(extensionRoot,"extension")
+  ];
+  for(const extensionPath of extensionPaths){
+    if(!fs.existsSync(path.join(extensionPath,"manifest.json")))throw new Error("No encontré una extensión de QBIT: "+extensionPath);
+  }
+  const extensionArg=extensionPaths.join(",");
   const profilePath=path.join(app.getPath("userData"),"qbit-browser-profile",browser.id);
   fs.mkdirSync(profilePath,{recursive:true});
   const args=[
     `--user-data-dir=${profilePath}`,
-    `--disable-extensions-except=${extensionPath}`,
-    `--load-extension=${extensionPath}`,
+    `--disable-extensions-except=${extensionArg}`,
+    `--load-extension=${extensionArg}`,
     "--disable-background-timer-throttling",
     "--disable-backgrounding-occluded-windows",
     "--disable-renderer-backgrounding",
