@@ -25,14 +25,14 @@ function connectConsole() {
   catch (error) { console.warn("[QBIT Extension] No se pudo abrir QBIT Console:", error); scheduleReconnect(); return; }
   socket.onopen = () => {
     retryDelay = 1000;
-    socket.send(JSON.stringify({ type: "hello", extension: chrome.runtime.id, version: chrome.runtime.getManifest().version }));
+    socket.send(JSON.stringify({ type: "hello", role: "web-bridge", extension: chrome.runtime.id, version: chrome.runtime.getManifest().version }));
     console.info("[QBIT Extension] Conectada a QBIT Console.");
     broadcastConsoleStatus();
   };
   socket.onmessage = event => {
     let message;
     try { message = JSON.parse(event.data); } catch { return; }
-    if ((message.type === "result" || message.type === "web_artifact_result") && waiting.has(message.id)) {
+    if (message.type === "reload_extension") {\n      const target = String(message.version || "");\n      chrome.storage.local.get({ reloadedFor: "" }, ({ reloadedFor }) => {\n        if (reloadedFor === target) return;\n        chrome.storage.local.set({ reloadedFor: target }, () => chrome.runtime.reload());\n      });\n      return;\n    }\n    if ((message.type === "result" || message.type === "web_artifact_result") && waiting.has(message.id)) {
       const pending = waiting.get(message.id);
       waiting.delete(message.id);
       clearTimeout(pending.timer);
