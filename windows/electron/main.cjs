@@ -260,11 +260,11 @@ function askBrowserAI(message){
  const provider=w&&!w.isDestroyed()?qbitBrowserProvider(w.getURL()):null;
  if(provider&&!w.isLoading()&&qbitBrowserReady){
   const id=require("node:crypto").randomUUID();
-  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La IA sigue procesando la consulta. No se perdió el mensaje; esperá un poco más y volvé a consultar el chat."));},510000);qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}catch(e){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(e);}});
+  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La IA sigue procesando la consulta. No se perdió el mensaje; esperá un poco más y volvé a consultar el chat."));},900000);qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}catch(e){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(e);}});
  }
  if(connectorSocket&&connectorSocket.readyState===WebSocket.OPEN){
   const id=require("node:crypto").randomUUID();
-  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La IA todavía no terminó de responder. El mensaje se envió; revisá la conversación en la pestaña del proveedor y volvé a intentar si hace falta."));},510000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(error){clearTimeout(timer);connectorPending.delete(id);reject(new Error("Se perdió la conexión con la extensión de IA: "+(error?.message||error)));}});
+  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La IA todavía no terminó de responder. El mensaje se envió; revisá la conversación en la pestaña del proveedor y volvé a intentar si hace falta."));},900000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(error){clearTimeout(timer);connectorPending.delete(id);reject(new Error("Se perdió la conexión con la extensión de IA: "+(error?.message||error)));}});
  }
  if(provider&&(!qbitBrowserReady||w.isLoading()))return Promise.reject(new Error("QBIT Browser todavía está preparando la página. Esperá a que termine de cargar o conectá la extensión del navegador."));
  return Promise.reject(new Error("No hay una IA conectada. Abrí QBIT Browser o conectá las extensiones desde Conector de IA."));
