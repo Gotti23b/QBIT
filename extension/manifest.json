@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "QBIT Extension",
-  "version": "1.5.18",
-  "description": "Conecta QBIT Web con QBIT Desktop y con proveedores de IA del navegador.",
+  "name": "QBIT Web Bridge",
+  "version": "1.5.19",
+  "description": "Conecta QBIT Web con QBIT Desktop y permite ejecutar Artifacts autorizados.",
   "permissions": [
     "clipboardRead",
     "scripting",
