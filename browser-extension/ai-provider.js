@@ -355,14 +355,8 @@
     throw new Error(`No encontré la respuesta de ${provider} en la página. Puede que ${provider} haya cambiado su diseño (diagnóstico: ${diagSummary()}).`);
   }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type === "QBIT_AI_DIAGNOSE") { sendResponse(diagnose()); return; }
-    if (message?.type !== "QBIT_AI_PROMPT") return;
-    log("Extensión v" + chrome.runtime.getManifest().version + " · Mensaje recibido de QBIT:", String(message.message || "").slice(0, 80));
-    ask(String(message.message || "").slice(0, 12000))
-      .then(sendResponse, error => sendResponse({ ok: false, error: error?.message || String(error), provider }));
-    return true;
-  });
+  if (!window.qbitBrowserAI || typeof window.qbitBrowserAI.onPrompt !== "function") { log("El puente nativo de QBIT Browser no está disponible."); return; }
+  window.qbitBrowserAI.onPrompt(async (message,id)=>{log("Solicitud recibida de QBIT:",String(message||"").slice(0,80));try{const result=await ask(String(message||"").slice(0,12000));window.qbitBrowserAI.respond({id,ok:true,answer:result.answer,provider});}catch(error){window.qbitBrowserAI.respond({id,ok:false,error:error?.message||String(error),provider});}});
 
   // Si a los pocos segundos no aparece el cuadro de mensaje, dejamos el diagnóstico en la consola de la pestaña.
   setTimeout(() => { if (!findFirstVisible("editor")) { log("No veo el cuadro de mensaje todavía. Diagnóstico:"); console.table(diagnose().rows); } }, 6000);

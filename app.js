@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.6.0";
+  const QBIT_VERSION = "1.6.1";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -959,12 +959,8 @@
   document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>activateTab(b.dataset.tab));
 
   function connectorNotice(message,error=false){const el=$("connectorStatus");if(el){el.textContent=message;el.className=error?"notice error":"notice";}}
-  async function refreshConnectorStatus(){if(!window.qbitPC?.isDesktop){connectorNotice("Disponible en QBIT Desktop para Windows.",true);return;}try{const s=await window.qbitPC.getConnectorStatus();connectorNotice(s.running?(s.connected?"Conector activo · Extensión conectada.":"Conector activo · Esperando Chrome."):"Conector detenido. Inicialo para usar la IA.");}catch(e){connectorNotice("No pude consultar el estado: "+(e?.message||"error"),true);}}
-  $("connectorStart")?.addEventListener("click",async()=>{try{const s=await window.qbitPC.startConnector();connectorNotice(s.message||"Conector iniciado.");}catch(e){connectorNotice(e?.message||"No se pudo iniciar.",true);}await refreshConnectorStatus();});
-  $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();connectorNotice("Conector desconectado.");}catch(e){connectorNotice(e?.message||"No se pudo detener.",true);}await refreshConnectorStatus();});
-  $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta.",true);}});
-  $("connectorChrome")?.addEventListener("click",async()=>{try{await window.qbitPC.openChromeExtensions();}catch(e){connectorNotice("No pude abrir el navegador optimizado. "+(e?.message||""),true);}});
-  setInterval(()=>{if(!$("connectorView")?.classList.contains("hidden"))void refreshConnectorStatus();},2500);
+  $("connectorBrowserOpen")?.addEventListener("click",async()=>{try{await window.qbitPC.openQbitBrowser("https://chatgpt.com/");connectorNotice("QBIT Browser está abierto. Iniciá sesión en el proveedor que quieras usar.");}catch(e){connectorNotice(e?.message||"No se pudo abrir QBIT Browser.",true);}});
+  if(!window.qbitPC?.isDesktop)connectorNotice("QBIT Browser está disponible en la aplicación de Windows.",true);
   function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
   async function loadPetSettings(){
     if(!window.qbitPC?.isDesktop){$("petSettingsForm").classList.add("hidden");petSettingsMessage("Esta configuración está disponible en QBIT Desktop para Windows.",true);return;}

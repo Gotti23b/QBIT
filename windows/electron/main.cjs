@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session } = require("electron");
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -8,6 +8,8 @@ let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
 
 let mainWindow;
+let qbitBrowserWindow=null,qbitBrowserView=null,qbitBrowserReady=false,qbitBrowserAiSource=null;
+const qbitBrowserAiPending=new Map();
 let petWindow;
 let petCursorWindow = null;
 let petCursorHideTimer = null;
@@ -133,18 +135,6 @@ function stopConnectorServer(){
   notifyConnectorState();
   return {ok:true};
 }
-function askBrowserAI(message){
-  if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));
-  if(!connectorConnected())return Promise.reject(new Error("La extensión de IA no está conectada. Abrí el navegador optimizado y comprobá que QBIT Extension esté habilitada."));
-  const id=require("node:crypto").randomUUID();
-  return new Promise((resolve,reject)=>{
-    const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);
-    connectorPending.set(id,{resolve,reject,timer});
-    try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}
-    catch(err){clearTimeout(timer);connectorPending.delete(id);reject(err);}
-  });
-}
-
 // ── Actualizaciones ─────────────────────────────────────────────────────────
 // QBIT baja la versión nueva en segundo plano y pregunta: reiniciar ahora o seguir
 // en esta versión. Nunca se instala sola: si elegís seguir, te vuelve a preguntar
@@ -231,6 +221,54 @@ function getAppRoot() {
   const candidates = [path.join(__dirname, ".."), path.join(__dirname, "..", "..")];
   return candidates.find(candidate => fs.existsSync(path.join(candidate, "index.html"))) || candidates[0];
 }
+
+const QBIT_BROWSER_HOME="https://chatgpt.com/",QBIT_BROWSER_TOOLBAR_HEIGHT=66,QBIT_BROWSER_PARTITION="persist:qbit-browser";
+const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.com","ChatGPT"],["gemini.google.com","Gemini"],["claude.ai","Claude"],["chat.deepseek.com","DeepSeek"],["chat.qwen.ai","Qwen"],["arena.ai","Arena"],["meta.ai","Meta AI"],["www.meta.ai","Meta AI"]]);
+function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
+function qbitBrowserUrl(raw){let v=String(raw||"").trim();if(!v)throw new Error("Escribí una dirección web.");if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(v))v="https://"+v;let u;try{u=new URL(v);}catch{throw new Error("La dirección no es válida.");}if(!["http:","https:"].includes(u.protocol))throw new Error("QBIT Browser solo permite direcciones HTTP y HTTPS.");return u.href;}
+function qbitBrowserState(){if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed()||!qbitBrowserView)return;const w=qbitBrowserView.webContents,p={url:w.getURL()||QBIT_BROWSER_HOME,title:w.getTitle()||"QBIT Browser",loading:w.isLoading(),canGoBack:w.canGoBack(),canGoForward:w.canGoForward(),provider:qbitBrowserProvider(w.getURL()),aiReady:qbitBrowserReady};if(!qbitBrowserWindow.webContents.isDestroyed())qbitBrowserWindow.webContents.send("qbit:browser-state",p);}
+function qbitBrowserBounds(){if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed()||!qbitBrowserView)return;const[w,h]=qbitBrowserWindow.getContentSize();qbitBrowserView.setBounds({x:0,y:QBIT_BROWSER_TOOLBAR_HEIGHT,width:w,height:Math.max(0,h-QBIT_BROWSER_TOOLBAR_HEIGHT)});}
+function createQbitBrowser(raw=QBIT_BROWSER_HOME){
+ const target=qbitBrowserUrl(raw);
+ if(qbitBrowserWindow&&!qbitBrowserWindow.isDestroyed()){if(qbitBrowserView&&qbitBrowserView.webContents.getURL()==="about:blank")qbitBrowserView.webContents.loadURL(target);qbitBrowserWindow.show();qbitBrowserWindow.focus();return qbitBrowserWindow;}
+ qbitBrowserReady=false;
+ qbitBrowserWindow=new BrowserWindow({width:1280,height:860,minWidth:760,minHeight:520,title:"QBIT Browser",backgroundColor:"#07111f",autoHideMenuBar:true,show:false,webPreferences:{preload:path.join(__dirname,"browser-shell-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ qbitBrowserView=new WebContentsView({webPreferences:{partition:QBIT_BROWSER_PARTITION,preload:path.join(__dirname,"browser-page-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ qbitBrowserWindow.contentView.addChildView(qbitBrowserView);qbitBrowserBounds();qbitBrowserWindow.on("resize",qbitBrowserBounds);
+ qbitBrowserWindow.on("close",e=>{if(!isQuitting){e.preventDefault();qbitBrowserWindow.hide();}});
+ qbitBrowserWindow.on("closed",()=>{qbitBrowserAiPending.forEach(p=>{clearTimeout(p.timer);p.reject(new Error("QBIT Browser se cerró."));});qbitBrowserAiPending.clear();qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserReady=false;});
+ qbitBrowserView.webContents.setWindowOpenHandler(({url})=>{try{qbitBrowserView.webContents.loadURL(qbitBrowserUrl(url));}catch(e){console.warn("[QBIT Browser]",e.message);}return{action:"deny"};});
+ qbitBrowserView.webContents.on("will-navigate",(e,url)=>{try{qbitBrowserUrl(url);}catch{e.preventDefault();}});
+ const update=()=>qbitBrowserState();qbitBrowserView.webContents.on("did-start-loading",()=>{qbitBrowserReady=false;update();});
+ for(const ev of ["did-stop-loading","did-navigate","did-navigate-in-page","page-title-updated"])qbitBrowserView.webContents.on(ev,update);
+ qbitBrowserView.webContents.on("did-finish-load",async()=>{
+  qbitBrowserReady=false;
+  if(qbitBrowserProvider(qbitBrowserView?.webContents.getURL()||""))try{
+   if(!qbitBrowserAiSource){const d=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");qbitBrowserAiSource=fs.readFileSync(path.join(d,"ai-provider.js"),"utf8");}
+   await qbitBrowserView.webContents.executeJavaScript(qbitBrowserAiSource,true);qbitBrowserReady=true;
+  }catch(e){console.warn("[QBIT Browser] No se pudo iniciar el asistente:",e?.message||e);}
+  update();
+ });
+ qbitBrowserView.webContents.on("render-process-gone",(_e,d)=>{qbitBrowserReady=false;console.error("[QBIT Browser] Proceso de página finalizado:",d);update();});
+ qbitBrowserWindow.loadFile(path.join(__dirname,"browser-window.html"));
+ qbitBrowserWindow.once("ready-to-show",()=>{qbitBrowserBounds();qbitBrowserWindow?.show();qbitBrowserView?.webContents.loadURL(target).catch(e=>console.error("[QBIT Browser]",e));});
+ return qbitBrowserWindow;
+}
+function askBrowserAI(message){
+ if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));
+ if(!qbitBrowserView||qbitBrowserView.webContents.isDestroyed())return Promise.reject(new Error("Abrí QBIT Browser e iniciá sesión en un proveedor de IA."));
+ const w=qbitBrowserView.webContents,provider=qbitBrowserProvider(w.getURL());
+ if(!provider)return Promise.reject(new Error("En QBIT Browser, abrí ChatGPT, Gemini, Claude, DeepSeek, Qwen, Arena o Meta AI."));
+ if(w.isLoading()||!qbitBrowserReady)return Promise.reject(new Error("La página de IA todavía está cargando. Esperá a que termine y volvé a enviar."));
+ const id=require("node:crypto").randomUUID();
+ return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La consulta tardó más de cuatro minutos."));},250000);qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}catch(e){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(e);}});
+}
+ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
+ipcMain.handle("qbit:browser-navigate",(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");return qbitBrowserView.webContents.loadURL(qbitBrowserUrl(url)).then(()=>({ok:true}));});
+ipcMain.handle("qbit:browser-back",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");if(qbitBrowserView.webContents.canGoBack())qbitBrowserView.webContents.goBack();return qbitBrowserState();});
+ipcMain.handle("qbit:browser-forward",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");if(qbitBrowserView.webContents.canGoForward())qbitBrowserView.webContents.goForward();return qbitBrowserState();});
+ipcMain.handle("qbit:browser-reload",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");qbitBrowserView.webContents.reload();return{ok:true};});
+ipcMain.on("qbit:browser-ai-result",(e,p)=>{if(!qbitBrowserView||e.sender!==qbitBrowserView.webContents||!p||typeof p.id!=="string")return;const x=qbitBrowserAiPending.get(p.id);if(!x)return;clearTimeout(x.timer);qbitBrowserAiPending.delete(p.id);if(p.ok&&typeof p.answer==="string")x.resolve({answer:p.answer,provider:String(p.provider||x.provider)});else x.reject(new Error(String(p.error||"La IA no pudo responder.")));});
 
 // Captura de pantalla para Remote Desktop. Nunca se concede automáticamente:
 // el usuario debe elegir una pantalla en un diálogo nativo de Windows.
