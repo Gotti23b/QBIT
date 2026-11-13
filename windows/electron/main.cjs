@@ -789,7 +789,36 @@ ipcMain.handle("qbit:connector-start",e=>{if(!mainWindow||e.sender!==mainWindow.
 ipcMain.handle("qbit:connector-stop",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return stopConnectorServer();});
 ipcMain.handle("qbit:connector-status",e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return {running:!!connectorServer,connected:connectorConnected()};});
 ipcMain.handle("qbit:connector-open-folder",async e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");const extensionPath=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");const err=await shell.openPath(extensionPath);if(err)throw new Error(err);return {ok:true,path:extensionPath};});
-ipcMain.handle("qbit:connector-open-chrome",async e=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");const candidates=[process.env.PROGRAMFILES,process.env["PROGRAMFILES(X86)"],process.env.LOCALAPPDATA].filter(Boolean).map(root=>path.join(root,"Google","Chrome","Application","chrome.exe"));const chromeExe=candidates.find(candidate=>fs.existsSync(candidate));if(!chromeExe)throw new Error("No encontré Google Chrome. Abrilo y escribí chrome://extensions en la barra de direcciones.");const child=spawn(chromeExe,["chrome://extensions/"],{detached:true,stdio:"ignore",windowsHide:false});child.on("error",()=>{});child.unref();return {ok:true};});
+ipcMain.handle("qbit:connector-open-chrome",async e=>{
+  if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");
+  const roots=[process.env.PROGRAMFILES,process.env["PROGRAMFILES(X86)"],process.env.LOCALAPPDATA].filter(Boolean);
+  const candidates=[
+    ...roots.map(root=>({name:"Google Chrome",id:"chrome",file:path.join(root,"Google","Chrome","Application","chrome.exe")})),
+    ...roots.map(root=>({name:"Microsoft Edge",id:"edge",file:path.join(root,"Microsoft","Edge","Application","msedge.exe")})),
+    ...roots.map(root=>({name:"Brave",id:"brave",file:path.join(root,"BraveSoftware","Brave-Browser","Application","brave.exe")}))
+  ];
+  const browser=candidates.find(item=>fs.existsSync(item.file));
+  if(!browser)throw new Error("No encontré Chrome, Edge ni Brave instalado.");
+  const extensionPath=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");
+  if(!fs.existsSync(path.join(extensionPath,"manifest.json")))throw new Error("No encontré la extensión integrada de QBIT.");
+  const profilePath=path.join(app.getPath("userData"),"qbit-browser-profile",browser.id);
+  fs.mkdirSync(profilePath,{recursive:true});
+  const args=[
+    `--user-data-dir=${profilePath}`,
+    `--load-extension=${extensionPath}`,
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--new-window",
+    "about:blank"
+  ];
+  const child=spawn(browser.file,args,{detached:true,stdio:"ignore",windowsHide:false});
+  child.once("error",err=>console.error("[QBIT] No se pudo iniciar el navegador optimizado:",err));
+  child.unref();
+  return {ok:true,browser:browser.name,profilePath,message:browser.name+" se inició con perfil independiente, flags de segundo plano y QBIT Extension cargada."};
+});
 ipcMain.handle("qbit:connector-ask",async(e,msg)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return askBrowserAI(msg);});
 
 ipcMain.handle("qbit:open-url", async (_event, rawUrl) => {
