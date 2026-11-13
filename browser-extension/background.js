@@ -77,20 +77,20 @@ function rejectWaiting(error) {
 }
 
 async function waitForConsole() {
-  const until = Date.now() + 7000;
+  const until = Date.now() + 30000;
   while (Date.now() < until) {
     if (socket?.readyState === WebSocket.OPEN) return;
     connectConsole();
     await new Promise(resolve => setTimeout(resolve, 100));
   }
-  throw new Error("QBIT Console no está conectada. Hacé clic en Conectar IA y volvé a enviar el mensaje.");
+  throw new Error("QBIT Console no respondió después de 30 segundos. Comprobá que QBIT Desktop esté abierto y conectado; el mensaje todavía no se envió.");
 }
 
 async function sendConsolePrompt(message) {
   await waitForConsole();
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
-    const timer = setTimeout(() => { waiting.delete(id); reject(new Error("La IA todavía no terminó de responder. El mensaje ya fue enviado; revisá la pestaña del proveedor antes de volver a enviarlo.")); }, 510000);
+    const timer = setTimeout(() => { waiting.delete(id); reject(new Error("La IA sigue procesando la consulta. El mensaje ya fue enviado; revisá la pestaña del proveedor antes de volver a enviarlo.")); }, 900000);
     waiting.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ type: "qbit_prompt", id, provider: "auto", message: String(message).slice(0, 12000) }));
   });
