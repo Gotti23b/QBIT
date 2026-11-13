@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "QBIT Extension",
-  "version": "1.5.49",
+  "version": "1.5.50",
   "description": "Conecta QBIT Desktop con pestañas de IA abiertas en Chrome.",
   "permissions": [
     "clipboardRead",

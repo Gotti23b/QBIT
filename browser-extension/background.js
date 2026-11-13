@@ -115,26 +115,53 @@ async function runAI(message, requestedProvider) {
   const providerKey = String(requestedProvider || "auto").toLowerCase();
   const urlPatterns = providerKey === "auto" ? Object.values(PROVIDERS).flat() : PROVIDERS[providerKey];
   if (!urlPatterns) throw new Error("No reconozco ese proveedor de IA.");
+
   const tabs = await chrome.tabs.query({ url: urlPatterns });
   if (!tabs.length) throw new Error("Abrí una pestaña de ChatGPT, Arena.ai, Gemini, Claude, DeepSeek, Qwen o Meta AI.");
+
   const tab = tabs.sort((a, b) => Number(b.active) - Number(a.active) || (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
   if (!Number.isInteger(tab.id)) throw new Error("No pude identificar la pestaña de IA.");
-  const payload = { type: "QBIT_AI_PROMPT", message: String(message || "").slice(0, 12000) };
 
-  // Enviar a la pestaña existente sin activarla ni cambiar el foco de Chrome.
-  // Así QBIT puede consultar la IA en segundo plano sin sacar al usuario de su pestaña.
-  for (let i = 0; i < 40; i++) { // hasta 20 s si Chrome tuvo que recargarla
-    const current = await chrome.tabs.get(tab.id).catch(() => null);
-    if (!current || current.status === "complete") break;
-    await new Promise(resolve => setTimeout(resolve, 500));
+  // No activamos la pestaña ni enfocamos Chrome. Evitamos que Chrome la descarte
+  // automáticamente mientras QBIT está esperando la respuesta.
+  const initialTab = await chrome.tabs.get(tab.id);
+  if (initialTab.discarded) {
+    throw new Error("Chrome descargó la pestaña de IA de la memoria. Abrila una vez y volvé a intentar; QBIT no la va a traer al frente.");
+  }
+  if (initialTab.frozen) {
+    throw new Error("Chrome congeló la pestaña de IA. Una pestaña congelada no puede ejecutar eventos ni scripts; activala manualmente una vez y volvé a probar.");
   }
 
-  const result = await sendPromptToTab(tab.id, payload);
-  console.log("[QBIT] Resultado de la pestaña de IA:", result);
-  if (!result?.ok) throw new Error(result?.error || "La IA no devolvió una respuesta.");
-  return result;
-}
+  const restoreAutoDiscardable = initialTab.autoDiscardable !== false;
+  if (restoreAutoDiscardable) {
+    await chrome.tabs.update(tab.id, { autoDiscardable: false });
+  }
 
+  try {
+    for (let i = 0; i < 40; i++) {
+      const current = await chrome.tabs.get(tab.id).catch(() => null);
+      if (!current) throw new Error("La pestaña de IA se cerró durante la consulta.");
+      if (current.discarded) throw new Error("Chrome descargó la pestaña de IA durante la consulta. Abrila una vez y volvé a intentar.");
+      if (current.frozen) throw new Error("Chrome congeló la pestaña de IA durante la consulta. Activala manualmente una vez y volvé a intentar.");
+      if (current.status === "complete") break;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    const result = await sendPromptToTab(tab.id, {
+      type: "QBIT_AI_PROMPT",
+      message: String(message || "").slice(0, 12000)
+    });
+
+    console.log("[QBIT] Resultado de la pestaña de IA en segundo plano:", result);
+    if (!result?.ok) throw new Error(result?.error || "La IA no devolvió una respuesta.");
+    return result;
+  } finally {
+    // Devolvemos la preferencia de Chrome al valor que tenía antes de la consulta.
+    if (restoreAutoDiscardable) {
+      chrome.tabs.update(tab.id, { autoDiscardable: true }).catch(() => {});
+    }
+  }
+}
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "QBIT_CONNECTOR_CONTROL") { if(message.action==="connect"){manuallyDisconnected=false;connectConsole();sendResponse({ok:true});}else if(message.action==="disconnect"){manuallyDisconnected=true;if(socket){const old=socket;socket=null;old.close();}rejectWaiting("Desconectado desde QBIT Extension.");broadcastConsoleStatus();sendResponse({ok:true});}else if(message.action==="status")sendResponse({connected:!!socket&&socket.readyState===WebSocket.OPEN});return false; }
   if (message?.type === "QBIT_CONSOLE_PROMPT") {
