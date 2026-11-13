@@ -6,7 +6,7 @@
   "main": "windows/electron/main.cjs",
   "scripts": {
     "start": "electron .",
-    "check": "node --check windows/electron/main.cjs && node --check windows/electron/preload.cjs && node --check app.js && node --check mascot.js && node --check windows/electron/mascot-window.js && node --check browser-extension/background.js && node --check browser-extension/ai-provider.js && node --check browser-extension/popup.js && node --check extension/background.js && node --check extension/ai-provider.js",
+    "check": "node --check windows/electron/main.cjs && node --check windows/electron/preload.cjs && node --check app.js && node --check mascot.js && node --check windows/electron/mascot-window.js && node --check browser-extension/background.js && node --check browser-extension/ai-provider.js && node --check browser-extension/popup.js && node --check extension/background.js && node --check extension/ai-provider.js && node --check extension/qbit-page.js && node --check extension/qbit-page-main.js",
     "dist": "electron-builder --win nsis --x64 --publish never",
     "release": "electron-builder --win nsis --x64 --publish always"
   },
@@ -64,6 +64,13 @@
       {
         "from": "browser-extension",
         "to": "browser-extension",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "extension",
+        "to": "extension",
         "filter": [
           "**/*"
         ]
