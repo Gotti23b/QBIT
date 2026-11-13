@@ -940,7 +940,7 @@
   $("connectorStart")?.addEventListener("click",async()=>{try{const s=await window.qbitPC.startConnector();connectorNotice(s.message||"Conector iniciado.");}catch(e){connectorNotice(e?.message||"No se pudo iniciar.",true);}await refreshConnectorStatus();});
   $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();connectorNotice("Conector desconectado.");}catch(e){connectorNotice(e?.message||"No se pudo detener.",true);}await refreshConnectorStatus();});
   $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta.",true);}});
-  $("connectorChrome")?.addEventListener("click",async()=>{try{await window.qbitPC.openChromeExtensions();}catch(e){connectorNotice("Abrí chrome://extensions manualmente. "+(e?.message||""),true);}});
+  $("connectorChrome")?.addEventListener("click",async()=>{try{await window.qbitPC.openChromeExtensions();}catch(e){connectorNotice("No pude abrir el navegador optimizado. "+(e?.message||""),true);}});
   setInterval(()=>{if(!$("connectorView")?.classList.contains("hidden"))void refreshConnectorStatus();},2500);
   function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
   async function loadPetSettings(){
