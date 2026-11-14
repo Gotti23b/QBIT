@@ -230,7 +230,7 @@ function qbitBrowserState(){if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed
 function qbitBrowserBounds(){if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed()||!qbitBrowserView)return;const[w,h]=qbitBrowserWindow.getContentSize();qbitBrowserView.setBounds({x:0,y:QBIT_BROWSER_TOOLBAR_HEIGHT,width:w,height:Math.max(0,h-QBIT_BROWSER_TOOLBAR_HEIGHT)});}
 function createQbitBrowser(raw=QBIT_BROWSER_HOME){
  const target=qbitBrowserUrl(raw);
- if(qbitBrowserWindow&&!qbitBrowserWindow.isDestroyed()){if(qbitBrowserView&&qbitBrowserView.webContents.getURL()==="about:blank")qbitBrowserView.webContents.loadURL(target);qbitBrowserWindow.show();qbitBrowserWindow.focus();return qbitBrowserWindow;}
+ if(qbitBrowserWindow&&!qbitBrowserWindow.isDestroyed()){if(qbitBrowserView&&qbitBrowserView.webContents.getURL()!==target)qbitBrowserView.webContents.loadURL(target).catch(e=>console.error("[QBIT Browser]",e));qbitBrowserWindow.show();qbitBrowserWindow.focus();return qbitBrowserWindow;}
  qbitBrowserReady=false;
  qbitBrowserWindow=new BrowserWindow({width:1280,height:860,minWidth:760,minHeight:520,title:"QBIT Browser",backgroundColor:"#07111f",autoHideMenuBar:true,show:false,webPreferences:{preload:path.join(__dirname,"browser-shell-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  qbitBrowserView=new WebContentsView({webPreferences:{partition:QBIT_BROWSER_PARTITION,preload:path.join(__dirname,"browser-page-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
