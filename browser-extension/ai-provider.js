@@ -13,11 +13,29 @@
   const PROVIDERS = {
     "ChatGPT": {
       hosts: ["chatgpt.com", "chat.openai.com"],
-      editor: ['#prompt-textarea', 'div.ProseMirror[contenteditable="true"]'],
-      reply: ['[data-message-author-role="assistant"]', '[data-turn="assistant"]'],
-      content: ['.markdown', '[class*="markdown"]'],
-      send: ['#composer-submit-button', 'button[data-testid="send-button"]', 'button[aria-label*="Send prompt"]', 'button[aria-label*="Enviar"]'],
-      stop: ['button[data-testid="stop-button"]', 'button[aria-label="Stop streaming"]']
+      // ChatGPT cambió su composer: ahora puede ser Lexical/ProseMirror y sus
+      // turnos usan data-conversation-role en algunas versiones.
+      editor: [
+        '[data-testid="prompt-textarea"]',
+        '[contenteditable="true"][data-lexical-editor="true"]',
+        'form[data-chatgpt-composer] [data-composer-markdown][contenteditable="true"][role="textbox"]',
+        'form [contenteditable="true"][role="textbox"]',
+        '#prompt-textarea',
+        'div.ProseMirror[contenteditable="true"]',
+        'textarea[name="prompt-textarea"]'
+      ],
+      reply: ['[data-conversation-role="assistant"]', '[data-message-author-role="assistant"]', '[data-turn="assistant"]'],
+      content: ['[data-markdown-text-style="assistant-message"]', '.markdown', '[class*="markdown"]'],
+      send: [
+        'button[data-testid="send-button"]',
+        '#composer-submit-button',
+        'form[data-chatgpt-composer] button[type="submit"]',
+        'form button[type="submit"]',
+        'button[aria-label*="Send prompt" i]',
+        'button[aria-label*="Send" i]',
+        'button[aria-label*="Enviar" i]'
+      ],
+      stop: ['button[data-testid="stop-button"]', 'button[aria-label*="Stop streaming" i]', 'button[aria-label*="Stop generating" i]', 'button[aria-label*="Detener" i]']
     },
     "Arena.ai": {
       hosts: ["arena.ai"],
@@ -104,7 +122,7 @@
   }
 
   function getReplies() {
-    let nodes = findAll("reply").filter(node => !node.closest('[data-testid="user-message"], [data-message-author-role="user"]'));
+    let nodes = findAll("reply").filter(node => !node.closest('[data-testid="user-message"], [data-message-author-role="user"], [data-conversation-role="user"]'));
     // Si un selector coincide con un elemento y también con su hijo, nos quedamos con el de afuera.
     nodes = nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
     return cfg.arrange ? cfg.arrange(nodes) : nodes;
@@ -165,9 +183,26 @@
       setter.call(editor, String(text));
       editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: String(text) }));
       editor.dispatchEvent(new Event("change", { bubbles: true }));
-    } else {
-      writeParagraphs(editor, text);
+      return;
     }
+    // ChatGPT usa editores controlados por React/Lexical. Cambiar el HTML
+    // directamente suele dejar el texto visualmente escrito pero no registrado.
+    if (provider === "ChatGPT" && editor.isContentEditable) {
+      editor.focus();
+      const selection = window.getSelection();
+      if (selection) {
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      document.execCommand("delete", false);
+      const inserted = document.execCommand("insertText", false, String(text));
+      editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: String(text) }));
+      if (inserted && editorText(editor) === String(text).trim()) return;
+      log("ChatGPT no confirmó el texto por insertText; pruebo el método alternativo.");
+    }
+    writeParagraphs(editor, text);
   }
 
   // ── Respuesta completa ────────────────────────────────────────────────────
@@ -272,12 +307,26 @@
     }
     return false;
   }
-  const findSendButton = () => findEvery("send")
-    .find(button => isVisible(button) && !button.disabled && button.getAttribute("aria-disabled") !== "true");
-  async function waitSendButton(ms) {
+  const findSendButton = editor => {
+    let candidates = findEvery("send");
+    if (provider === "ChatGPT" && editor) {
+      const form = editor.closest("form");
+      if (form) {
+        const scoped = [...form.querySelectorAll('button[data-testid="send-button"], #composer-submit-button, button[type="submit"], button[aria-label*="Send" i], button[aria-label*="Enviar" i]')];
+        if (scoped.length) candidates = scoped;
+      }
+    }
+    return candidates.find(button =>
+      isVisible(button) &&
+      !button.disabled &&
+      button.getAttribute("aria-disabled") !== "true" &&
+      !/stop|detener|cancel|parar/i.test((button.getAttribute("aria-label") || "") + " " + (button.innerText || ""))
+    );
+  };
+  async function waitSendButton(ms, editor) {
     const started = Date.now();
-    let send = findSendButton();
-    while (!send && Date.now() - started < ms) { await sleep(100); send = findSendButton(); }
+    let send = findSendButton(editor);
+    while (!send && Date.now() - started < ms) { await sleep(100); send = findSendButton(editor); }
     return send;
   }
   async function ask(message) {
@@ -294,18 +343,18 @@
     log("Respuestas antes de enviar:", previousCount, "| diagnóstico:", diagSummary());
     setEditor(editor, message);
     await sleep(250);
-    let send = await waitSendButton(15000);
+    let send = await waitSendButton(15000, editor);
     // Si el botón de enviar no se activó, el sitio no tomó el texto: probamos el plan B (pegado simulado).
     if (!send && !(editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement)) {
       log("El botón de enviar sigue apagado; pruebo pegar el texto.");
       writePaste(editor, message);
       await sleep(300);
-      send = await waitSendButton(4000);
+      send = await waitSendButton(4000, editor);
     }
     // Probamos varias formas de enviar y verificamos que de verdad se haya mandado.
     const attempts = [
       () => { if (send) send.click(); else return false; },
-      () => { const b = findSendButton() || editor.closest("form")?.querySelector('button[type="submit"]:not([disabled])'); if (b) b.click(); else return false; },
+      () => { const b = findSendButton(editor) || editor.closest("form")?.querySelector('button[type="submit"]:not([disabled])'); if (b) b.click(); else return false; },
       () => { const form = editor.closest("form"); if (form?.requestSubmit) form.requestSubmit(); else return false; },
       () => {
         // Último botón habilitado cerca del cuadro de texto; no usamos Enter
