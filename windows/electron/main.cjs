@@ -259,7 +259,7 @@ function qbitBrowserActivate(id){
  qbitBrowserBounds();qbitBrowserState();return true;
 }
 function qbitBrowserLoad(view,target){
- if(target==="qbit://home"){view.webContents.loadURL("data:text/html;charset=utf-8,"+encodeURIComponent(qbitBrowserHomeHtml()));return Promise.resolve();}
+ if(target==="qbit://home")return view.webContents.loadURL("data:text/html;charset=utf-8,"+encodeURIComponent(qbitBrowserHomeHtml()));
  return view.webContents.loadURL(target);
 }
 function qbitBrowserHomeHtml(){
