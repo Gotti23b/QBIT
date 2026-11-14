@@ -255,7 +255,7 @@ function qbitBrowserBounds(){
 }
 function qbitBrowserActivate(id){
  const tab=qbitBrowserTabs.find(t=>t.id===id);if(!tab)return false;
- qbitBrowserActiveTabId=id;qbitBrowserView=tab.view;qbitBrowserReady=false;
+ qbitBrowserActiveTabId=id;qbitBrowserView=tab.view;qbitBrowserReady=!!tab.aiReady;
  qbitBrowserBounds();qbitBrowserState();return true;
 }
 function qbitBrowserLoad(view,target){
@@ -273,14 +273,14 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true){
  view.webContents.setWindowOpenHandler(({url})=>{try{qbitBrowserCreateTab(url,true);}catch(e){console.warn("[QBIT Browser]",e.message);}return{action:"deny"};});
  view.webContents.on("will-navigate",(e,url)=>{try{if(!url.startsWith("data:text/html"))qbitBrowserUrl(url);}catch{e.preventDefault();}});
  const update=()=>qbitBrowserState();
- view.webContents.on("did-start-loading",()=>{if(qbitBrowserActiveTabId===id){qbitBrowserReady=false;update();}});
+ view.webContents.on("did-start-loading",()=>{tab.aiReady=false;if(qbitBrowserActiveTabId===id){qbitBrowserReady=false;update();}});
  for(const ev of ["did-stop-loading","did-navigate","did-navigate-in-page","page-title-updated"])view.webContents.on(ev,update);
  view.webContents.on("did-finish-load",async()=>{
   if(qbitBrowserActiveTabId===id)qbitBrowserReady=false;
   if(qbitBrowserProvider(view.webContents.getURL()))try{
    if(!qbitBrowserAiSource){const d=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");qbitBrowserAiSource=fs.readFileSync(path.join(d,"ai-provider.js"),"utf8");}
    await view.webContents.executeJavaScript(qbitBrowserAiSource,true);
-   if(qbitBrowserActiveTabId===id)qbitBrowserReady=true;
+   tab.aiReady=true;if(qbitBrowserActiveTabId===id)qbitBrowserReady=true;
   }catch(e){console.warn("[QBIT Browser] No se pudo iniciar el asistente:",e?.message||e);}
   update();
  });
@@ -331,7 +331,7 @@ ipcMain.handle("qbit:browser-reload",e=>{if(!qbitBrowserWindow||e.sender!==qbitB
 ipcMain.handle("qbit:browser-new-tab",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return qbitBrowserState();});
 ipcMain.handle("qbit:browser-select-tab",(e,id)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");if(!qbitBrowserActivate(String(id)))throw new Error("La pestaña ya no existe.");return qbitBrowserState();});
 ipcMain.handle("qbit:browser-close-tab",(e,id)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserCloseTab(String(id));return qbitBrowserState();});
-ipcMain.on("qbit:browser-ai-result",(e,p)=>{const tab=qbitBrowserTabs.find(t=>t.view.webContents===e.sender);if(!tab||tab.id!==qbitBrowserActiveTabId||!p||typeof p.id!=="string")return;const x=qbitBrowserAiPending.get(p.id);if(!x)return;clearTimeout(x.timer);qbitBrowserAiPending.delete(p.id);if(p.ok&&typeof p.answer==="string")x.resolve({answer:p.answer,provider:String(p.provider||x.provider)});else x.reject(new Error(String(p.error||"La IA no pudo responder.")));});
+ipcMain.on("qbit:browser-ai-result",(e,p)=>{const tab=qbitBrowserTabs.find(t=>t.view.webContents===e.sender);if(!tab||!p||typeof p.id!=="string")return;const x=qbitBrowserAiPending.get(p.id);if(!x)return;clearTimeout(x.timer);qbitBrowserAiPending.delete(p.id);if(p.ok&&typeof p.answer==="string")x.resolve({answer:p.answer,provider:String(p.provider||x.provider)});else x.reject(new Error(String(p.error||"La IA no pudo responder.")));});
 
 // Captura de pantalla para Remote Desktop. Nunca se concede automáticamente:
 // el usuario debe elegir una pantalla en un diálogo nativo de Windows.
