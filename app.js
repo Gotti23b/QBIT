@@ -3,7 +3,7 @@
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
   const db = window.supabase.createClient(URL, KEY);
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.6.3";
+  const QBIT_VERSION = "1.6.4";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -529,9 +529,9 @@
   }
   function activateTab(id){
     document.querySelectorAll("[data-tab]").forEach(x=>{const active=x.dataset.tab===id;x.classList.toggle("active",active);x.setAttribute("aria-current",active?"page":"false");});
-    ["chatView","connectorView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
+    ["chatView","connectorView","browserView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
     setMobileSidebarOpen(false);
-    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="browserView")browserPageNotice("QBIT Browser está disponible. Elegí Abrir navegador o un acceso rápido.");if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
@@ -981,7 +981,10 @@
   $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();await refreshConnectorStatus();}catch(e){connectorNotice(e?.message||"No pude detener el conector.",true);}});
   $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();connectorNotice("Carpeta de extensiones abierta. Cargá browser-extension y extension como extensiones sin empaquetar.");}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta de extensiones.",true);}});
   $("connectorChrome")?.addEventListener("click",async()=>{try{const result=await window.qbitPC.openChromeExtensions();await refreshConnectorStatus();connectorNotice(result?.message||"Navegador iniciado con las extensiones de QBIT.");}catch(e){connectorNotice(e?.message||"No pude iniciar el navegador con las extensiones.",true);}});
-  $("connectorBrowserOpen")?.addEventListener("click",async()=>{try{await window.qbitPC.openQbitBrowser("https://chatgpt.com/");connectorNotice("QBIT Browser está abierto. Iniciá sesión en el proveedor que quieras usar.");}catch(e){connectorNotice(e?.message||"No se pudo abrir QBIT Browser.",true);}});
+  function browserPageNotice(message,error=false){const el=$("browserPageStatus");if(el){el.textContent=message;el.className=error?"notice error":"notice";}}
+  async function openBrowserAt(url){if(!window.qbitPC?.isDesktop){browserPageNotice("QBIT Browser está disponible en QBIT Desktop para Windows.",true);return;}try{await window.qbitPC.openQbitBrowser(url);browserPageNotice("QBIT Browser está abierto. Podés seguir navegando desde su barra de direcciones.");}catch(e){browserPageNotice(e?.message||"No se pudo abrir QBIT Browser.",true);}}
+  $("browserOpenHome")?.addEventListener("click",()=>void openBrowserAt("https://chatgpt.com/"));
+  document.querySelectorAll("[data-browser-url]").forEach(button=>button.addEventListener("click",()=>void openBrowserAt(button.dataset.browserUrl)));
   window.qbitPC?.onConnectorState?.(renderConnectorState);
   if(window.qbitPC?.isDesktop)void refreshConnectorStatus();else connectorNotice("Las extensiones y QBIT Browser están disponibles en QBIT Desktop para Windows.",true);
   function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
