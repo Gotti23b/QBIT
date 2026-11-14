@@ -224,7 +224,7 @@ function getAppRoot() {
 
 const QBIT_BROWSER_HOME="qbit://home",QBIT_BROWSER_TOOLBAR_HEIGHT=138,QBIT_BROWSER_PARTITION="persist:qbit-browser";
 const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.com","ChatGPT"],["gemini.google.com","Gemini"],["claude.ai","Claude"],["chat.deepseek.com","DeepSeek"],["chat.qwen.ai","Qwen"],["arena.ai","Arena"],["meta.ai","Meta AI"],["www.meta.ai","Meta AI"]]);
-let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1;
+let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[];
 function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
 function qbitBrowserUrl(raw){
  let v=String(raw||"").trim();if(!v)throw new Error("Escribí una dirección o una búsqueda.");
@@ -285,6 +285,7 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true){
  qbitBrowserWindow.contentView.addChildView(view);
  const tab={id,view,aiReady:false,favicon:null};qbitBrowserTabs.push(tab);
  view.webContents.setWindowOpenHandler(({url})=>{try{qbitBrowserCreateTab(url,true);}catch(e){console.warn("[QBIT Browser]",e.message);}return{action:"deny"};});
+  view.webContents.on("context-menu",(_event,params)=>{const items=[];if(params.linkURL)items.push({label:"Abrir enlace en una pestaña nueva",click:()=>qbitBrowserCreateTab(params.linkURL,true)},{label:"Copiar dirección del enlace",click:()=>clipboard.writeText(params.linkURL)});if(params.selectionText)items.push({label:"Copiar selección",click:()=>clipboard.writeText(params.selectionText)});if(items.length)items.push({type:"separator"});items.push({label:"Atrás",enabled:view.webContents.canGoBack(),click:()=>view.webContents.goBack()},{label:"Adelante",enabled:view.webContents.canGoForward(),click:()=>view.webContents.goForward()},{label:"Recargar",click:()=>view.webContents.reload()});Menu.buildFromTemplate(items).popup({window:qbitBrowserWindow});});
  view.webContents.on("will-navigate",(e,url)=>{try{if(!url.startsWith("data:text/html"))qbitBrowserUrl(url);}catch{e.preventDefault();}});
  const update=()=>qbitBrowserState();
  view.webContents.on("did-start-loading",()=>{tab.aiReady=false;if(qbitBrowserActiveTabId===id){qbitBrowserReady=false;update();}});
@@ -306,7 +307,7 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true){
 }
 function qbitBrowserCloseTab(id){
  const index=qbitBrowserTabs.findIndex(t=>t.id===id);if(index<0)return;
- const [tab]=qbitBrowserTabs.splice(index,1);qbitBrowserWindow.contentView.removeChildView(tab.view);tab.view.webContents.close();
+ const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);qbitBrowserWindow.contentView.removeChildView(tab.view);tab.view.webContents.close();
  if(!qbitBrowserTabs.length){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return;}
  if(qbitBrowserActiveTabId===id)qbitBrowserActivate(qbitBrowserTabs[Math.max(0,index-1)].id);
  qbitBrowserState();
@@ -347,6 +348,7 @@ ipcMain.handle("qbit:browser-stop",e=>{if(!qbitBrowserWindow||e.sender!==qbitBro
 ipcMain.handle("qbit:browser-find",(e,p)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");const text=String(p?.text||"").slice(0,300);if(!text){qbitBrowserView.webContents.stopFindInPage("clearSelection");return{ok:true};}const requestId=qbitBrowserView.webContents.findInPage(text,{forward:p?.forward!==false,findNext:!!p?.findNext});return{ok:true,requestId};});
 ipcMain.handle("qbit:browser-find-clear",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");qbitBrowserView.webContents.stopFindInPage("clearSelection");return{ok:true};});
 ipcMain.handle("qbit:browser-new-tab",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return qbitBrowserState();});
+ipcMain.handle("qbit:browser-reopen-tab",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");const url=qbitBrowserRecentlyClosed.shift();if(url)qbitBrowserCreateTab(url,true);return qbitBrowserState();});
 ipcMain.handle("qbit:browser-select-tab",(e,id)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");if(!qbitBrowserActivate(String(id)))throw new Error("La pestaña ya no existe.");return qbitBrowserState();});
 ipcMain.handle("qbit:browser-close-tab",(e,id)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserCloseTab(String(id));return qbitBrowserState();});
 ipcMain.on("qbit:browser-ai-result",(e,p)=>{const tab=qbitBrowserTabs.find(t=>t.view.webContents===e.sender);if(!tab||!p||typeof p.id!=="string")return;const x=qbitBrowserAiPending.get(p.id);if(!x)return;clearTimeout(x.timer);qbitBrowserAiPending.delete(p.id);if(p.ok&&typeof p.answer==="string")x.resolve({answer:p.answer,provider:String(p.provider||x.provider)});else x.reject(new Error(String(p.error||"La IA no pudo responder.")));});
