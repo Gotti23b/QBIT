@@ -337,7 +337,7 @@
   if (api?.onPetSettings) api.onPetSettings(applySettings);
   if (api?.getSettings) api.getSettings().then(applySettings).catch(() => {});
   if (api?.onPetReply) api.onPetReply(reply => {
-    greeting.textContent = String(reply);
+    greeting.replaceChildren(window.QBITMarkdown.render(String(reply)));
     speakReply(reply);
     sending = false;
     input.disabled = false;
