@@ -418,13 +418,6 @@ async function askBrowserAI(message){
  }
  throw new Error("No hay una pestaña de IA lista en QBIT Browser ni una extensión conectada. Abrí ChatGPT, Gemini, Claude, DeepSeek o Qwen y esperá a que termine de cargar.");
 }
-ipcMain.on("qbit:browser-bounds",(e,b)=>{
- if(!mainWindow||e.sender!==mainWindow.webContents||!b||typeof b!=="object")return;
- const x=Number(b.x),y=Number(b.y),width=Number(b.width),height=Number(b.height);
- if(![x,y,width,height].every(Number.isFinite))return;
- qbitBrowserBoundsRect={x:Math.max(0,x),y:Math.max(0,y),width:Math.max(0,Math.min(width,10000)),height:Math.max(0,Math.min(height,10000))};
- qbitBrowserBounds();
-});
 ipcMain.handle("qbit:browser-action",async(e,p={})=>{
  if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");
  const action=String(p.action||"").toLowerCase();
@@ -606,7 +599,7 @@ function createWindow(show = true) {
   for(const p of qbitBrowserAiPending.values()){clearTimeout(p.timer);p.reject(new Error("QBIT se cerró."));}
   qbitBrowserAiPending.clear();
   for(const t of qbitBrowserTabs){try{mainWindow?.contentView?.removeChildView(t.view);t.view.webContents.close();}catch{}}
-  qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;qbitBrowserBoundsRect={x:0,y:0,width:0,height:0};
+  qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;
   mainWindow = null;
 });
   mainWindow.loadFile(path.join(getAppRoot(), "index.html"));
