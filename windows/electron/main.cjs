@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session } = require("electron");
+const { app, BrowserWindow, WebContentsView, ipcMain, shell, Tray, Menu, nativeImage, screen, dialog, clipboard, Notification, desktopCapturer, session, safeStorage } = require("electron");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
@@ -214,6 +214,49 @@ ipcMain.handle("qbit:update-check", async e => {
     reportUpdateError(error, "Búsqueda manual");
   }
   return { ...updateState, current: app.getVersion() };
+});
+// La sesión de Supabase se guarda fuera de la carpeta de instalación para sobrevivir a las actualizaciones NSIS.
+const QBIT_AUTH_STORE_PATH = () => path.join(app.getPath("userData"), "qbit-auth-session.dat");
+function readQbitAuthStore() {
+  try {
+    const encrypted = fs.readFileSync(QBIT_AUTH_STORE_PATH());
+    if (!safeStorage.isEncryptionAvailable()) throw new Error("El cifrado seguro de Windows no está disponible.");
+    return JSON.parse(safeStorage.decryptString(encrypted));
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    console.warn("[QBIT Auth] No se pudo leer la sesión persistente:", error.message);
+    return {};
+  }
+}
+function writeQbitAuthStore(store) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error("Windows no tiene disponible el almacenamiento cifrado.");
+  const dir = app.getPath("userData");
+  fs.mkdirSync(dir, { recursive: true });
+  const temp = QBIT_AUTH_STORE_PATH() + ".tmp";
+  fs.writeFileSync(temp, safeStorage.encryptString(JSON.stringify(store)));
+  fs.renameSync(temp, QBIT_AUTH_STORE_PATH());
+}
+function isMainAuthStorageSender(sender) {
+  return !!mainWindow && !mainWindow.isDestroyed() && sender === mainWindow.webContents;
+}
+ipcMain.handle("qbit:auth-storage-get", (event, key) => {
+  if (!isMainAuthStorageSender(event.sender) || typeof key !== "string" || key.length > 180) throw new Error("No autorizado.");
+  const store = readQbitAuthStore();
+  return typeof store[key] === "string" ? store[key] : null;
+});
+ipcMain.handle("qbit:auth-storage-set", (event, key, value) => {
+  if (!isMainAuthStorageSender(event.sender) || typeof key !== "string" || key.length > 180 || typeof value !== "string" || value.length > 100000) throw new Error("No autorizado.");
+  const store = readQbitAuthStore();
+  store[key] = value;
+  writeQbitAuthStore(store);
+  return true;
+});
+ipcMain.handle("qbit:auth-storage-remove", (event, key) => {
+  if (!isMainAuthStorageSender(event.sender) || typeof key !== "string" || key.length > 180) throw new Error("No autorizado.");
+  const store = readQbitAuthStore();
+  delete store[key];
+  writeQbitAuthStore(store);
+  return true;
 });
 ipcMain.handle("qbit:app-version", () => app.getVersion());
 
