@@ -8,7 +8,7 @@ let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
 
 let mainWindow;
-let qbitBrowserWindow=null,qbitBrowserView=null,qbitBrowserReady=false,qbitBrowserAiSource=null,qbitBrowserBoundsRect={x:0,y:0,width:0,height:0};
+let qbitBrowserWindow=null,qbitBrowserView=null,qbitBrowserReady=false,qbitBrowserAiSource=null;
 const qbitBrowserAiPending=new Map();
 let petWindow;
 let petCursorWindow = null;
@@ -322,12 +322,8 @@ function qbitBrowserState(){
 }
 function qbitBrowserBounds(){
  if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())return;
- const b=qbitBrowserBoundsRect;
- const visible=b&&b.width>0&&b.height>0;
- for(const tab of qbitBrowserTabs){
-  const active=visible&&tab.id===qbitBrowserActiveTabId;
-  tab.view.setBounds(active?{x:Math.round(b.x),y:Math.round(b.y),width:Math.max(0,Math.round(b.width)),height:Math.max(0,Math.round(b.height))}:{x:0,y:0,width:0,height:0});
- }
+ const[w,h]=qbitBrowserWindow.getContentSize();
+ for(const tab of qbitBrowserTabs)tab.view.setBounds(tab.id===qbitBrowserActiveTabId?{x:0,y:QBIT_BROWSER_TOOLBAR_HEIGHT,width:w,height:Math.max(0,h-QBIT_BROWSER_TOOLBAR_HEIGHT)}:{x:0,y:0,width:0,height:0});
 }
 function qbitBrowserActivate(id){
  const tab=qbitBrowserTabs.find(t=>t.id===id);if(!tab)return false;
@@ -375,19 +371,24 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true){
 }
 function qbitBrowserCloseTab(id){
  const index=qbitBrowserTabs.findIndex(t=>t.id===id);if(index<0)return;
- const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);qbitBrowserWindow.contentView.removeChildView(tab.view);tab.view.webContents.close();
+ const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);tab.view.webContents.close();
  if(!qbitBrowserTabs.length){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return;}
  if(qbitBrowserActiveTabId===id)qbitBrowserActivate(qbitBrowserTabs[Math.max(0,index-1)].id);
  qbitBrowserState();
 }
 function createQbitBrowser(raw=QBIT_BROWSER_HOME){
- if(!mainWindow||mainWindow.isDestroyed())throw new Error("La ventana principal de QBIT todavía no está disponible.");
- qbitBrowserWindow=mainWindow;
- if(!qbitBrowserTabs.length)qbitBrowserCreateTab(raw||QBIT_BROWSER_HOME,true);
- else if(raw&&raw!==QBIT_BROWSER_HOME)qbitBrowserCreateTab(raw,true);
- mainWindow.show();mainWindow.focus();
- qbitBrowserBounds();
- return mainWindow;
+ if(qbitBrowserWindow&&!qbitBrowserWindow.isDestroyed()){
+  if(raw&&raw!==QBIT_BROWSER_HOME)qbitBrowserCreateTab(raw,true);
+  qbitBrowserWindow.show();qbitBrowserWindow.focus();return qbitBrowserWindow;
+ }
+ qbitBrowserReady=false;qbitBrowserTabs=[];qbitBrowserActiveTabId=null;qbitBrowserView=null;
+ qbitBrowserWindow=new BrowserWindow({width:1280,height:860,minWidth:760,minHeight:520,title:"QBIT Browser",backgroundColor:"#07111f",autoHideMenuBar:true,show:false,webPreferences:{preload:path.join(__dirname,"browser-shell-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ qbitBrowserWindow.on("resize",qbitBrowserBounds);
+ qbitBrowserWindow.on("close",e=>{if(!isQuitting){e.preventDefault();qbitBrowserWindow.hide();}});
+ qbitBrowserWindow.on("closed",()=>{qbitBrowserAiPending.forEach(p=>{clearTimeout(p.timer);p.reject(new Error("QBIT Browser se cerró."));});qbitBrowserAiPending.clear();for(const t of qbitBrowserTabs){try{t.view.webContents.close();}catch{}}qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;});
+ qbitBrowserWindow.loadFile(path.join(__dirname,"browser-window.html"));
+ qbitBrowserWindow.once("ready-to-show",()=>{qbitBrowserCreateTab(raw||QBIT_BROWSER_HOME,true);qbitBrowserBounds();qbitBrowserWindow?.show();});
+ return qbitBrowserWindow;
 }
 async function askBrowserAI(message){
  if(typeof message!=="string"||!message.trim()||message.length>12000)throw new Error("Mensaje no válido.");
