@@ -153,7 +153,7 @@
   async function executeDesktopArtifact(name,args={}){
     const pc=window.qbitPC;
     if(!pc?.isDesktop)throw new Error("Este Artifact solo está disponible en QBIT Desktop para Windows.");
-    if(name==="browser_control")return await pc.browserAction(args);
+    if(name==="browser_control"){activateTab("browserView");return await pc.browserAction(args);}
     if(name==="open_anything"){
       const query=String(args.query||"").trim();
       if(!query)throw new Error("Necesito el nombre de la aplicación o archivo.");
