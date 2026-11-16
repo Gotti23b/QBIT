@@ -575,3 +575,18 @@ body.qbit-desktop .agent-tools{display:block!important;position:relative}
 
 /* Sección independiente de QBIT Browser */
 .browser-page{max-width:900px}.browser-launch-card{display:flex;align-items:center;gap:14px;margin:22px 0;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}.browser-launch-mark{display:grid;place-items:center;width:46px;height:46px;flex:0 0 46px;border:1px solid #245361;border-radius:13px;background:#112b35;color:var(--cyan);font-size:23px;font-weight:800}.browser-launch-copy{display:grid;gap:4px;min-width:0;flex:1}.browser-launch-copy strong{font-size:14px}.browser-launch-copy span{font-size:12px}.browser-shortcuts{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0 20px}.browser-feature-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px;color:var(--muted);font-size:12px}.browser-feature-list span{padding:10px 12px;border:1px solid var(--line-soft);border-radius:8px;background:var(--surface-2)}@media(max-width:640px){.browser-launch-card{align-items:flex-start;flex-wrap:wrap}.browser-launch-card button{width:100%}.browser-feature-list{grid-template-columns:1fr}}
+
+
+/* Markdown en respuestas del chat */
+.markdown-content{min-width:0;overflow-wrap:anywhere;line-height:1.65}
+.markdown-content> :first-child{margin-top:0}.markdown-content> :last-child{margin-bottom:0}
+.markdown-content p{margin:0 0 .72em}
+.markdown-content h1,.markdown-content h2,.markdown-content h3,.markdown-content h4,.markdown-content h5,.markdown-content h6{margin:1em 0 .45em;color:var(--text);font-weight:800;line-height:1.25;letter-spacing:-.02em}
+.markdown-content h1{font-size:1.55em}.markdown-content h2{font-size:1.35em}.markdown-content h3{font-size:1.17em}.markdown-content h4{font-size:1.08em}
+.markdown-content strong{font-weight:800;color:#f0fbff}.markdown-content em{font-style:italic}.markdown-content del{opacity:.72}
+.markdown-content ul,.markdown-content ol{margin:.35em 0 .8em;padding-left:1.55em}.markdown-content li{padding-left:.15em;margin:.2em 0}
+.markdown-content blockquote{margin:.7em 0;padding:.45em .85em;border-left:3px solid var(--cyan);border-radius:0 8px 8px 0;background:rgba(34,211,238,.055);color:#b8d2df}
+.markdown-content blockquote p{margin:.2em 0}.markdown-content hr{height:1px;margin:1em 0;border:0;background:var(--line-soft)}
+.markdown-content a{color:#7ee8f4;text-decoration:underline;text-underline-offset:2px}
+.markdown-content :not(pre)>code{padding:.12em .38em;border:1px solid #2b5263;border-radius:5px;background:#07131e;color:#a5f3fc;font:.92em ui-monospace,monospace}
+.markdown-content .codeblock{margin:.65em 0}.markdown-content pre{max-width:100%;overflow:auto}
