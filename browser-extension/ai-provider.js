@@ -405,7 +405,17 @@
   }
 
   if (!window.qbitBrowserAI || typeof window.qbitBrowserAI.onPrompt !== "function") { log("El puente nativo de QBIT Browser no está disponible."); return; }
-  // QBIT Browser puede reinicializar el adaptador tras cambios de ruta SPA.\n  // El contexto de la página sigue vivo: no registres dos listeners para el mismo puente.\n  if (window.__QBIT_AI_PROVIDER_READY__ === true) { log("Adaptador ya activo; conservo el listener existente."); return; }\n  window.qbitBrowserAI.onPrompt(async (message,id)=>{log("Solicitud recibida de QBIT:",String(message||"").slice(0,80));try{const result=await ask(String(message||"").slice(0,12000));window.qbitBrowserAI.respond({id,ok:true,answer:result.answer,provider});}catch(error){window.qbitBrowserAI.respond({id,ok:false,error:error?.message||String(error),provider});}});\n  window.__QBIT_AI_PROVIDER_READY__ = true;
+  // En cada reinyección reemplazamos el callback del puente. El preload mantiene un único handler.
+  window.qbitBrowserAI.onPrompt(async (message,id)=>{
+    log("Solicitud recibida de QBIT:",String(message||"").slice(0,80));
+    try {
+      const result=await ask(String(message||"").slice(0,12000));
+      window.qbitBrowserAI.respond({id,ok:true,answer:result.answer,provider});
+    } catch(error) {
+      window.qbitBrowserAI.respond({id,ok:false,error:error?.message||String(error),provider});
+    }
+  });
+  window.__QBIT_AI_PROVIDER_READY__ = true;
 
   // Si a los pocos segundos no aparece el cuadro de mensaje, dejamos el diagnóstico en la consola de la pestaña.
   setTimeout(() => { if (!findFirstVisible("editor")) { log("No veo el cuadro de mensaje todavía. Diagnóstico:"); console.table(diagnose().rows); } }, 6000);
