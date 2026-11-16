@@ -1002,6 +1002,28 @@
     const r=host.getBoundingClientRect();
     window.qbitBrowser.setBounds({x:r.left,y:r.top,width:r.width,height:r.height});
   }
+  function getBrowserBookmarks(){try{return JSON.parse(localStorage.getItem("qbit-browser-bookmarks")||"[]").filter(x=>x&&typeof x.url==="string"&&typeof x.title==="string");}catch{return[];}}
+  function isBrowserBookmarked(url){return !!url&&getBrowserBookmarks().some(x=>x.url===url);}
+  function renderBrowserBookmarks(){
+    const nav=document.querySelector(".browser-bookmarks");if(!nav)return;
+    nav.querySelectorAll(".saved-browser-bookmark").forEach(x=>x.remove());
+    for(const item of getBrowserBookmarks()){
+      const b=node("button","saved-browser-bookmark",item.title.slice(0,22));b.type="button";b.title=item.url;b.addEventListener("click",()=>void openBrowserAt(item.url));
+      nav.insertBefore(b,$("browserManageBookmarks"));
+    }
+  }
+  function toggleBrowserBookmark(){
+    const state=browserLastState;if(!state?.url||state.url==="qbit://home"||String(state.url).startsWith("data:text/html"))return;
+    const items=getBrowserBookmarks(),index=items.findIndex(x=>x.url===state.url);
+    if(index>=0)items.splice(index,1);else items.push({url:state.url,title:state.title||state.host||state.url});
+    localStorage.setItem("qbit-browser-bookmarks",JSON.stringify(items));renderBrowserBookmarks();renderBrowserState(state);
+  }
+  function manageBrowserBookmarks(){
+    const items=getBrowserBookmarks();if(!items.length){browserPageNotice("Todavía no guardaste favoritos.");return;}
+    const choice=prompt("Favoritos guardados:\n"+items.map((x,n)=>(n+1)+". "+x.title+" — "+x.url).join("\n")+"\n\nEscribí el número para quitar uno, o Cancelar:");
+    if(choice===null)return;const index=Number(choice)-1;
+    if(Number.isInteger(index)&&index>=0&&index<items.length){items.splice(index,1);localStorage.setItem("qbit-browser-bookmarks",JSON.stringify(items));renderBrowserBookmarks();if(browserLastState)renderBrowserState(browserLastState);}
+  }
   function renderBrowserState(state){
     if(!state)return;browserLastState=state;
     const tabs=$("browserTabs");if(tabs){
@@ -1018,6 +1040,8 @@
     $("browserReload").textContent=state.loading?"×":"↻";$("browserSecurity").textContent=state.secure?"🔒":"◉";
     if(state.provider)browserPageNotice(state.provider+(state.aiReady?" · IA conectada":" · preparando IA…"));
     else browserPageNotice(state.loading?"Cargando página…":(state.host||"Nueva pestaña")+" · Navegación normal");
+    $("browserBookmark").textContent=isBrowserBookmarked(state.url)?"★":"☆";
+    $("browserBookmark").title=isBrowserBookmarked(state.url)?"Quitar de favoritos":"Guardar en favoritos";
     const empty=$("browserEmptyState");if(empty)empty.style.display=state.url&&state.url!=="qbit://home"&&!String(state.url).startsWith("data:text/html")?"none":"flex";
     requestAnimationFrame(updateBrowserBounds);
   }
@@ -1048,11 +1072,14 @@
   $("browserNewTab")?.addEventListener("click",()=>{void ensureBrowserSession().then(()=>window.qbitBrowser?.newTab("qbit://home"));});
   $("browserStartButton")?.addEventListener("click",()=>{$("browserAddress")?.focus();});
   $("browserFind")?.addEventListener("click",()=>{const term=prompt("Buscar en esta página:");if(term)void window.qbitBrowser?.find(term,true,false);});
-  $("browserAiToggle")?.addEventListener("click",()=>{$("browserAiPanel")?.classList.toggle("mobile-open");});
-  $("browserAiClose")?.addEventListener("click",()=>{$("browserAiPanel")?.classList.remove("mobile-open");});
+  $("browserBookmark")?.addEventListener("click",toggleBrowserBookmark);
+  $("browserManageBookmarks")?.addEventListener("click",manageBrowserBookmarks);
+  $("browserAiToggle")?.addEventListener("click",()=>{const panel=$("browserAiPanel");if(!panel)return;if(window.matchMedia("(max-width: 680px)").matches)panel.classList.toggle("mobile-open");else panel.classList.toggle("is-collapsed");});
+  $("browserAiClose")?.addEventListener("click",()=>{const panel=$("browserAiPanel");if(!panel)return;if(window.matchMedia("(max-width: 680px)").matches)panel.classList.remove("mobile-open");else panel.classList.add("is-collapsed");});
   $("browserOpenChat")?.addEventListener("click",()=>{activateTab("chatView");$("chatInput")?.focus();});
   document.querySelectorAll("[data-browser-url]").forEach(button=>button.addEventListener("click",()=>void openBrowserAt(button.dataset.browserUrl)));
   window.qbitBrowser?.onState?.(renderBrowserState);
+  renderBrowserBookmarks();
   window.addEventListener("resize",updateBrowserBounds);
   if("ResizeObserver" in window){browserBoundsObserver=new ResizeObserver(updateBrowserBounds);if($("browserWebHost"))browserBoundsObserver.observe($("browserWebHost"));}
   window.addEventListener("keydown",e=>{const mod=e.ctrlKey||e.metaKey;if(mod&&e.key.toLowerCase()==="l"&& !$("browserView")?.classList.contains("hidden")){e.preventDefault();$("browserAddress")?.focus();$("browserAddress")?.select();}if(mod&&e.key.toLowerCase()==="t"&&!$("browserView")?.classList.contains("hidden")){e.preventDefault();void ensureBrowserSession().then(()=>window.qbitBrowser?.newTab("qbit://home"));}if(mod&&e.key.toLowerCase()==="r"&&!$("browserView")?.classList.contains("hidden")){e.preventDefault();void window.qbitBrowser?.reload();}});
