@@ -427,6 +427,7 @@ ipcMain.on("qbit:browser-bounds",(e,b)=>{
 ipcMain.handle("qbit:browser-action",async(e,p={})=>{
  if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");
  const action=String(p.action||"").toLowerCase();
+ if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())createQbitBrowser(QBIT_BROWSER_HOME);
  const active=()=>qbitBrowserTabs.find(t=>t.id===qbitBrowserActiveTabId);
  if(action==="new_tab"){qbitBrowserCreateTab(p.url||QBIT_BROWSER_HOME,true);return{ok:true,message:"Nueva pestaña abierta."};}
  if(action==="navigate"){
