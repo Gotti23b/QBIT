@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   actPetCursor: (action, args) => ipcRenderer.invoke("qbit:pet-cursor-action", String(action), args || {}),
   checkForUpdates: () => ipcRenderer.invoke("qbit:update-check"),
   getAppVersion: () => ipcRenderer.invoke("qbit:app-version"),
+  authStorageGet: key => ipcRenderer.invoke("qbit:auth-storage-get", String(key)),
+  authStorageSet: (key, value) => ipcRenderer.invoke("qbit:auth-storage-set", String(key), String(value)),
+  authStorageRemove: key => ipcRenderer.invoke("qbit:auth-storage-remove", String(key)),
   onUpdateState: callback => {
     if (typeof callback !== "function") return;
     ipcRenderer.on("qbit:update-state", (_event, state) => callback(state));
