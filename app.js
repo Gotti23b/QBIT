@@ -1059,8 +1059,9 @@
     if(!window.qbitPC?.isDesktop){browserPageNotice("QBIT Browser está disponible en QBIT Desktop para Windows.",true);return;}
     activateTab("browserView");
     try{
+      const wasStarted=browserStarted;
       await ensureBrowserSession();
-      if(url&&url!=="qbit://home"&&browserStarted)await window.qbitBrowser.navigate(url);
+      if(url&&(wasStarted||url!=="qbit://home"))await window.qbitBrowser.navigate(url);
       requestAnimationFrame(updateBrowserBounds);
     }catch(e){browserPageNotice(e?.message||"No se pudo abrir la página.",true);}
   }
@@ -1082,7 +1083,7 @@
   renderBrowserBookmarks();
   window.addEventListener("resize",updateBrowserBounds);
   if("ResizeObserver" in window){browserBoundsObserver=new ResizeObserver(updateBrowserBounds);if($("browserWebHost"))browserBoundsObserver.observe($("browserWebHost"));}
-  window.addEventListener("keydown",e=>{const mod=e.ctrlKey||e.metaKey;if(mod&&e.key.toLowerCase()==="l"&& !$("browserView")?.classList.contains("hidden")){e.preventDefault();$("browserAddress")?.focus();$("browserAddress")?.select();}if(mod&&e.key.toLowerCase()==="t"&&!$("browserView")?.classList.contains("hidden")){e.preventDefault();void ensureBrowserSession().then(()=>window.qbitBrowser?.newTab("qbit://home"));}if(mod&&e.key.toLowerCase()==="r"&&!$("browserView")?.classList.contains("hidden")){e.preventDefault();void window.qbitBrowser?.reload();}});
+  window.addEventListener("keydown",e=>{const mod=e.ctrlKey||e.metaKey,active=!$("browserView")?.classList.contains("hidden");if(!active)return;if(mod&&e.key.toLowerCase()==="l"){e.preventDefault();$("browserAddress")?.focus();$("browserAddress")?.select();}if(mod&&e.key.toLowerCase()==="t"){e.preventDefault();void ensureBrowserSession().then(()=>window.qbitBrowser?.newTab("qbit://home"));}if(mod&&e.key.toLowerCase()==="w"){e.preventDefault();const tab=browserLastState?.tabs?.find(t=>t.active);if(tab)void window.qbitBrowser?.closeTab(tab.id);}if(mod&&e.shiftKey&&e.key.toLowerCase()==="t"){e.preventDefault();void window.qbitBrowser?.reopenTab();}if(mod&&e.key.toLowerCase()==="r"){e.preventDefault();void window.qbitBrowser?.reload();}if(e.altKey&&e.key==="ArrowLeft"){e.preventDefault();void window.qbitBrowser?.back();}if(e.altKey&&e.key==="ArrowRight"){e.preventDefault();void window.qbitBrowser?.forward();}});
 
   window.qbitPC?.onConnectorState?.(renderConnectorState);
   if(window.qbitPC?.isDesktop)void refreshConnectorStatus();else connectorNotice("Las extensiones y QBIT Browser están disponibles en QBIT Desktop para Windows.",true);
