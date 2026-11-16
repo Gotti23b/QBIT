@@ -418,8 +418,52 @@ async function askBrowserAI(message){
  }
  throw new Error("No hay una pestaña de IA lista en QBIT Browser ni una extensión conectada. Abrí ChatGPT, Gemini, Claude, DeepSeek o Qwen y esperá a que termine de cargar.");
 }
-ipcMain.handle("qbit:browser-action",async(e,p={})=>{
- if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");
+
+async function qbitBrowserAiControl(task){
+ const instruction=String(task||"").trim();
+ if(!instruction||instruction.length>4000)throw new Error("Escribí una instrucción de hasta 4000 caracteres.");
+ if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())createQbitBrowser(QBIT_BROWSER_HOME);
+ const history=[];
+ for(let step=0;step<8;step++){
+  const page=await executeQbitBrowserAction({action:"read_page"}).catch(error=>({ok:false,message:error.message}));
+  const prompt=[
+   "Sos el agente de control de QBIT Browser. Tu trabajo es ejecutar la instrucción del usuario en la pestaña activa del navegador.",
+   "Respondé en español. Analizá el contenido actual de la página y elegí el siguiente paso.",
+   "Para ejecutar una acción, devolvé EXACTAMENTE un bloque de código qbit con JSON válido y sin texto adicional. Ejemplos:",
+   "```qbit",
+   '{"action":"navigate","url":"https://example.com"}',
+   "```",
+   "```qbit",
+   '{"action":"click","text":"Iniciar sesión"}',
+   "```",
+   "Acciones disponibles: read_page, navigate(url), back, forward, reload, new_tab(url opcional), list_tabs, select_tab(id), close_tab(id opcional), click(text o selector), type(text, selector opcional), scroll(direction up/down, amount 100-2000), press(key ENTER/ESCAPE/TAB/ARROWDOWN/ARROWUP/ARROWLEFT/ARROWRIGHT/HOME/END/SPACE).",
+   "Podés devolver una sola acción por turno. Después recibís el resultado y la página actualizada. Máximo 8 acciones.",
+   "No inventes que una acción se completó: esperá el resultado. Si falta información o necesitás autorización del usuario para algo sensible, preguntá en texto normal sin bloque qbit.",
+   "No envíes formularios de compra, pagos, eliminación de cuentas ni mensajes/publicaciones a terceros sin pedir confirmación explícita.",
+   "Cuando termines, respondé en texto normal, breve y claro, sin bloque qbit.",
+   "",
+   "INSTRUCCIÓN DEL USUARIO:",
+   instruction,
+   "",
+   "PASOS YA REALIZADOS:",
+   history.length?history.join("\n"):"Ninguno.",
+   "",
+   "PESTAÑA ACTUAL:",
+   page.message||"No se pudo leer el contenido de la página."
+  ].join("\n");
+  const response=await askBrowserAI(prompt);
+  const answer=String(response?.answer||"").trim();
+  const match=answer.match(/```qbit\s*([\s\S]*?)```/i);
+  if(!match)return{ok:true,provider:response?.provider||"IA",message:answer||"La IA terminó sin devolver texto.",steps:step};
+  let command;
+  try{command=JSON.parse(match[1].trim());}catch{throw new Error("La IA devolvió una acción qbit con JSON inválido.");}
+  if(!command||typeof command!=="object"||Array.isArray(command)||typeof command.action!=="string")throw new Error("La IA devolvió una acción sin formato válido.");
+  const result=await executeQbitBrowserAction(command);
+  history.push("Acción "+(step+1)+": "+command.action+" → "+(result?.message||"completada"));
+ }
+ return{ok:true,provider:"IA",message:"Llegué al límite de 8 acciones. Revisá la pestaña actual para continuar.",steps:8};
+}
+async function executeQbitBrowserAction(p={}){
  const action=String(p.action||"").toLowerCase();
  if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())createQbitBrowser(QBIT_BROWSER_HOME);
  const active=()=>qbitBrowserTabs.find(t=>t.id===qbitBrowserActiveTabId);
@@ -468,7 +512,9 @@ ipcMain.handle("qbit:browser-action",async(e,p={})=>{
  }
  if(action==="list_tabs"){const tabs=qbitBrowserTabs.map(t=>({id:t.id,title:t.view.webContents.getTitle(),url:t.view.webContents.getURL(),active:t.id===qbitBrowserActiveTabId}));return{ok:true,message:"Pestañas abiertas: "+JSON.stringify(tabs)};}
  throw new Error("Acción del navegador no reconocida.");
-});
+}
+ipcMain.handle("qbit:browser-ai-control",async(e,task)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");return qbitBrowserAiControl(task);});
+ipcMain.handle("qbit:browser-action",async(e,p={})=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return executeQbitBrowserAction(p);});
 ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
 ipcMain.handle("qbit:browser-navigate",(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");const target=qbitBrowserUrl(url);return qbitBrowserLoad(qbitBrowserView,target).then(()=>({ok:true}));});
 ipcMain.handle("qbit:browser-back",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");if(qbitBrowserView.webContents.canGoBack())qbitBrowserView.webContents.goBack();return qbitBrowserState();});
