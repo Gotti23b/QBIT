@@ -439,6 +439,8 @@ ipcMain.handle("qbit:browser-action",async(e,p={})=>{
  if(action==="close_tab"){const tab=active();if(!tab)throw new Error("No hay una pestaña activa.");qbitBrowserCloseTab(String(p.id||tab.id));return{ok:true,message:"Pestaña cerrada."};}
  const tab=active();if(!tab||tab.view.webContents.isDestroyed())throw new Error("Primero abrí QBIT Browser.");
  const w=tab.view.webContents;
+ const waitForLoad=async()=>{if(!w.isLoading())return;await new Promise(resolve=>{const timer=setTimeout(resolve,20000);w.once("did-stop-loading",()=>{clearTimeout(timer);resolve();});});};
+ if(["read_page","click","type","scroll","press"].includes(action))await waitForLoad();
  if(action==="back"){if(w.canGoBack())w.goBack();return{ok:true,message:"Volviendo a la página anterior."};}
  if(action==="forward"){if(w.canGoForward())w.goForward();return{ok:true,message:"Avanzando a la página siguiente."};}
  if(action==="reload"){w.reload();return{ok:true,message:"Página recargada."};}
