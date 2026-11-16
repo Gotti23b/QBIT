@@ -248,7 +248,13 @@ async function qbitBrowserInitAI(tab){
  tab.aiInitPromise=(async()=>{
   try{
    if(!qbitBrowserAiSource){const d=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");qbitBrowserAiSource=fs.readFileSync(path.join(d,"ai-provider.js"),"utf8");}
-   await wc.executeJavaScript(qbitBrowserAiSource,true);
+   let ready=false;
+   for(let attempt=0;attempt<20&&!ready;attempt++){
+    await wc.executeJavaScript(qbitBrowserAiSource,true);
+    ready=await wc.executeJavaScript("window.__QBIT_AI_PROVIDER_READY__ === true",true).catch(()=>false);
+    if(!ready)await new Promise(resolve=>setTimeout(resolve,250));
+   }
+   if(!ready)throw new Error("El adaptador no confirmó que quedó conectado al puente de QBIT.");
    tab.aiReady=true;
    if(qbitBrowserActiveTabId===tab.id)qbitBrowserReady=true;
   }catch(e){
