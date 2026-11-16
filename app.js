@@ -992,7 +992,7 @@
   $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();await refreshConnectorStatus();}catch(e){connectorNotice(e?.message||"No pude detener el conector.",true);}});
   $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();connectorNotice("Carpeta de extensiones abierta. Cargá browser-extension y extension como extensiones sin empaquetar.");}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta de extensiones.",true);}});
   $("connectorChrome")?.addEventListener("click",async()=>{try{const result=await window.qbitPC.openChromeExtensions();await refreshConnectorStatus();connectorNotice(result?.message||"Navegador iniciado con las extensiones de QBIT.");}catch(e){connectorNotice(e?.message||"No pude iniciar el navegador con las extensiones.",true);}});
-  let browserStarted=false,browserLastState=null,browserBoundsObserver=null;
+  let browserStarted=false,browserStartPromise=null,browserLastState=null,browserBoundsObserver=null;
   function browserPageNotice(message,error=false){const el=$("browserPageStatus");if(el){el.textContent=message;el.className=error?"browser-page-status error":"browser-page-status";}}
   function updateBrowserBounds(){
     const host=$("browserWebHost"),view=$("browserView");
@@ -1023,15 +1023,20 @@
   }
   async function ensureBrowserSession(){
     if(!window.qbitPC?.isDesktop||browserStarted)return;
-    try{await window.qbitPC.openQbitBrowser("qbit://home");browserStarted=true;requestAnimationFrame(updateBrowserBounds);}
-    catch(e){browserPageNotice(e?.message||"No se pudo iniciar el navegador.",true);}
+    if(browserStartPromise)return browserStartPromise;
+    browserStartPromise=(async()=>{
+      try{await window.qbitPC.openQbitBrowser("qbit://home");browserStarted=true;requestAnimationFrame(updateBrowserBounds);}
+      catch(e){browserPageNotice(e?.message||"No se pudo iniciar el navegador.",true);}
+      finally{browserStartPromise=null;}
+    })();
+    return browserStartPromise;
   }
   async function openBrowserAt(url){
     if(!window.qbitPC?.isDesktop){browserPageNotice("QBIT Browser está disponible en QBIT Desktop para Windows.",true);return;}
     activateTab("browserView");
     try{
-      if(!browserStarted){await window.qbitPC.openQbitBrowser(url||"qbit://home");browserStarted=true;}
-      else await window.qbitBrowser.navigate(url||"qbit://home");
+      await ensureBrowserSession();
+      if(url&&url!=="qbit://home"&&browserStarted)await window.qbitBrowser.navigate(url);
       requestAnimationFrame(updateBrowserBounds);
     }catch(e){browserPageNotice(e?.message||"No se pudo abrir la página.",true);}
   }
