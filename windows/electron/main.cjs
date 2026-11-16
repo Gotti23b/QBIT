@@ -371,7 +371,7 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true){
 }
 function qbitBrowserCloseTab(id){
  const index=qbitBrowserTabs.findIndex(t=>t.id===id);if(index<0)return;
- const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);tab.view.webContents.close();
+ const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);qbitBrowserWindow.contentView.removeChildView(tab.view);tab.view.webContents.close();
  if(!qbitBrowserTabs.length){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return;}
  if(qbitBrowserActiveTabId===id)qbitBrowserActivate(qbitBrowserTabs[Math.max(0,index-1)].id);
  qbitBrowserState();
