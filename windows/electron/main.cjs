@@ -265,7 +265,7 @@ function getAppRoot() {
   return candidates.find(candidate => fs.existsSync(path.join(candidate, "index.html"))) || candidates[0];
 }
 
-const QBIT_BROWSER_HOME="qbit://home",QBIT_BROWSER_TOOLBAR_HEIGHT=138,QBIT_BROWSER_PARTITION="persist:qbit-browser";
+const QBIT_BROWSER_HOME="qbit://home",QBIT_BROWSER_TOOLBAR_HEIGHT=184,QBIT_BROWSER_PARTITION="persist:qbit-browser";
 const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.com","ChatGPT"],["gemini.google.com","Gemini"],["claude.ai","Claude"],["chat.deepseek.com","DeepSeek"],["chat.qwen.ai","Qwen"],["arena.ai","Arena"],["meta.ai","Meta AI"],["www.meta.ai","Meta AI"]]);
 let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[];
 function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
