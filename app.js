@@ -1,9 +1,31 @@
 (() => {
   const URL = "https://jtxyzfjgspnmzlvztjqx.supabase.co";
   const KEY = "sb_publishable_s6GXW0tRJR9vo2T2VdPH7Q_otjhGunV";
-  const db = window.supabase.createClient(URL, KEY);
+  const authStorage = {
+    getItem: async key => {
+      if (window.qbitPC?.authStorageGet) {
+        try {
+          const saved = await window.qbitPC.authStorageGet(key);
+          if (saved !== null && saved !== undefined) return saved;
+          const legacy = localStorage.getItem(key);
+          if (legacy !== null) { await window.qbitPC.authStorageSet(key, legacy); return legacy; }
+          return null;
+        } catch (error) { console.warn("[QBIT Auth] No se pudo acceder al almacenamiento persistente:", error?.message || error); }
+      }
+      return localStorage.getItem(key);
+    },
+    setItem: async (key, value) => {
+      localStorage.setItem(key, value);
+      if (window.qbitPC?.authStorageSet) await window.qbitPC.authStorageSet(key, value);
+    },
+    removeItem: async key => {
+      localStorage.removeItem(key);
+      if (window.qbitPC?.authStorageRemove) await window.qbitPC.authStorageRemove(key);
+    }
+  };
+  const db = window.supabase.createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: authStorage } });
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.6.10";
+  const QBIT_VERSION = "1.6.11";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
