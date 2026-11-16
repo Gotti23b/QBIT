@@ -24,7 +24,7 @@
         'div.ProseMirror[contenteditable="true"]',
         'textarea[name="prompt-textarea"]'
       ],
-      reply: ['[data-conversation-role="assistant"]', '[data-message-author-role="assistant"]', '[data-turn="assistant"]'],
+      reply: ['[data-message-author-role="assistant"]', '[data-conversation-role="assistant"]', '[data-turn="assistant"]'],
       content: ['[data-markdown-text-style="assistant-message"]', '.markdown', '[class*="markdown"]'],
       send: [
         'button[data-testid="send-button"]',
@@ -130,10 +130,22 @@
   // La parte del mensaje que tiene el texto (ej.: el bloque .markdown de ChatGPT).
   function contentOf(node) {
     if (!node) return node;
+    // Algunos cambios de interfaz agregan encabezados accesibles como "ChatGPT dijo:"
+    // antes del contenido real. Elegimos el bloque visible con más texto, no el primer
+    // selector que coincida aunque solo contenga una etiqueta.
+    const candidates = [];
     for (const selector of cfg.content || []) {
-      try { const inner = node.querySelector(selector); if (inner) return inner; } catch {}
+      try {
+        for (const inner of node.querySelectorAll(selector)) {
+          if (!inner.closest("button, nav, header, [role=toolbar]")) {
+            const text = (inner.innerText || inner.textContent || "").trim();
+            if (text) candidates.push({ inner, length: text.length });
+          }
+        }
+      } catch {}
     }
-    return node;
+    candidates.sort((a, b) => b.length - a.length);
+    return candidates[0]?.inner || node;
   }
   const textOf = node => (node?.innerText || node?.textContent || "").trim();
   function replyText() { return textOf(contentOf(getReplies().at(-1))); }
