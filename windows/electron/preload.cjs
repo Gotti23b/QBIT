@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("qbitPC", Object.freeze({
   openExtensionFolder: () => ipcRenderer.invoke("qbit:connector-open-folder"),
   openChromeExtensions: () => ipcRenderer.invoke("qbit:connector-open-chrome"),
   openQbitBrowser: url => ipcRenderer.invoke("qbit:browser-open", url),
+  browserAction: args => ipcRenderer.invoke("qbit:browser-action", args || {}),
   askBrowserAI: message => ipcRenderer.invoke("qbit:connector-ask", String(message).slice(0,12000)),
   onWebArtifactRequest: callback => { if (typeof callback === "function") ipcRenderer.on("qbit:web-artifact-request", (_event, payload) => callback(payload)); },
   completeWebArtifact: (id, result) => ipcRenderer.invoke("qbit:web-artifact-result", String(id), String(result ?? "")),
@@ -115,4 +116,20 @@ contextBridge.exposeInMainWorld("qbitPet", Object.freeze({
       petListeners.delete(callback);
     }
   }
+}));
+
+contextBridge.exposeInMainWorld("qbitBrowser", Object.freeze({
+  navigate: url => ipcRenderer.invoke("qbit:browser-navigate", String(url || "")),
+  back: () => ipcRenderer.invoke("qbit:browser-back"),
+  forward: () => ipcRenderer.invoke("qbit:browser-forward"),
+  reload: () => ipcRenderer.invoke("qbit:browser-reload"),
+  stop: () => ipcRenderer.invoke("qbit:browser-stop"),
+  find: (text, forward=true, findNext=false) => ipcRenderer.invoke("qbit:browser-find", {text:String(text||""),forward,findNext}),
+  clearFind: () => ipcRenderer.invoke("qbit:browser-find-clear"),
+  newTab: url => ipcRenderer.invoke("qbit:browser-action", {action:"new_tab",url}),
+  reopenTab: () => ipcRenderer.invoke("qbit:browser-reopen-tab"),
+  selectTab: id => ipcRenderer.invoke("qbit:browser-select-tab", String(id)),
+  closeTab: id => ipcRenderer.invoke("qbit:browser-close-tab", String(id)),
+  setBounds: bounds => ipcRenderer.send("qbit:browser-bounds", bounds || {}),
+  onState: callback => { if(typeof callback==="function") ipcRenderer.on("qbit:browser-state", (_e,state)=>callback(state)); }
 }));
