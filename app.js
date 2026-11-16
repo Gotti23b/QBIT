@@ -25,7 +25,7 @@
   };
   const db = window.supabase.createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: authStorage } });
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.6.12";
+  const QBIT_VERSION = "1.6.13";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
@@ -422,20 +422,8 @@
     }
     renderHistory();
   }
-  // Muestra el texto y convierte los bloques ```lenguaje … ``` en código con botón Copiar.
-  function richText(text){
-    text=String(text).replace(/```[\w#+.-]*[ \t]*\n```[ \t]*\n/g,"```\n");
-    const frag=document.createDocumentFragment();const re=/```([\w#+.-]*)\n([\s\S]*?)```/g;let last=0,m;
-    while((m=re.exec(text))){
-      if(m.index>last)frag.append(document.createTextNode(text.slice(last,m.index)));
-      const box=node("div","codeblock");const head=node("div","codehead");head.append(node("span","",m[1]||"código"));
-      const code=m[2].replace(/\n$/,"");
-      head.append(btn("Copiar","small",async e=>{try{await navigator.clipboard.writeText(code);e.target.textContent="¡Copiado!";setTimeout(()=>e.target.textContent="Copiar",1500);}catch{e.target.textContent="No se pudo";}}));
-      const pre=node("pre");pre.append(node("code","",code));box.append(head,pre);frag.append(box);last=re.lastIndex;
-    }
-    if(last<text.length)frag.append(document.createTextNode(text.slice(last)));
-    return frag;
-  }
+  // Renderizado Markdown compartido por el chat y la mascota.
+  function richText(text){return window.QBITMarkdown.render(String(text));}
   function bubble(who,text,kind){
     const b=node("div","bubble "+kind);b.append(node("small","",who),richText(String(text)));$("chatbox").append(b);$("chatbox").scrollTop=$("chatbox").scrollHeight;
     if(kind==="bot"){speakQbitText(text);if(petMessagePending){petMessagePending=false;window.qbitPC?.sendPetReply?.(String(text));}}
@@ -444,7 +432,7 @@
   function showChat(id,switchToChat=true){
     const chat=chatHistory.find(c=>c.id===id);if(!chat)return;
     activeChatId=id;restoringChat=true;$("chatbox").replaceChildren();
-    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind);b.append(node("small","",m.who),document.createTextNode(m.text));$("chatbox").append(b);});
+    chat.messages.forEach(m=>{const b=node("div","bubble "+m.kind);b.append(node("small","",m.who),richText(String(m.text)));$("chatbox").append(b);});
     if(!chat.messages.length){const b=node("div","bubble bot");b.append(node("small","","QBIT"),document.createTextNode("Chat vacío. Escribí un mensaje para empezar. ✨"));$("chatbox").append(b);}
     restoringChat=false;$("chatbox").scrollTop=$("chatbox").scrollHeight;renderHistory();
     if(switchToChat)activateTab("chatView");
