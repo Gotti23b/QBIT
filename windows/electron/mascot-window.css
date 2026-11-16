@@ -91,3 +91,18 @@ html.no-animations .cube,html.no-animations .pet-button[data-state="working"] .c
 .pet-voice-selector-label select{width:100%;min-height:36px;padding:7px 10px;border:1px solid #28536a;border-radius:10px;background:#0b1b2a;color:var(--text);font:inherit;font-size:11px;cursor:pointer}
 .pet-voice-selector-label select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .pet-voice-selector-label select:disabled{opacity:.55;cursor:wait}
+
+
+/* Markdown en las respuestas de la mascota */
+.greeting .markdown-content{min-width:0;line-height:1.6}
+.greeting .markdown-content> :first-child{margin-top:0}.greeting .markdown-content> :last-child{margin-bottom:0}
+.greeting .markdown-content p{margin:0 0 .65em}
+.greeting .markdown-content h1,.greeting .markdown-content h2,.greeting .markdown-content h3,.greeting .markdown-content h4{margin:.85em 0 .4em;color:var(--ice);line-height:1.25}
+.greeting .markdown-content h1{font-size:1.35em}.greeting .markdown-content h2{font-size:1.22em}.greeting .markdown-content h3{font-size:1.12em}
+.greeting .markdown-content strong{color:#f0fbff;font-weight:800}
+.greeting .markdown-content ul,.greeting .markdown-content ol{margin:.3em 0 .65em;padding-left:1.45em}.greeting .markdown-content li{margin:.18em 0}
+.greeting .markdown-content blockquote{margin:.6em 0;padding:.35em .7em;border-left:3px solid var(--cyan);background:#22d3ee0d;color:#b8d2df}
+.greeting .markdown-content hr{border:0;height:1px;background:#24536a;margin:.8em 0}
+.greeting .markdown-content a{color:var(--ice);text-decoration:underline}
+.greeting .markdown-content :not(pre)>code{padding:.1em .35em;border:1px solid #28536a;border-radius:5px;background:#06111e;color:var(--ice);font:.92em ui-monospace,monospace}
+.greeting .markdown-content .codeblock{margin:.6em 0}.greeting .markdown-content pre{max-width:100%;overflow:auto}
