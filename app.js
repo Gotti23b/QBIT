@@ -542,7 +542,7 @@
     document.querySelectorAll("[data-tab]").forEach(x=>{const active=x.dataset.tab===id;x.classList.toggle("active",active);x.setAttribute("aria-current",active?"page":"false");});
     ["chatView","connectorView","browserView","cloudView","androidReleasesView","mascotSettingsView","adminView"].forEach(view=>$(view).classList.toggle("hidden",view!==id));
     setMobileSidebarOpen(false);
-    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="browserView"){browserPageNotice("Navegador integrado listo.");void ensureBrowserSession();}requestAnimationFrame(updateBrowserBounds);if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
+    if(id==="mascotSettingsView")void loadPetSettings();if(id==="connectorView")void refreshConnectorStatus();if(id==="browserView")browserPageNotice("QBIT Browser está disponible. Elegí Abrir navegador o un acceso rápido.");if(id==="cloudView")void refreshCloudDevices();if(id==="androidReleasesView")void loadAndroidReleases();
   }
   function solveMathQuestion(message){
     let s=normalizeText(message);
