@@ -390,18 +390,33 @@ function createQbitBrowser(raw=QBIT_BROWSER_HOME){
  qbitBrowserWindow.once("ready-to-show",()=>{qbitBrowserCreateTab(raw||QBIT_BROWSER_HOME,true);qbitBrowserBounds();qbitBrowserWindow?.show();});
  return qbitBrowserWindow;
 }
-function askBrowserAI(message){
- if(typeof message!=="string"||!message.trim()||message.length>12000)return Promise.reject(new Error("Mensaje no válido."));
- const w=qbitBrowserView?.webContents,provider=w&&!w.isDestroyed()?qbitBrowserProvider(w.getURL()):null;
- if(provider&&!w.isLoading()&&qbitBrowserReady){
+async function askBrowserAI(message){
+ if(typeof message!=="string"||!message.trim()||message.length>12000)throw new Error("Mensaje no válido.");
+ // La IA de QBIT Browser no depende de la pestaña visible: puede atender desde
+ // cualquier pestaña de proveedor ya abierta, incluso si otra pestaña está seleccionada.
+ const candidates=qbitBrowserTabs
+  .filter(tab=>tab?.view?.webContents&&!tab.view.webContents.isDestroyed()&&qbitBrowserProvider(tab.view.webContents.getURL()))
+  .sort((a,b)=>Number(b.id===qbitBrowserActiveTabId)-Number(a.id===qbitBrowserActiveTabId));
+ for(const tab of candidates){
+  const w=tab.view.webContents;
+  if(w.isLoading())continue;
+  if(!tab.aiReady)await qbitBrowserInitAI(tab);
+  if(!tab.aiReady||w.isDestroyed()||w.isLoading())continue;
+  const provider=qbitBrowserProvider(w.getURL());
+  if(!provider)continue;
   const id=require("node:crypto").randomUUID();
-  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La IA sigue procesando la consulta. No se perdió el mensaje; esperá un poco más y volvé a consultar el chat."));},900000);qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}catch(e){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(e);}});
+  return await new Promise((resolve,reject)=>{
+   const timer=setTimeout(()=>{qbitBrowserAiPending.delete(id);reject(new Error("La IA sigue procesando la consulta. El mensaje no se perdió; esperá un poco más y revisá la pestaña del proveedor."));},900000);
+   qbitBrowserAiPending.set(id,{resolve,reject,timer,provider});
+   try{w.send("qbit:browser-ai-prompt",{id,message:message.slice(0,12000)});}
+   catch(error){clearTimeout(timer);qbitBrowserAiPending.delete(id);reject(error);}
+  });
  }
  if(connectorSocket&&connectorSocket.readyState===WebSocket.OPEN){
   const id=require("node:crypto").randomUUID();
-  return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La IA todavía no terminó de responder. El mensaje se envió; revisá la conversación en la pestaña del proveedor y volvé a intentar si hace falta."));},900000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(error){clearTimeout(timer);connectorPending.delete(id);reject(new Error("Se perdió la conexión con la extensión de IA: "+(error?.message||error)));}});
+  return await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{connectorPending.delete(id);reject(new Error("La IA todavía no terminó de responder. El mensaje se envió; revisá la conversación en la pestaña del proveedor y volvé a intentar si hace falta."));},900000);connectorPending.set(id,{resolve,reject,timer});try{connectorSocket.send(JSON.stringify({type:"dispatch_ai",id,provider:"auto",message:message.slice(0,12000)}));}catch(error){clearTimeout(timer);connectorPending.delete(id);reject(new Error("Se perdió la conexión con la extensión de IA: "+(error?.message||error)));}});
  }
- return Promise.reject(new Error("No hay una IA conectada. Abrí una pestaña de ChatGPT, Gemini, Claude, DeepSeek o Qwen; QBIT integra el mismo asistente de la extensión en esas páginas."));
+ throw new Error("No hay una pestaña de IA lista en QBIT Browser ni una extensión conectada. Abrí ChatGPT, Gemini, Claude, DeepSeek o Qwen y esperá a que termine de cargar.");
 }
 ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
 ipcMain.handle("qbit:browser-navigate",(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");const target=qbitBrowserUrl(url);return qbitBrowserLoad(qbitBrowserView,target).then(()=>({ok:true}));});
