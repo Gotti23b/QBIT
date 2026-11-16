@@ -41,7 +41,7 @@ jobs:
       - name: Prepare QBIT web app
         run: |
           mkdir -p config/www
-          cp index.html app.js styles.css mascot.css mascot.js qbit-icon.svg config/www/
+          cp index.html markdown.js app.js styles.css mascot.css mascot.js qbit-icon.svg config/www/
           printf '%s\n' '{"appId":"com.gotti23b.qbit","appName":"QBIT","webDir":"www","server":{"androidScheme":"https"}}' > config/capacitor.config.json
 
       - name: Generate Android project
