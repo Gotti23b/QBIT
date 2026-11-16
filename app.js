@@ -153,7 +153,7 @@
   async function executeDesktopArtifact(name,args={}){
     const pc=window.qbitPC;
     if(!pc?.isDesktop)throw new Error("Este Artifact solo está disponible en QBIT Desktop para Windows.");
-    if(name==="browser_control"){activateTab("browserView");await ensureBrowserSession();return await pc.browserAction(args);}
+    if(name==="browser_control"){await pc.openQbitBrowser("qbit://home");return await pc.browserAction(args);}
     if(name==="open_anything"){
       const query=String(args.query||"").trim();
       if(!query)throw new Error("Necesito el nombre de la aplicación o archivo.");
@@ -992,99 +992,10 @@
   $("connectorStop")?.addEventListener("click",async()=>{try{await window.qbitPC.stopConnector();await refreshConnectorStatus();}catch(e){connectorNotice(e?.message||"No pude detener el conector.",true);}});
   $("connectorFolder")?.addEventListener("click",async()=>{try{await window.qbitPC.openExtensionFolder();connectorNotice("Carpeta de extensiones abierta. Cargá browser-extension y extension como extensiones sin empaquetar.");}catch(e){connectorNotice(e?.message||"No pude abrir la carpeta de extensiones.",true);}});
   $("connectorChrome")?.addEventListener("click",async()=>{try{const result=await window.qbitPC.openChromeExtensions();await refreshConnectorStatus();connectorNotice(result?.message||"Navegador iniciado con las extensiones de QBIT.");}catch(e){connectorNotice(e?.message||"No pude iniciar el navegador con las extensiones.",true);}});
-  let browserStarted=false,browserStartPromise=null,browserLastState=null,browserBoundsObserver=null;
-  function browserPageNotice(message,error=false){const el=$("browserPageStatus");if(el){el.textContent=message;el.className=error?"browser-page-status error":"browser-page-status";}}
-  function updateBrowserBounds(){
-    const host=$("browserWebHost"),view=$("browserView");
-    if(!host||!window.qbitBrowser?.setBounds)return;
-    const visible=view&&!view.classList.contains("hidden");
-    if(!visible){window.qbitBrowser.setBounds({x:0,y:0,width:0,height:0});return;}
-    const r=host.getBoundingClientRect();
-    window.qbitBrowser.setBounds({x:r.left,y:r.top,width:r.width,height:r.height});
-  }
-  function getBrowserBookmarks(){try{return JSON.parse(localStorage.getItem("qbit-browser-bookmarks")||"[]").filter(x=>x&&typeof x.url==="string"&&typeof x.title==="string");}catch{return[];}}
-  function isBrowserBookmarked(url){return !!url&&getBrowserBookmarks().some(x=>x.url===url);}
-  function renderBrowserBookmarks(){
-    const nav=document.querySelector(".browser-bookmarks");if(!nav)return;
-    nav.querySelectorAll(".saved-browser-bookmark").forEach(x=>x.remove());
-    for(const item of getBrowserBookmarks()){
-      const b=node("button","saved-browser-bookmark",item.title.slice(0,22));b.type="button";b.title=item.url;b.addEventListener("click",()=>void openBrowserAt(item.url));
-      nav.insertBefore(b,$("browserManageBookmarks"));
-    }
-  }
-  function toggleBrowserBookmark(){
-    const state=browserLastState;if(!state?.url||state.url==="qbit://home"||String(state.url).startsWith("data:text/html"))return;
-    const items=getBrowserBookmarks(),index=items.findIndex(x=>x.url===state.url);
-    if(index>=0)items.splice(index,1);else items.push({url:state.url,title:state.title||state.host||state.url});
-    localStorage.setItem("qbit-browser-bookmarks",JSON.stringify(items));renderBrowserBookmarks();renderBrowserState(state);
-  }
-  function manageBrowserBookmarks(){
-    const items=getBrowserBookmarks();if(!items.length){browserPageNotice("Todavía no guardaste favoritos.");return;}
-    const choice=prompt("Favoritos guardados:\n"+items.map((x,n)=>(n+1)+". "+x.title+" — "+x.url).join("\n")+"\n\nEscribí el número para quitar uno, o Cancelar:");
-    if(choice===null)return;const index=Number(choice)-1;
-    if(Number.isInteger(index)&&index>=0&&index<items.length){items.splice(index,1);localStorage.setItem("qbit-browser-bookmarks",JSON.stringify(items));renderBrowserBookmarks();if(browserLastState)renderBrowserState(browserLastState);}
-  }
-  function renderBrowserState(state){
-    if(!state)return;browserLastState=state;
-    const tabs=$("browserTabs");if(tabs){
-      tabs.textContent="";
-      for(const t of state.tabs||[]){
-        const b=node("button","browser-tab"+(t.active?" active":""), "");
-        b.type="button";b.title=t.url||t.title||"Pestaña";b.addEventListener("click",()=>window.qbitBrowser.selectTab(t.id));
-        const label=node("span","",t.title||"Nueva pestaña");const close=node("button","","×");close.type="button";close.title="Cerrar pestaña";close.addEventListener("click",e=>{e.stopPropagation();window.qbitBrowser.closeTab(t.id);});
-        b.append(label,close);tabs.append(b);
-      }
-    }
-    const address=$("browserAddress");if(address&&document.activeElement!==address)address.value=state.url==="qbit://home"||String(state.url||"").startsWith("data:text/html")?"":state.url||"";
-    $("browserBack").disabled=!state.canGoBack;$("browserForward").disabled=!state.canGoForward;
-    $("browserReload").textContent=state.loading?"×":"↻";$("browserSecurity").textContent=state.secure?"🔒":"◉";
-    if(state.provider)browserPageNotice(state.provider+(state.aiReady?" · IA conectada":" · preparando IA…"));
-    else browserPageNotice(state.loading?"Cargando página…":(state.host||"Nueva pestaña")+" · Navegación normal");
-    $("browserBookmark").textContent=isBrowserBookmarked(state.url)?"★":"☆";
-    $("browserBookmark").title=isBrowserBookmarked(state.url)?"Quitar de favoritos":"Guardar en favoritos";
-    const empty=$("browserEmptyState");if(empty)empty.style.display=state.url&&state.url!=="qbit://home"&&!String(state.url).startsWith("data:text/html")?"none":"flex";
-    requestAnimationFrame(updateBrowserBounds);
-  }
-  async function ensureBrowserSession(){
-    if(!window.qbitPC?.isDesktop||browserStarted)return;
-    if(browserStartPromise)return browserStartPromise;
-    browserStartPromise=(async()=>{
-      try{await window.qbitPC.openQbitBrowser("qbit://home");browserStarted=true;requestAnimationFrame(updateBrowserBounds);}
-      catch(e){browserPageNotice(e?.message||"No se pudo iniciar el navegador.",true);}
-      finally{browserStartPromise=null;}
-    })();
-    return browserStartPromise;
-  }
-  async function openBrowserAt(url){
-    if(!window.qbitPC?.isDesktop){browserPageNotice("QBIT Browser está disponible en QBIT Desktop para Windows.",true);return;}
-    activateTab("browserView");
-    try{
-      const wasStarted=browserStarted;
-      await ensureBrowserSession();
-      if(url&&(wasStarted||url!=="qbit://home"))await window.qbitBrowser.navigate(url);
-      requestAnimationFrame(updateBrowserBounds);
-    }catch(e){browserPageNotice(e?.message||"No se pudo abrir la página.",true);}
-  }
-  $("browserAddressForm")?.addEventListener("submit",e=>{e.preventDefault();void openBrowserAt($("browserAddress").value);});
-  $("browserBack")?.addEventListener("click",()=>void window.qbitBrowser?.back());
-  $("browserForward")?.addEventListener("click",()=>void window.qbitBrowser?.forward());
-  $("browserReload")?.addEventListener("click",()=>browserLastState?.loading?void window.qbitBrowser?.stop():void window.qbitBrowser?.reload());
-  $("browserHome")?.addEventListener("click",()=>void openBrowserAt("qbit://home"));
-  $("browserNewTab")?.addEventListener("click",()=>{void ensureBrowserSession().then(()=>window.qbitBrowser?.newTab("qbit://home"));});
-  $("browserStartButton")?.addEventListener("click",()=>{$("browserAddress")?.focus();});
-  $("browserFind")?.addEventListener("click",()=>{const term=prompt("Buscar en esta página:");if(term)void window.qbitBrowser?.find(term,true,false);});
-  $("browserBookmark")?.addEventListener("click",toggleBrowserBookmark);
-  $("browserManageBookmarks")?.addEventListener("click",manageBrowserBookmarks);
-  $("browserAiToggle")?.addEventListener("click",()=>{const panel=$("browserAiPanel");if(!panel)return;if(window.matchMedia("(max-width: 680px)").matches)panel.classList.toggle("mobile-open");else panel.classList.toggle("is-collapsed");});
-  $("browserAiClose")?.addEventListener("click",()=>{const panel=$("browserAiPanel");if(!panel)return;if(window.matchMedia("(max-width: 680px)").matches)panel.classList.remove("mobile-open");else panel.classList.add("is-collapsed");});
-  $("browserOpenChat")?.addEventListener("click",()=>{activateTab("chatView");$("chatInput")?.focus();});
+  function browserPageNotice(message,error=false){const el=$("browserPageStatus");if(el){el.textContent=message;el.className=error?"notice error":"notice";}}
+  async function openBrowserAt(url){if(!window.qbitPC?.isDesktop){browserPageNotice("QBIT Browser está disponible en QBIT Desktop para Windows.",true);return;}try{await window.qbitPC.openQbitBrowser(url);browserPageNotice("QBIT Browser está abierto. Podés seguir navegando desde su barra de direcciones.");}catch(e){browserPageNotice(e?.message||"No se pudo abrir QBIT Browser.",true);}}
+  $("browserOpenHome")?.addEventListener("click",()=>void openBrowserAt("https://chatgpt.com/"));
   document.querySelectorAll("[data-browser-url]").forEach(button=>button.addEventListener("click",()=>void openBrowserAt(button.dataset.browserUrl)));
-  window.qbitBrowser?.onState?.(renderBrowserState);
-  renderBrowserBookmarks();
-  window.addEventListener("resize",updateBrowserBounds);
-  if("ResizeObserver" in window){browserBoundsObserver=new ResizeObserver(updateBrowserBounds);if($("browserWebHost"))browserBoundsObserver.observe($("browserWebHost"));}
-  window.addEventListener("keydown",e=>{const mod=e.ctrlKey||e.metaKey,active=!$("browserView")?.classList.contains("hidden");if(!active)return;if(mod&&e.key.toLowerCase()==="l"){e.preventDefault();$("browserAddress")?.focus();$("browserAddress")?.select();}if(mod&&e.shiftKey&&e.key.toLowerCase()==="t"){e.preventDefault();void window.qbitBrowser?.reopenTab();}else if(mod&&e.key.toLowerCase()==="t"){e.preventDefault();void ensureBrowserSession().then(()=>window.qbitBrowser?.newTab("qbit://home"));}if(mod&&e.key.toLowerCase()==="w"){e.preventDefault();const tab=browserLastState?.tabs?.find(t=>t.active);if(tab)void window.qbitBrowser?.closeTab(tab.id);}if(mod&&e.key.toLowerCase()==="r"){e.preventDefault();void window.qbitBrowser?.reload();}if(e.altKey&&e.key==="ArrowLeft"){e.preventDefault();void window.qbitBrowser?.back();}if(e.altKey&&e.key==="ArrowRight"){e.preventDefault();void window.qbitBrowser?.forward();}});
-
   window.qbitPC?.onConnectorState?.(renderConnectorState);
   if(window.qbitPC?.isDesktop)void refreshConnectorStatus();else connectorNotice("Las extensiones y QBIT Browser están disponibles en QBIT Desktop para Windows.",true);
   function petSettingsMessage(text,error=false){const el=$("petSettingsNotice");if(!el)return;el.textContent=text;el.className=error?"notice error":"notice";}
