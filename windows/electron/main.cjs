@@ -240,6 +240,28 @@ function qbitBrowserUrl(raw){
  if(!["http:","https:"].includes(u.protocol))throw new Error("QBIT Browser solo permite direcciones HTTP y HTTPS.");
  return u.href;
 }
+async function qbitBrowserInitAI(tab){
+ if(!tab||tab.view.webContents.isDestroyed())return;
+ const wc=tab.view.webContents;
+ if(!qbitBrowserProvider(wc.getURL())){tab.aiReady=false;if(qbitBrowserActiveTabId===tab.id)qbitBrowserReady=false;return;}
+ if(tab.aiInitPromise)return tab.aiInitPromise;
+ tab.aiInitPromise=(async()=>{
+  try{
+   if(!qbitBrowserAiSource){const d=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");qbitBrowserAiSource=fs.readFileSync(path.join(d,"ai-provider.js"),"utf8");}
+   await wc.executeJavaScript(qbitBrowserAiSource,true);
+   tab.aiReady=true;
+   if(qbitBrowserActiveTabId===tab.id)qbitBrowserReady=true;
+  }catch(e){
+   tab.aiReady=false;
+   if(qbitBrowserActiveTabId===tab.id)qbitBrowserReady=false;
+   console.warn("[QBIT Browser] No se pudo iniciar el asistente:",e?.message||e);
+  }finally{
+   tab.aiInitPromise=null;
+   if(qbitBrowserActiveTabId===tab.id)qbitBrowserState();
+  }
+ })();
+ return tab.aiInitPromise;
+}
 function qbitBrowserTab(view){return qbitBrowserTabs.find(t=>t.view===view)||null;}
 function qbitBrowserState(){
  if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())return;
@@ -289,17 +311,10 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true){
  view.webContents.on("will-navigate",(e,url)=>{try{if(!url.startsWith("data:text/html"))qbitBrowserUrl(url);}catch{e.preventDefault();}});
  const update=()=>qbitBrowserState();
  view.webContents.on("did-start-loading",()=>{tab.aiReady=false;if(qbitBrowserActiveTabId===id){qbitBrowserReady=false;update();}});
- for(const ev of ["did-stop-loading","did-navigate","did-navigate-in-page","page-title-updated"])view.webContents.on(ev,update);
+ for(const ev of ["did-stop-loading","did-navigate","page-title-updated"])view.webContents.on(ev,update);
+  view.webContents.on("did-navigate-in-page",()=>{update();void qbitBrowserInitAI(tab);});
   view.webContents.on("page-favicon-updated",(_e,favicons)=>{tab.favicon=Array.isArray(favicons)?favicons[0]||null:null;update();});
- view.webContents.on("did-finish-load",async()=>{
-  if(qbitBrowserActiveTabId===id)qbitBrowserReady=false;
-  if(qbitBrowserProvider(view.webContents.getURL()))try{
-   if(!qbitBrowserAiSource){const d=app.isPackaged?path.join(process.resourcesPath,"browser-extension"):path.join(getAppRoot(),"browser-extension");qbitBrowserAiSource=fs.readFileSync(path.join(d,"ai-provider.js"),"utf8");}
-   await view.webContents.executeJavaScript(qbitBrowserAiSource,true);
-   tab.aiReady=true;if(qbitBrowserActiveTabId===id)qbitBrowserReady=true;
-  }catch(e){console.warn("[QBIT Browser] No se pudo iniciar el asistente:",e?.message||e);}
-  update();
- });
+ view.webContents.on("did-finish-load",()=>{void qbitBrowserInitAI(tab);update();});
  view.webContents.on("render-process-gone",(_e,d)=>{if(qbitBrowserActiveTabId===id)qbitBrowserReady=false;console.error("[QBIT Browser] Proceso de página finalizado:",d);update();});
  if(activate)qbitBrowserActivate(id);else qbitBrowserBounds();
  qbitBrowserLoad(view,target).catch(e=>console.error("[QBIT Browser]",e));
