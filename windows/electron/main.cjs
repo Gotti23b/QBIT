@@ -583,7 +583,7 @@ ipcMain.handle("qbit:browser-panel-action",async(e,action)=>{
  if(kind==="open-url"){const tab=qbitBrowserTab(qbitBrowserView);if(tab)await qbitBrowserLoad(tab.view,qbitBrowserUrl(String(a.url||"")));qbitBrowserClosePanel();return{ok:true};}
  if(kind==="download-open"||kind==="download-show"){const d=qbitBrowserDownloads.find(x=>x.id===String(a.id||""));if(!d||!d.path)throw new Error("No se encontró el archivo.");if(kind==="download-open"){if(d.state!=="completed")throw new Error("La descarga todavía no está lista.");const err=await shell.openPath(d.path);if(err)throw new Error(err);}else shell.showItemInFolder(d.path);return{ok:true};}
  if(kind==="download-clear"){for(let i=qbitBrowserDownloads.length-1;i>=0;i--)if(["completed","cancelled","interrupted"].includes(qbitBrowserDownloads[i].state))qbitBrowserDownloads.splice(i,1);qbitBrowserPublishDownloads();qbitBrowserShowPanel("downloads");return{ok:true};}
- if(["history","clear-history","history-toggle","bookmarks"].includes(kind)){qbitBrowserWindow.webContents.send("qbit:browser-panel-command",kind);if(kind!=="history")qbitBrowserClosePanel();return{ok:true};}
+ if(["history","clear-history","history-toggle","bookmarks","bookmarks-manage"].includes(kind)){qbitBrowserWindow.webContents.send("qbit:browser-panel-command",kind);if(kind!=="history")qbitBrowserClosePanel();return{ok:true};}
  qbitBrowserClosePanel();
  if(kind==="new"){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return{ok:true};}
  if(kind==="private"){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true,true);return{ok:true};}
