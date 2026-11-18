@@ -1,72 +1,194 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QBIT Browser</title>
 <style>
-:root{color-scheme:dark;font-family:Segoe UI,Arial,sans-serif;background:#07111f;color:#e8f4fa}
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}
-#chrome{height:138px;background:#0a1724;border-bottom:1px solid #203847;display:flex;flex-direction:column;position:relative;z-index:10}
-#tabs{height:36px;flex:0 0 36px;display:flex;align-items:end;gap:5px;padding:5px 9px 0;overflow-x:auto;overflow-y:hidden;background:#07111c;scrollbar-width:thin}
-.tab{height:30px;min-width:92px;max-width:205px;flex:1 1 132px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid #233c4c;border-bottom:0;border-radius:10px 10px 0 0;background:#0d1d2b;color:#9bb5c2;cursor:pointer;font-size:12px;position:relative}
-.tab.active{background:#142b3a;color:#e9fbff;border-color:#397084}.tab.pinned{flex:0 0 42px;min-width:42px;max-width:42px;padding:0 9px}.tab.pinned span{display:none}.tab.grouped{border-top:2px solid var(--group-color,#54d6df)}.tab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.tab button{border:0;background:transparent;color:#9bb5c2;cursor:pointer;padding:3px 6px;border-radius:6px;font-size:15px}.tab button:hover{background:#294656;color:white}.tab .favicon{width:15px;height:15px;flex:0 0 15px;object-fit:contain}.tab .loading{width:12px;height:12px;border:2px solid #3a5968;border-top-color:#6ce2e9;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-.tab-add{width:31px;height:29px;flex:0 0 31px;border:0;border-radius:8px;background:#122b3a;color:#9cecf5;font-size:19px;cursor:pointer}.tab-add:hover{background:#1a4052}
-#toolbar{height:58px;flex:0 0 58px;display:flex;align-items:center;gap:7px;padding:8px 12px}
-.brand{display:flex;align-items:center;gap:8px;margin-right:5px;color:#9cecf5;font-size:12px;font-weight:800;letter-spacing:.1em;white-space:nowrap}
-.mark{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#123b49;color:#78e4ee;font-size:16px;box-shadow:0 4px 18px #25b6c52a}
-.tool{width:35px;height:35px;flex:0 0 35px;border:1px solid #2b4352;border-radius:10px;background:#122333;color:#d8edf4;font-size:17px;cursor:pointer;transition:.15s}.tool:hover{border-color:#5bd5e2;background:#173342}.tool:disabled{opacity:.3;cursor:default}.tool.active{border-color:#50cddd;color:#82eaf1;background:#153747}
-#address-wrap{height:39px;min-width:80px;flex:1;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #2b4352;border-radius:12px;background:#07131f;transition:.15s}
-#secure{color:#75d7bb;font-size:14px}#address{width:100%;height:100%;border:0;outline:0;background:transparent;color:#e8f4fa;font:13px Segoe UI,Arial,sans-serif}
-#address-wrap:focus-within{border-color:#50cddd;box-shadow:0 0 0 3px #49c6d31b}#load-progress{position:absolute;left:0;right:0;top:0;height:2px;overflow:hidden;z-index:12}#load-progress::after{content:"";display:block;width:35%;height:100%;background:#67e1ea;transform:translateX(-110%);opacity:0}#load-progress.loading::after{opacity:1;animation:progress 1.15s ease-in-out infinite}@keyframes progress{to{transform:translateX(390%)}}#status{max-width:190px;overflow:hidden;color:#8da8b7;font-size:11px;text-overflow:ellipsis;white-space:nowrap}#status.ready{color:#7ce0bc}
-#bookmarks{height:40px;flex:0 0 40px;display:flex;align-items:center;gap:6px;padding:0 13px;border-top:1px solid #172d3b;background:#0a1724;overflow:hidden}
-.bookmark{height:27px;display:flex;align-items:center;gap:7px;padding:0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:#a9c2ce;font-size:11px;white-space:nowrap;cursor:pointer}.bookmark:hover{background:#142d3c;border-color:#29495b;color:#e9fbff}.bookmark .dot{width:7px;height:7px;border-radius:50%;background:#61d5df}.bookmark-sep{height:17px;width:1px;background:#28404d;margin:0 3px}
-#browser-menu button{display:block;width:100%;padding:9px 11px;text-align:left;border:0;border-radius:7px;background:transparent;color:#dceef5;font:12px Segoe UI;cursor:pointer}#browser-menu button:hover{background:#173747}#downloads-list{display:grid;gap:8px}.download-row{display:grid;gap:5px;padding:9px;border:1px solid #294555;border-radius:9px;font-size:12px}.download-row span{color:#91acb9}.download-row div{display:flex;gap:6px}.download-row button{padding:5px 10px;border:1px solid #345466;border-radius:7px;background:#153345;color:#dffbff;cursor:pointer}#findbar{position:absolute;right:15px;top:100px;display:none;align-items:center;gap:6px;padding:8px;background:#0b1b29;border:1px solid #36586a;border-radius:12px;box-shadow:0 12px 38px #0008;z-index:30}#findbar.open{display:flex}#findInput{width:220px;background:#07131f;color:#eaf8fc;border:1px solid #345265;border-radius:8px;padding:8px;outline:none}#findInput:focus{border-color:#5bd5e2}.find-btn{width:29px;height:29px;border:0;border-radius:7px;background:#173345;color:#dffbff;cursor:pointer}.find-count{font-size:10px;color:#8ca9b7;min-width:35px}
-@media(max-width:900px){.brand span:last-child,#status{display:none}#toolbar{gap:5px;padding:7px}.tool{width:32px;flex-basis:32px}#bookmarks{gap:2px;padding:0 7px}.bookmark{padding:0 7px}}
-@media(max-width:620px){.tab{min-width:70px;flex-basis:100px}.bookmark:nth-of-type(n+6){display:none}#findInput{width:145px}}
-\n
-/* Chrome-like browser chrome: compact controls and a truly flexible omnibox */
-#chrome{height:138px;min-width:0;background:#202124;border-bottom:1px solid #3c4043}
-#tabs{height:36px;flex:0 0 36px;align-items:end;gap:2px;padding:5px 8px 0;background:#202124}
-.tab{height:31px;min-width:76px;max-width:240px;flex:1 1 170px;gap:8px;padding:0 10px;border:0;border-radius:9px 9px 0 0;background:#292a2d;color:#bdc1c6;font-size:12px}
-.tab.active{background:#35363a;color:#f1f3f4;border:0}
-.tab button{font-size:17px;color:#aeb3b8}
-.tab-add{width:30px;height:29px;flex:0 0 30px;border-radius:50%;background:transparent;color:#e8eaed}
-.tab-add:hover{background:#3c4043}
-#toolbar{height:62px;flex:0 0 62px;min-width:0;display:grid;grid-template-columns:auto auto minmax(100px,1fr) auto;align-items:center;gap:10px;padding:8px 14px;background:#202124}
-.brand{margin:0 2px 0 0;gap:7px;color:#dce1e5;font-size:11px;letter-spacing:.08em}
-.mark{width:28px;height:28px;border-radius:50%;background:#164e5a;color:#8ceaf0;box-shadow:none}
+:root{
+ color-scheme:dark;
+ font-family:"Segoe UI Variable","Segoe UI",Arial,sans-serif;
+ background:#0b1118;
+ color:#e8f5f8;
+ --qbit-cyan:#55dce8;
+ --qbit-cyan-soft:#9af2f4;
+ --chrome:#111a23;
+ --chrome-raised:#17232e;
+ --chrome-hover:#223440;
+ --chrome-line:#263b48;
+ --muted:#91a9b5;
+ --text:#e8f5f8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{background:#0b1118;color:var(--text);font-family:"Segoe UI Variable","Segoe UI",Arial,sans-serif}
+button,input{font:inherit}
+button{user-select:none}
+button:focus-visible,input:focus-visible{outline:2px solid var(--qbit-cyan);outline-offset:2px}
+#chrome{
+ height:138px;min-width:0;display:flex;flex-direction:column;position:relative;z-index:10;
+ background:linear-gradient(180deg,#17232d 0%,#111a23 100%);
+ border-bottom:1px solid #263b48;
+ box-shadow:0 5px 18px #0002;
+}
+#load-progress{position:absolute;left:0;right:0;top:0;height:2px;overflow:hidden;z-index:12;pointer-events:none}
+#load-progress:after{content:"";display:block;width:34%;height:100%;background:linear-gradient(90deg,transparent,var(--qbit-cyan),#b4fbff,transparent);transform:translateX(-110%);opacity:0}
+#load-progress.loading:after{opacity:1;animation:progress 1.15s ease-in-out infinite}
+@keyframes progress{to{transform:translateX(390%)}}
+#tabs{
+ height:37px;flex:0 0 37px;display:flex;align-items:end;gap:4px;
+ padding:6px 9px 0;overflow-x:auto;overflow-y:hidden;
+ background:#0e171f;scrollbar-width:thin;scrollbar-color:#36515f transparent;
+}
+.tab{
+ height:30px;min-width:82px;max-width:245px;flex:1 1 170px;
+ display:flex;align-items:center;gap:8px;padding:0 10px;
+ border:1px solid transparent;border-bottom:0;border-radius:10px 10px 0 0;
+ background:#17232d;color:#a8bdc7;cursor:pointer;font-size:12px;
+ position:relative;transition:background .16s,color .16s,border-color .16s;
+}
+.tab:hover{background:#20313d;color:#e6f5f8}
+.tab.active{
+ background:linear-gradient(180deg,#243744,#1c303b);
+ color:#f0fcff;border-color:#355767;
+ box-shadow:inset 0 1px 0 #8ceaf01c;
+}
+.tab.active:before{content:"";position:absolute;left:14px;right:14px;top:0;height:2px;border-radius:0 0 3px 3px;background:var(--qbit-cyan);opacity:.9}
+.tab span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.tab button{
+ width:22px;height:22px;flex:0 0 22px;display:grid;place-items:center;
+ border:0;border-radius:6px;background:transparent;color:#92a9b4;
+ cursor:pointer;padding:0;font-size:16px;line-height:1;
+}
+.tab button:hover{background:#3b505c;color:#fff}
+.tab.pinned{flex:0 0 43px;min-width:43px;max-width:43px;padding:0 13px;justify-content:center}
+.tab.pinned span{display:block;flex:0 0 12px;width:12px;font-weight:700}
+.tab.pinned button{display:none}
+.tab.grouped{border-top:2px solid var(--group-color,var(--qbit-cyan))}
+.tab .favicon{width:15px;height:15px;flex:0 0 15px;object-fit:contain;border-radius:3px}
+.tab .loading{width:13px;height:13px;flex:0 0 13px;border:2px solid #45606c;border-top-color:var(--qbit-cyan);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tab-add{
+ width:29px;height:27px;flex:0 0 29px;display:grid;place-items:center;
+ margin:0 2px 2px;border:0;border-radius:50%;background:transparent;
+ color:#b4cbd4;font-size:20px;line-height:1;cursor:pointer;transition:.16s;
+}
+.tab-add:hover{background:#263c48;color:var(--qbit-cyan-soft)}
+#toolbar{
+ height:62px;flex:0 0 62px;min-width:0;
+ display:grid;grid-template-columns:auto auto minmax(100px,1fr) auto;
+ align-items:center;gap:11px;padding:8px 15px;
+ background:linear-gradient(180deg,#17232d,#131e27);
+}
+.brand{display:flex;align-items:center;gap:8px;margin:0 3px 0 0;color:#d9edf1;font-size:11px;font-weight:800;letter-spacing:.12em;white-space:nowrap}
+.mark{
+ width:29px;height:29px;display:grid;place-items:center;border-radius:10px;
+ background:linear-gradient(145deg,#155365,#123b49);color:#a1f5f5;
+ font-size:16px;box-shadow:0 3px 13px #24b8c52b,inset 0 1px 0 #ffffff20;
+}
 .nav-controls,.toolbar-actions{display:flex;align-items:center;gap:3px;min-width:0}
-.tool{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:50%;background:transparent;color:#bdc1c6;font-size:18px}
-.tool:hover{background:#3c4043;border-color:transparent;color:#f1f3f4}
-.tool:disabled{opacity:.35}
-.tool.active{background:#164e5a;color:#8ceaf0}
-#address-wrap{height:42px;width:100%;min-width:0;flex:1;gap:9px;padding:0 12px;border:1px solid transparent;border-radius:24px;background:#303134;box-shadow:none}
-#address-wrap:hover{background:#3c4043}
-#address-wrap:focus-within{background:#303134;border-color:#8ab4f8;box-shadow:0 0 0 1px #8ab4f8}
-#secure{flex:0 0 auto;font-size:13px;color:#bdc1c6}
-#address{min-width:0;font-size:14px;color:#e8eaed}
-#address::placeholder{color:#bdc1c6;opacity:.85}
-.address-action{width:30px;height:30px;flex:0 0 30px;border:0;border-radius:50%;background:transparent;color:#bdc1c6;cursor:pointer;font-size:15px}
-.address-action:hover{background:#45474b;color:#fff}
-#bookmarks{height:39px;flex:0 0 39px;padding:0 18px;gap:5px;background:#202124;border-top:1px solid #303134}
-.bookmark{height:28px;padding:0 10px;border-radius:7px;color:#d0d3d7;font-size:12px}
-.bookmark:hover{background:#3c4043;border-color:transparent;color:#fff}
-.bookmark .dot{background:#8ab4f8}
-#browser-menu{top:4px!important;right:14px!important;width:270px!important;max-height:412px;overflow-y:auto;background:#292a2d!important;border:1px solid #5f6368!important;border-radius:12px!important;padding:7px!important}
-#browser-menu button{padding:10px 12px;border-radius:7px;color:#e8eaed;font-size:13px}
-#browser-menu button:hover{background:#3c4043}
-#findbar{top:90px;right:16px;background:#292a2d;border-color:#5f6368}
-#downloads-panel{top:4px!important;max-height:412px!important;background:#292a2d!important;border-color:#5f6368!important}
-#findInput{background:#202124;color:#e8eaed;border-color:#5f6368}
-#tabs .tab.pinned{flex:0 0 42px;min-width:42px;max-width:42px;padding:0 13px}
-#tabs .tab.pinned span{display:block;flex:0 0 12px;width:12px;overflow:hidden;font-weight:700}
-#tabs .tab.pinned button{display:none}
-#tab-context-menu{position:fixed;z-index:100;display:none;min-width:220px;padding:6px;background:#292a2d;border:1px solid #5f6368;border-radius:10px;box-shadow:0 8px 28px #0008}
+.tool{
+ width:35px;height:35px;flex:0 0 35px;display:grid;place-items:center;
+ border:1px solid transparent;border-radius:11px;background:transparent;
+ color:#b5c7ce;font-size:19px;line-height:1;cursor:pointer;
+ transition:background .16s,color .16s,border-color .16s,transform .16s;
+}
+.tool:hover{background:#263a46;border-color:#314d5b;color:#f0fcff}
+.tool:active{transform:scale(.94)}
+.tool:disabled{opacity:.32;cursor:default;transform:none}
+.tool.active{background:#173d49;border-color:#28606b;color:var(--qbit-cyan-soft)}
+#address-wrap{
+ height:42px;width:100%;min-width:0;display:flex;align-items:center;gap:10px;
+ padding:0 13px;border:1px solid #304652;border-radius:14px;
+ background:#0d171f;box-shadow:inset 0 1px 3px #0004;
+ transition:border-color .16s,box-shadow .16s,background .16s;
+}
+#address-wrap:hover{background:#111e28;border-color:#3d5c69}
+#address-wrap:focus-within{background:#101e28;border-color:var(--qbit-cyan);box-shadow:0 0 0 3px #55dce81c,inset 0 1px 3px #0003}
+#secure{flex:0 0 auto;color:#8bd9d5;font-size:14px}
+#address{width:100%;height:100%;min-width:0;border:0;outline:0;background:transparent;color:#edf9fb;font:13px "Segoe UI Variable","Segoe UI",Arial,sans-serif}
+#address::placeholder{color:#8299a4;opacity:1}
+.address-action{
+ width:29px;height:29px;flex:0 0 29px;display:grid;place-items:center;
+ border:0;border-radius:50%;background:transparent;color:#a9bdc5;cursor:pointer;font-size:15px;
+}
+.address-action:hover{background:#293d49;color:var(--qbit-cyan-soft)}
+#status{max-width:190px;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+#status.ready{color:#83dfc3}
+#bookmarks{
+ height:39px;flex:0 0 39px;display:flex;align-items:center;gap:5px;
+ padding:0 17px;background:#111a23;border-top:1px solid #263945;overflow:hidden;
+}
+.bookmark{
+ height:28px;max-width:190px;display:flex;align-items:center;gap:8px;
+ padding:0 10px;border:1px solid transparent;border-radius:8px;
+ background:transparent;color:#b4c7cf;font-size:12px;white-space:nowrap;
+ cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+}
+.bookmark:hover{background:#223642;border-color:#304d5b;color:#f0fcff}
+.bookmark .dot{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--qbit-cyan);box-shadow:0 0 8px #55dce866}
+.bookmark-sep{height:17px;width:1px;flex:0 0 1px;background:#344b57;margin:0 3px}
+#browser-menu{
+ top:4px!important;right:14px!important;width:270px!important;max-height:412px;
+ overflow-y:auto;background:#172630!important;border:1px solid #3a5663!important;
+ border-radius:14px!important;padding:7px!important;box-shadow:0 16px 48px #0009!important;
+}
+#browser-menu button{display:block;width:100%;padding:10px 12px;text-align:left;border:0;border-radius:8px;background:transparent;color:#e2f1f5;font:13px "Segoe UI",Arial;cursor:pointer}
+#browser-menu button:hover{background:#29414d}
+#downloads-panel{
+ top:4px!important;max-height:412px!important;background:#172630!important;
+ border:1px solid #3a5663!important;border-radius:14px!important;box-shadow:0 16px 48px #0009!important;
+}
+#downloads-list{display:grid;gap:8px}
+.download-row{display:grid;gap:5px;padding:10px;border:1px solid #304b58;border-radius:10px;background:#101d26;font-size:12px}
+.download-row span{color:#9bb1bb}
+.download-row div{display:flex;gap:6px}
+.download-row button{padding:6px 10px;border:1px solid #365766;border-radius:8px;background:#193744;color:#e1fbff;cursor:pointer}
+#findbar{
+ position:absolute;right:16px;top:91px;display:none;align-items:center;gap:6px;
+ padding:8px;background:#172630;border:1px solid #3a5663;border-radius:13px;
+ box-shadow:0 14px 40px #0009;z-index:30;
+}
+#findbar.open{display:flex}
+#findInput{width:220px;background:#0e1921;color:#edf9fb;border:1px solid #36515f;border-radius:8px;padding:8px;outline:none}
+#findInput:focus{border-color:var(--qbit-cyan)}
+.find-btn{width:29px;height:29px;border:0;border-radius:8px;background:#203c49;color:#e0faff;cursor:pointer}
+.find-btn:hover{background:#2b5360}
+.find-count{font-size:10px;color:#9bb2bd;min-width:35px}
+#tab-context-menu{
+ position:fixed;z-index:100;display:none;min-width:220px;padding:6px;
+ background:#172630;border:1px solid #3a5663;border-radius:12px;
+ box-shadow:0 12px 36px #0009;
+}
 #tab-context-menu.open{display:block}
-#tab-context-menu button{display:block;width:100%;padding:9px 12px;text-align:left;border:0;border-radius:6px;background:transparent;color:#e8eaed;font:13px Segoe UI,Arial;cursor:pointer}
-#tab-context-menu button:hover{background:#3c4043}
-#tab-context-menu .menu-separator{height:1px;margin:5px 4px;background:#45474b}
-@media(max-width:1000px){.brand span:last-child{display:none}#toolbar{gap:6px;padding:8px}.nav-controls,.toolbar-actions{gap:0}.tool{width:32px;flex-basis:32px}}
-@media(max-width:820px){#toolbar{grid-template-columns:auto auto minmax(80px,1fr) auto;gap:4px;padding:6px}.nav-controls #home{display:none}.toolbar-actions #history{display:none}.brand{margin-right:0}.tool{width:30px;flex-basis:30px}#address-wrap{height:40px;padding:0 9px}}
-@media(max-width:680px){#toolbar{grid-template-columns:auto minmax(70px,1fr) auto}.nav-controls #back,.nav-controls #forward{display:none}.brand{display:none}.toolbar-actions #bookmark{display:none}#bookmarks{padding:0 8px}.bookmark{padding:0 7px}}
-
+#tab-context-menu button{display:block;width:100%;padding:9px 12px;text-align:left;border:0;border-radius:7px;background:transparent;color:#e2f1f5;font:13px "Segoe UI",Arial;cursor:pointer}
+#tab-context-menu button:hover{background:#29414d}
+#tab-context-menu .menu-separator{height:1px;margin:5px 4px;background:#344b57}
+@media(max-width:1000px){
+ .brand span:last-child,#status{display:none}
+ #toolbar{gap:6px;padding:8px 10px}
+ .nav-controls,.toolbar-actions{gap:0}
+ .tool{width:32px;flex-basis:32px}
+ #bookmarks{gap:2px;padding:0 8px}
+ .bookmark{padding:0 8px}
+}
+@media(max-width:820px){
+ #toolbar{grid-template-columns:auto auto minmax(80px,1fr) auto;gap:4px;padding:6px 8px}
+ .nav-controls #home,.toolbar-actions #history{display:none}
+ .brand{margin-right:0}
+ .tool{width:30px;flex-basis:30px}
+ #address-wrap{height:40px;padding:0 9px}
+}
+@media(max-width:680px){
+ #toolbar{grid-template-columns:minmax(70px,1fr) auto;gap:5px;padding:6px 8px}
+ .brand,.nav-controls #back,.nav-controls #forward,.toolbar-actions #bookmark{display:none}
+ .nav-controls{grid-column:2;grid-row:1}
+ #address-wrap{grid-column:1;grid-row:1}
+ .toolbar-actions{display:none}
+ #bookmarks{padding:0 8px;gap:2px}
+ .bookmark{padding:0 7px}
+ .tab{min-width:70px;flex-basis:100px}
+ #findInput{width:145px}
+}
+@media(prefers-reduced-motion:reduce){
+ *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
+}
 </style></head><body>
 <header id="chrome"><div id="load-progress"></div><div id="tabs"><button class="tab-add" id="newTab" title="Nueva pestaña (Ctrl+T)">+</button></div>
 <div id="toolbar">
