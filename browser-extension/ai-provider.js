@@ -122,9 +122,23 @@
   }
 
   function getReplies() {
-    let nodes = findAll("reply").filter(node => !node.closest('[data-testid="user-message"], [data-message-author-role="user"], [data-conversation-role="user"]'));
-    // Si un selector coincide con un elemento y también con su hijo, nos quedamos con el de afuera.
+    // No usar solo el primer selector que encuentre coincidencias: ChatGPT puede
+    // hacer coincidir ese selector con la etiqueta accesible "ChatGPT dijo:"
+    // mientras que el contenido real aparece en otro contenedor del mismo turno.
+    let nodes = findEvery("reply").filter(node =>
+      !node.closest('[data-testid="user-message"], [data-message-author-role="user"], [data-conversation-role="user"]')
+    );
+    const labelOnly = /^(?:chatgpt|assistant|asistente)\\s+(?:dijo|said)\\s*:?$/i;
+    nodes = nodes.filter(node => !labelOnly.test((node.innerText || node.textContent || "").replace(/\\s+/g, " ").trim()));
+    // Si varios selectores coinciden con el mismo turno, conservar el contenedor exterior.
     nodes = nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
+    // findEvery agrupa por selector; recuperar el orden real del documento.
+    nodes.sort((a, b) => {
+      if (a === b) return 0;
+      const relation = a.compareDocumentPosition(b);
+      return relation & Node.DOCUMENT_POSITION_FOLLOWING ? -1 :
+        relation & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0;
+    });
     return cfg.arrange ? cfg.arrange(nodes) : nodes;
   }
   // La parte del mensaje que tiene el texto (ej.: el bloque .markdown de ChatGPT).
