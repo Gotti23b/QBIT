@@ -403,7 +403,8 @@ function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true,privateMode=fa
 }
 function qbitBrowserCloseTab(id){
  const index=qbitBrowserTabs.findIndex(t=>t.id===id);if(index<0)return;
- const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);qbitBrowserWindow.contentView.removeChildView(tab.view);tab.view.webContents.close();
+ const [tab]=qbitBrowserTabs.splice(index,1);const closedUrl=tab.view.webContents.getURL();if(!tab.privateMode){qbitBrowserRecentlyClosed.unshift(closedUrl&&closedUrl!=="qbit://home"&&!closedUrl.startsWith("data:text/html")?closedUrl:QBIT_BROWSER_HOME);qbitBrowserRecentlyClosed=qbitBrowserRecentlyClosed.slice(0,10);}qbitBrowserWindow.contentView.removeChildView(tab.view);tab.view.webContents.close();
+ if(tab.privateMode&&!qbitBrowserTabs.some(t=>t.privateMode)&&qbitBrowserPrivatePartition){const partition=qbitBrowserPrivatePartition;qbitBrowserPrivatePartition=null;const privateSession=session.fromPartition(partition);privateSession.clearStorageData().then(()=>privateSession.clearCache()).catch(error=>console.warn("[QBIT Browser] No se pudo limpiar la sesión privada:",error?.message||error));}
  if(!qbitBrowserTabs.length){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return;}
  if(qbitBrowserActiveTabId===id)qbitBrowserActivate(qbitBrowserTabs[Math.max(0,index-1)].id);
  qbitBrowserState();
