@@ -121,7 +121,8 @@ window.qbitBrowser.onPanelCommand(action=>{
  if(action==="clear-history"){localStorage.removeItem("qbit-browser-history");s.textContent="Historial borrado.";}
  else if(action==="history-toggle"){const enabled=localStorage.getItem("qbit-browser-history-enabled")==="true";localStorage.setItem("qbit-browser-history-enabled",enabled?"false":"true");s.textContent=enabled?"Historial desactivado.":"Historial activado.";}
  else if(action==="history")$("history").click();
- else if(action==="bookmarks")$("manageBookmarks").click();
+ else if(action==="bookmarks")window.qbitBrowser.openPanel("bookmarks",{items:getBookmarks()});
+ else if(action==="bookmarks-manage")$("manageBookmarks").click();
  else if(action==="downloads")openDownloads();
  else if(action==="translate"&&lastState?.url)window.qbitBrowser.navigate("https://translate.google.com/translate?sl=auto&tl=es&u="+encodeURIComponent(lastState.url));
  else window.qbitBrowser.command(action).catch(e=>{s.textContent=e.message||"No se pudo ejecutar la acción.";});
