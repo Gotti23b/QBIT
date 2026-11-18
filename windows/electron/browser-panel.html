@@ -31,6 +31,11 @@ if(TYPE==="history"){
  $("heading").textContent="Descargas";const items=Array.isArray(DATA.items)?DATA.items:[];$("sub").textContent=items.length+" elementos";if(!items.length)empty("Todavía no hay descargas.");
  for(const x of items){const state=x.state==="completed"?"Completada":x.state==="progressing"?"Descargando":x.state==="interrupted"?"Interrumpida":x.state;const detail=x.total>0?Math.round(x.received/x.total*100)+"% · "+state:state;const b=row(x.filename,x.path||"","↓",{kind:"download-open",id:x.id},detail);content.append(b);if(x.state==="completed"){const show=document.createElement("button");show.className="action";show.textContent="Mostrar en carpeta";show.style.margin="0 8px 6px 51px";show.onclick=()=>api.action({kind:"download-show",id:x.id});content.append(show);}}
  footer.style.display="flex";footer.append(button("Limpiar completadas","download-clear","action primary"));
+}else if(TYPE==="bookmarks"){
+ $("heading").textContent="Favoritos";const items=Array.isArray(DATA.items)?DATA.items:[];$("sub").textContent=items.length+" páginas guardadas";
+ if(!items.length)empty("Todavía no guardaste favoritos.");
+ let folder="";for(const x of items){const current=x.folder||"General";if(current!==folder){section(current);folder=current;}const rowButton=row(x.title,x.url,"☆",{kind:"open-url",url:x.url});content.append(rowButton);}
+ footer.style.display="flex";footer.append(button("Administrar favoritos","bookmarks-manage","action primary"));
 }else{
  $("heading").textContent="QBIT";$("sub").textContent="Herramientas del navegador";const grid=document.createElement("div");grid.className="menu-grid";
  for(const [label,ico,action] of [["Nueva pestaña","＋","new"],["Privada","◉","private"],["Reabrir","↶","reopen"]]){const b=document.createElement("button");b.className="tile";const i=document.createElement("b");i.textContent=ico;b.append(i,document.createTextNode(label));b.onclick=()=>api.action(action);grid.append(b)}content.append(grid);
