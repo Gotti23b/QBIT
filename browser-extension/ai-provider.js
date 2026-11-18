@@ -128,8 +128,8 @@
     let nodes = findEvery("reply").filter(node =>
       !node.closest('[data-testid="user-message"], [data-message-author-role="user"], [data-conversation-role="user"]')
     );
-    const labelOnly = /^(?:chatgpt|assistant|asistente)\\s+(?:dijo|said)\\s*:?$/i;
-    nodes = nodes.filter(node => !labelOnly.test((node.innerText || node.textContent || "").replace(/\\s+/g, " ").trim()));
+    const labelOnly = /^(?:chatgpt|assistant|asistente)\s+(?:dijo|said)\s*:?$/i;
+    nodes = nodes.filter(node => !labelOnly.test((node.innerText || node.textContent || "").replace(/\s+/g, " ").trim()));
     // Si varios selectores coinciden con el mismo turno, conservar el contenedor exterior.
     nodes = nodes.filter(node => !nodes.some(other => other !== node && other.contains(node)));
     // findEvery agrupa por selector; recuperar el orden real del documento.
