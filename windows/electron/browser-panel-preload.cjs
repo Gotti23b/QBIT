@@ -1,0 +1,1 @@
+const{contextBridge,ipcRenderer}=require("electron");contextBridge.exposeInMainWorld("qbitBrowserPanel",Object.freeze({action:value=>ipcRenderer.invoke("qbit:browser-panel-action",value),close:()=>ipcRenderer.invoke("qbit:browser-panel-action","close")}));
