@@ -284,7 +284,7 @@ async function qbitClassroomConnect(){
  try{await shell.openExternal(auth.toString());}catch(error){server.close();throw error;}return resultPromise;
 }
 const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.com","ChatGPT"],["gemini.google.com","Gemini"],["claude.ai","Claude"],["chat.deepseek.com","DeepSeek"],["chat.qwen.ai","Qwen"],["arena.ai","Arena"],["meta.ai","Meta AI"],["www.meta.ai","Meta AI"]]);
-let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[];
+let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[],qbitBrowserPanelView=null;
 function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
 function qbitBrowserUrl(raw){
  let v=String(raw||"").trim();if(!v)throw new Error("Escribí una dirección o una búsqueda.");const quick={"doc.new":"https://docs.new","sheet.new":"https://sheets.new","slide.new":"https://slides.new","meet.new":"https://meet.new"};if(quick[v.toLowerCase()])return quick[v.toLowerCase()];
@@ -343,7 +343,26 @@ function qbitBrowserState(){
 function qbitBrowserBounds(){
  if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())return;
  const[w,h]=qbitBrowserWindow.getContentSize();
- for(const tab of qbitBrowserTabs)tab.view.setBounds(tab.id===qbitBrowserActiveTabId?{x:0,y:qbitBrowserChromeHeight,width:w,height:Math.max(0,h-qbitBrowserChromeHeight)}:{x:0,y:0,width:0,height:0});
+ for(const tab of qbitBrowserTabs)tab.view.setBounds(tab.id===qbitBrowserActiveTabId?{x:0,y:QBIT_BROWSER_TOOLBAR_HEIGHT,width:w,height:Math.max(0,h-QBIT_BROWSER_TOOLBAR_HEIGHT)}:{x:0,y:0,width:0,height:0});
+}
+function qbitBrowserClosePanel(){
+ if(!qbitBrowserPanelView)return;
+ const view=qbitBrowserPanelView;qbitBrowserPanelView=null;
+ try{qbitBrowserWindow?.contentView.removeChildView(view);}catch{}
+ try{view.webContents.close();}catch{}
+}
+function qbitBrowserShowPanel(type,data={}){
+ if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())return;
+ if(type==="downloads")data={items:qbitBrowserDownloads.map(({item,...x})=>x).slice().reverse()};
+ qbitBrowserClosePanel();
+ const view=new WebContentsView({webPreferences:{preload:path.join(__dirname,"browser-panel-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ qbitBrowserPanelView=view;qbitBrowserWindow.contentView.addChildView(view);
+ const [w,h]=qbitBrowserWindow.getContentSize(),width=Math.min(370,Math.max(300,w-20)),height=Math.min(560,Math.max(260,h-82));
+ view.setBounds({x:Math.max(10,w-width-12),y:70,width,height});
+ view.webContents.setWindowOpenHandler(()=>({action:"deny"}));
+ view.webContents.on("render-process-gone",()=>qbitBrowserClosePanel());
+ const query={type,data:JSON.stringify(data)};
+ view.webContents.loadFile(path.join(__dirname,"browser-panel.html"),{query}).catch(error=>{console.warn("[QBIT Browser] Panel error:",error?.message||error);qbitBrowserClosePanel();});
 }
 function qbitBrowserActivate(id){
  const tab=qbitBrowserTabs.find(t=>t.id===id);if(!tab)return false;
@@ -380,6 +399,7 @@ const form=document.getElementById("f"),input=document.getElementById("q");form.
 </script></body></html>`;
 }
 function qbitBrowserCreateTab(raw=QBIT_BROWSER_HOME,activate=true,privateMode=false){
+ qbitBrowserClosePanel();
  const target=qbitBrowserUrl(raw),id="tab-"+qbitBrowserNextTabId++;
  const partition=privateMode?(qbitBrowserPrivatePartition||(qbitBrowserPrivatePartition="qbit-private-"+crypto.randomUUID())):QBIT_BROWSER_PARTITION;
  if(privateMode)qbitBrowserAttachDownloads(partition);
@@ -418,7 +438,7 @@ function createQbitBrowser(raw=QBIT_BROWSER_HOME){
  qbitBrowserWindow=new BrowserWindow({width:1280,height:860,minWidth:760,minHeight:520,title:"QBIT Browser",backgroundColor:"#07111f",autoHideMenuBar:true,show:false,webPreferences:{preload:path.join(__dirname,"browser-shell-preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  qbitBrowserWindow.on("resize",qbitBrowserBounds);
  qbitBrowserWindow.on("close",e=>{if(!isQuitting){e.preventDefault();qbitBrowserWindow.hide();}});
- qbitBrowserWindow.on("closed",()=>{qbitBrowserAiPending.forEach(p=>{clearTimeout(p.timer);p.reject(new Error("QBIT Browser se cerró."));});qbitBrowserAiPending.clear();for(const t of qbitBrowserTabs){try{t.view.webContents.close();}catch{}}qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;qbitBrowserChromeHeight=QBIT_BROWSER_TOOLBAR_HEIGHT;qbitBrowserPrivatePartition=null;});
+ qbitBrowserWindow.on("closed",()=>{qbitBrowserAiPending.forEach(p=>{clearTimeout(p.timer);p.reject(new Error("QBIT Browser se cerró."));});qbitBrowserAiPending.clear();for(const t of qbitBrowserTabs){try{t.view.webContents.close();}catch{}}qbitBrowserClosePanel();qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;qbitBrowserChromeHeight=QBIT_BROWSER_TOOLBAR_HEIGHT;qbitBrowserPrivatePartition=null;});
  qbitBrowserWindow.loadFile(path.join(__dirname,"browser-window.html"));
  qbitBrowserWindow.once("ready-to-show",()=>{qbitBrowserCreateTab(raw||QBIT_BROWSER_HOME,true);qbitBrowserBounds();qbitBrowserWindow?.show();});
  return qbitBrowserWindow;
@@ -550,6 +570,28 @@ ipcMain.handle("qbit:browser-ai-control",async(e,task)=>{if(!qbitBrowserWindow||
 ipcMain.handle("qbit:browser-action",async(e,p={})=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return executeQbitBrowserAction(p);});
 ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
 ipcMain.handle("qbit:browser-chrome-height",(e,height)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");const next=Number(height);if(!Number.isFinite(next)||next<QBIT_BROWSER_TOOLBAR_HEIGHT||next>420)throw new Error("Altura de navegador no válida.");qbitBrowserChromeHeight=Math.round(next);qbitBrowserBounds();return{ok:true,height:qbitBrowserChromeHeight};});
+ipcMain.handle("qbit:browser-panel-open",(e,p={})=>{
+ if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");
+ const type=["history","downloads","menu"].includes(p.type)?p.type:"menu";
+ qbitBrowserShowPanel(type,p.data&&typeof p.data==="object"?p.data:{});
+ return{ok:true};
+});
+ipcMain.handle("qbit:browser-panel-action",async(e,action)=>{
+ if(!qbitBrowserPanelView||e.sender!==qbitBrowserPanelView.webContents)throw new Error("No autorizado.");
+ const a=typeof action==="string"?{kind:action}:action||{},kind=String(a.kind||"");
+ if(kind==="close"){qbitBrowserClosePanel();return{ok:true};}
+ if(kind==="open-url"){const tab=qbitBrowserTab(qbitBrowserView);if(tab)await qbitBrowserLoad(tab.view,String(a.url||""));qbitBrowserClosePanel();return{ok:true};}
+ if(kind==="download-open"||kind==="download-show"){const d=qbitBrowserDownloads.find(x=>x.id===String(a.id||""));if(!d||!d.path)throw new Error("No se encontró el archivo.");if(kind==="download-open"){if(d.state!=="completed")throw new Error("La descarga todavía no está lista.");const err=await shell.openPath(d.path);if(err)throw new Error(err);}else shell.showItemInFolder(d.path);return{ok:true};}
+ if(kind==="download-clear"){for(let i=qbitBrowserDownloads.length-1;i>=0;i--)if(["completed","cancelled","interrupted"].includes(qbitBrowserDownloads[i].state))qbitBrowserDownloads.splice(i,1);qbitBrowserPublishDownloads();qbitBrowserShowPanel("downloads");return{ok:true};}
+ if(["history","clear-history","history-toggle","bookmarks"].includes(kind)){qbitBrowserWindow.webContents.send("qbit:browser-panel-command",kind);if(kind!=="history")qbitBrowserClosePanel();return{ok:true};}
+ qbitBrowserClosePanel();
+ if(kind==="new"){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true);return{ok:true};}
+ if(kind==="private"){qbitBrowserCreateTab(QBIT_BROWSER_HOME,true,true);return{ok:true};}
+ if(kind==="reopen"){const url=qbitBrowserRecentlyClosed.shift();if(url)qbitBrowserCreateTab(url,true);return{ok:true};}
+ if(kind==="downloads"){qbitBrowserShowPanel("downloads");return{ok:true};}
+ if(["save","print","zoom-in","zoom-out","zoom-reset","fullscreen","translate","qr","devtools","clear-site-data"].includes(kind)){qbitBrowserWindow.webContents.send("qbit:browser-panel-command",kind);return{ok:true};}
+ throw new Error("Acción desconocida.");
+});
 ipcMain.handle("qbit:browser-navigate",(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");const target=qbitBrowserUrl(url);return qbitBrowserLoad(qbitBrowserView,target).then(()=>({ok:true}));});
 ipcMain.handle("qbit:browser-back",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");if(qbitBrowserView.webContents.canGoBack())qbitBrowserView.webContents.goBack();return qbitBrowserState();});
 ipcMain.handle("qbit:browser-forward",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents||!qbitBrowserView)throw new Error("No autorizado.");if(qbitBrowserView.webContents.canGoForward())qbitBrowserView.webContents.goForward();return qbitBrowserState();});
