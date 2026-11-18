@@ -360,10 +360,19 @@ function qbitBrowserHomeHtml(){
 <a href="https://www.google.com/"><div class="ico">G</div><div><b>Google</b><small>Buscador</small></div></a>
 <a href="https://www.youtube.com/"><div class="ico">▶</div><div><b>YouTube</b><small>Videos</small></div></a>
 <a href="https://chatgpt.com/"><div class="ico">AI</div><div><b>ChatGPT</b><small>Asistente IA</small></div></a>
-<a href="https://gemini.google.com/"><div class="ico">✦</div><div><b>Gemini</b><small>Asistente IA</small></div></a>
+
 <a href="https://github.com/"><div class="ico">⌘</div><div><b>GitHub</b><small>Desarrollo</small></div></a>
 <a href="https://wikipedia.org/"><div class="ico">W</div><div><b>Wikipedia</b><small>Conocimiento</small></div></a>
 <a href="https://drive.google.com/"><div class="ico">▣</div><div><b>Drive</b><small>Archivos</small></div></a>
+<a href="https://mail.google.com/"><div class="ico">✉</div><div><b>Gmail</b><small>Correo</small></div></a>
+<a href="https://calendar.google.com/"><div class="ico">▦</div><div><b>Calendar</b><small>Agenda</small></div></a>
+<a href="https://meet.google.com/"><div class="ico">◉</div><div><b>Meet</b><small>Videollamadas</small></div></a>
+<a href="https://maps.google.com/"><div class="ico">⌖</div><div><b>Maps</b><small>Mapas</small></div></a>
+<a href="https://keep.google.com/"><div class="ico">▤</div><div><b>Keep</b><small>Notas</small></div></a>
+<a href="https://tasks.google.com/"><div class="ico">✓</div><div><b>Tasks</b><small>Tareas</small></div></a>
+<a href="https://docs.google.com/document/u/0/"><div class="ico">D</div><div><b>Docs</b><small>Documentos</small></div></a>
+<a href="https://sheets.google.com/"><div class="ico">▦</div><div><b>Sheets</b><small>Hojas de cálculo</small></div></a>
+<a href="https://slides.google.com/"><div class="ico">▧</div><div><b>Slides</b><small>Presentaciones</small></div></a>
 <a href="https://claude.ai/"><div class="ico">C</div><div><b>Claude</b><small>Asistente IA</small></div></a>
 </nav></section><footer class="foot">QBIT · Navegá a tu manera</footer></main><script>
 const form=document.getElementById("f"),input=document.getElementById("q");form.addEventListener("submit",e=>{e.preventDefault();const q=input.value.trim();if(!q)return;const hasScheme=q.startsWith("http://")||q.startsWith("https://"),isAddress=hasScheme||q.startsWith("localhost")||q.startsWith("127.0.0.1")||(!q.includes(" ")&&q.includes("."));const url=isAddress?(hasScheme?q:"https://"+q):"https://www.google.com/search?q="+encodeURIComponent(q);location.href=url;});function tick(){document.getElementById("clock").textContent=new Intl.DateTimeFormat("es-AR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date());}tick();setInterval(tick,30000);
