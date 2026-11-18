@@ -3,6 +3,8 @@ const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 const { spawn } = require("node:child_process");
+const http = require("node:http");
+const crypto = require("node:crypto");
 const WebSocket = require("ws");
 let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
@@ -266,6 +268,17 @@ function getAppRoot() {
 }
 
 const QBIT_BROWSER_HOME="qbit://home",QBIT_BROWSER_TOOLBAR_HEIGHT=138,QBIT_BROWSER_PARTITION="persist:qbit-browser";
+const QBIT_CLASSROOM_SCOPES=["openid","email","profile","https://www.googleapis.com/auth/classroom.courses.readonly","https://www.googleapis.com/auth/classroom.coursework.me.readonly","https://www.googleapis.com/auth/classroom.student-submissions.me.readonly"];
+function qbitGoogleClientId(){try{return String(JSON.parse(fs.readFileSync(path.join(app.getPath("userData"),"google-oauth.json"),"utf8")).clientId||"").trim();}catch{return String(process.env.QBIT_GOOGLE_OAUTH_CLIENT_ID||"").trim();}}
+async function qbitClassroomConnect(){
+ const clientId=qbitGoogleClientId();if(!clientId.endsWith(".apps.googleusercontent.com"))throw new Error("Falta configurar el Client ID OAuth de tipo Aplicación de escritorio. QBIT busca google-oauth.json en su carpeta de datos, con {\"clientId\":\"TU_CLIENT_ID.apps.googleusercontent.com\"}. No guarda tu contraseña.");
+ const verifier=crypto.randomBytes(48).toString("base64url"),challenge=crypto.createHash("sha256").update(verifier).digest("base64url"),state=crypto.randomBytes(24).toString("hex"),server=http.createServer();
+ await new Promise((resolve,reject)=>{server.once("error",reject);server.listen(0,"127.0.0.1",resolve);});
+ const redirectUri=`http://127.0.0.1:${server.address().port}/oauth2callback`,auth=new URL("https://accounts.google.com/o/oauth2/v2/auth");
+ for(const [key,value] of Object.entries({client_id:clientId,redirect_uri:redirectUri,response_type:"code",scope:QBIT_CLASSROOM_SCOPES.join(" "),state,code_challenge:challenge,code_challenge_method:"S256",access_type:"offline",prompt:"consent"}))auth.searchParams.set(key,value);
+ const resultPromise=new Promise((resolve,reject)=>{const timer=setTimeout(()=>{server.close();reject(new Error("Se agotó el tiempo de autorización de Google."));},180000);server.on("request",async(req,res)=>{const u=new URL(req.url||"/",redirectUri);if(u.pathname!=="/oauth2callback"){res.writeHead(404);res.end();return;}if(u.searchParams.get("state")!==state){res.writeHead(400);res.end("Solicitud no válida.");clearTimeout(timer);server.close();reject(new Error("La respuesta OAuth no coincide."));return;}if(u.searchParams.get("error")){const err=u.searchParams.get("error");res.writeHead(400);res.end("Autorización no completada. Volvé a QBIT.");clearTimeout(timer);server.close();reject(new Error("Google no autorizó el acceso: "+err));return;}try{const response=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code:u.searchParams.get("code")||"",client_id:clientId,redirect_uri:redirectUri,grant_type:"authorization_code",code_verifier:verifier})});const tokens=await response.json();if(!response.ok||!tokens.access_token)throw new Error(tokens.error_description||tokens.error||"Google no devolvió un token.");if(!safeStorage.isEncryptionAvailable())throw new Error("El almacenamiento cifrado de Windows no está disponible.");fs.writeFileSync(path.join(app.getPath("userData"),"classroom-session.dat"),safeStorage.encryptString(JSON.stringify({accessToken:tokens.access_token,refreshToken:tokens.refresh_token||null,expiresAt:Date.now()+(Number(tokens.expires_in)||3600)*1000,scope:tokens.scope||""})));res.writeHead(200,{"Content-Type":"text/html; charset=utf-8"});res.end("<meta charset=utf-8><h2>Google Classroom autorizado</h2><p>Ya podés volver a QBIT.</p>");clearTimeout(timer);server.close();resolve({ok:true,scopes:tokens.scope||""});}catch(err){res.writeHead(500);res.end("No se pudo completar la conexión. Volvé a QBIT.");clearTimeout(timer);server.close();reject(err);}});});
+ try{await shell.openExternal(auth.toString());}catch(error){server.close();throw error;}return resultPromise;
+}
 const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.com","ChatGPT"],["gemini.google.com","Gemini"],["claude.ai","Claude"],["chat.deepseek.com","DeepSeek"],["chat.qwen.ai","Qwen"],["arena.ai","Arena"],["meta.ai","Meta AI"],["www.meta.ai","Meta AI"]]);
 let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[];
 function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
@@ -527,6 +540,7 @@ ipcMain.handle("qbit:browser-new-tab",e=>{if(!qbitBrowserWindow||e.sender!==qbit
 ipcMain.handle("qbit:browser-reopen-tab",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");const url=qbitBrowserRecentlyClosed.shift();if(url)qbitBrowserCreateTab(url,true);return qbitBrowserState();});
 ipcMain.handle("qbit:browser-select-tab",(e,id)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");if(!qbitBrowserActivate(String(id)))throw new Error("La pestaña ya no existe.");return qbitBrowserState();});
 ipcMain.handle("qbit:browser-close-tab",(e,id)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserCloseTab(String(id));return qbitBrowserState();});
+ipcMain.handle("qbit:classroom-connect",async e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");return qbitClassroomConnect();});
 ipcMain.on("qbit:browser-ai-result",(e,p)=>{const tab=qbitBrowserTabs.find(t=>t.view.webContents===e.sender);if(!tab||!p||typeof p.id!=="string")return;const x=qbitBrowserAiPending.get(p.id);if(!x)return;clearTimeout(x.timer);qbitBrowserAiPending.delete(p.id);if(p.ok&&typeof p.answer==="string")x.resolve({answer:p.answer,provider:String(p.provider||x.provider)});else x.reject(new Error(String(p.error||"La IA no pudo responder.")));});
 
 // Captura de pantalla para Remote Desktop. Nunca se concede automáticamente:
