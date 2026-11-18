@@ -430,6 +430,18 @@
     throw new Error(`No encontré la respuesta de ${provider} en la página. Puede que ${provider} haya cambiado su diseño (diagnóstico: ${diagSummary()}).`);
   }
 
+  // En Chrome/Edge/Brave, el service worker de la extensión envía la consulta
+  // directamente al content script. En QBIT Browser se usa el puente IPC nativo.
+  if (typeof chrome !== "undefined" && chrome.runtime?.onMessage?.addListener) {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (message?.type !== "QBIT_AI_PROMPT") return false;
+      ask(String(message.message || "").slice(0, 12000))
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ ok: false, error: error?.message || String(error), provider }));
+      return true;
+    });
+  }
+
   if (!window.qbitBrowserAI || typeof window.qbitBrowserAI.onPrompt !== "function") { log("El puente nativo de QBIT Browser no está disponible."); return; }
   // En cada reinyección reemplazamos el callback del puente. El preload mantiene un único handler.
   window.qbitBrowserAI.onPrompt(async (message,id)=>{
