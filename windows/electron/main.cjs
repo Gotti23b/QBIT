@@ -344,6 +344,7 @@ function qbitBrowserBounds(){
  if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())return;
  const[w,h]=qbitBrowserWindow.getContentSize();
  for(const tab of qbitBrowserTabs)tab.view.setBounds(tab.id===qbitBrowserActiveTabId?{x:0,y:QBIT_BROWSER_TOOLBAR_HEIGHT,width:w,height:Math.max(0,h-QBIT_BROWSER_TOOLBAR_HEIGHT)}:{x:0,y:0,width:0,height:0});
+ if(qbitBrowserPanelView){const width=Math.min(370,Math.max(300,w-20)),height=Math.min(560,Math.max(260,h-82));qbitBrowserPanelView.setBounds({x:Math.max(10,w-width-12),y:92,width,height});}
 }
 function qbitBrowserClosePanel(){
  if(!qbitBrowserPanelView)return;
