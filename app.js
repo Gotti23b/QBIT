@@ -25,7 +25,7 @@
   };
   const db = window.supabase.createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storage: authStorage } });
   const $ = id => document.getElementById(id);
-  const QBIT_VERSION = "1.6.23";
+  const QBIT_VERSION = "1.6.24";
   let user = null, categories = [], commands = [], responses = [], chatHistory = [], activeChatId = null, restoringChat = false, petMessagePending = false;
   let desktopControlEnabled = localStorage.getItem("qbit-desktop-control-enabled") === "true";
   let desktopExtensionConnected = false;
