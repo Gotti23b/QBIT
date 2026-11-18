@@ -10,7 +10,7 @@ let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
 
 // Declarar el esquema antes de app.whenReady() permite que Chromium lo trate como seguro.
-protocol.registerSchemesAsPrivileged([{ scheme: "qbit", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: "qbit", privileges: { standard: true, secure: true } }]);
 
 let mainWindow;
 let qbitBrowserWindow=null,qbitBrowserView=null,qbitBrowserReady=false,qbitBrowserAiSource=null;
@@ -411,11 +411,11 @@ function qbitBrowserSetupSession(partition){
   qbitBrowserRequestSitePermissions(partition,origin,keys).then(finish).catch(error=>{console.warn("[QBIT Browser] Error al solicitar permiso:",error?.message||error);finish(false);});
  });
  browserSession.setDisplayMediaRequestHandler(async(request,callback)=>{
-  let completed=false,ownerId=null,ownsPicker=false;
+  let completed=false,ownerId=null,ownsPicker=false,registeredCapture=false;
   const finish=streams=>{
    if(completed)return;
    completed=true;
-   if(ownerId!==null)qbitBrowserActiveCaptures.delete(ownerId);
+   if(registeredCapture&&ownerId!==null)qbitBrowserActiveCaptures.delete(ownerId);
    if(ownsPicker)qbitBrowserDisplayPickerBusy=false;
    try{callback(streams||null);}catch(error){console.warn("[QBIT Browser] No se pudo completar la captura:",error?.message||error);}
   };
@@ -425,10 +425,10 @@ function qbitBrowserSetupSession(partition){
    const origin=qbitBrowserGetOrigin(request?.securityOrigin||frame?.origin||frame?.url);
    if(!request?.videoRequested||!request?.userGesture||!frame||frame.isDestroyed()||frame.detached||!ownerWebContents||ownerWebContents.isDestroyed()||!tab||!origin||frame!==frame.top||qbitBrowserGetOrigin(frame.origin||frame.url)!==origin){finish(null);return;}
    ownerId=ownerWebContents.id;
-   if(qbitBrowserDisplayPickerBusy||qbitBrowserActiveCaptures.has(ownerId)){finish(null);return;}
-   qbitBrowserDisplayPickerBusy=true;ownsPicker=true;qbitBrowserActiveCaptures.add(ownerId);
+   if(qbitBrowserDisplayPickerBusy||qbitBrowserActiveCaptures.has(ownerId)){ownerId=null;finish(null);return;}
+   qbitBrowserDisplayPickerBusy=true;ownsPicker=true;registeredCapture=true;qbitBrowserActiveCaptures.add(ownerId);
    const sources=await desktopCapturer.getSources({types:["screen","window"],thumbnailSize:{width:0,height:0},fetchWindowIcons:true});
-   if(completed||webContents.isDestroyed()||!sources.length){finish(null);return;}
+   if(completed||ownerWebContents.isDestroyed()||frame.isDestroyed()||frame.detached||frame.url!==requestFrameUrl||!sources.length){finish(null);return;}
    const pageSize=6;let page=0,selected=null;
    while(!selected){
     const start=page*pageSize,visible=sources.slice(start,start+pageSize);
