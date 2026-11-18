@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QBIT Browser</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color:#e8eaed;font:13px "Segoe UI",Arial,sans-serif}
+.panel{height:100%;display:flex;flex-direction:column;background:#292a2d;border:1px solid #55585d;border-radius:14px;box-shadow:0 12px 36px #0008;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;flex:0 0 auto}h1{font-size:16px;font-weight:600;margin:0}.sub{font-size:11px;color:#aeb4ba;margin-top:4px}
+.close{width:30px;height:30px;border:0;border-radius:50%;background:transparent;color:#bdc1c6;font-size:19px;cursor:pointer}.close:hover,.item:hover,.action:hover{background:#3c4043}
+.search{margin:0 12px 10px;padding:0 12px;height:38px;display:flex;align-items:center;gap:9px;border-radius:9px;background:#202124;border:1px solid #55585d}.search input{min-width:0;width:100%;border:0;outline:0;background:transparent;color:#f1f3f4;font:13px "Segoe UI"}
+main{overflow:auto;min-height:0;flex:1;padding:0 8px 8px;scrollbar-color:#62666b transparent;scrollbar-width:thin}
+.section{padding:8px 8px 5px;color:#aeb4ba;font-size:11px;font-weight:600;letter-spacing:.03em}
+.item{width:100%;display:flex;align-items:center;gap:11px;text-align:left;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:#e8eaed;cursor:pointer}
+.ico{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;border-radius:8px;background:#3c4043;color:#9bdde5;font-size:14px}
+.copy{min-width:0;flex:1}.title{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.url,.meta{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aeb4ba;font-size:10px;margin-top:3px}
+.empty{padding:28px 12px;text-align:center;color:#aeb4ba;font-size:12px}
+.actions{display:flex;gap:7px;padding:10px 12px;border-top:1px solid #45474b;flex:0 0 auto}.action{flex:1;padding:9px 10px;border:1px solid #55585d;border-radius:8px;background:#303134;color:#e8eaed;font:12px "Segoe UI";cursor:pointer}.action.primary{background:#164e5a;border-color:#246d79;color:#d9fbff}
+.menu-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:4px 8px 12px}.tile{min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border:1px solid #45474b;border-radius:10px;background:#303134;color:#e8eaed;cursor:pointer;font:11px "Segoe UI"}.tile b{font-size:18px;font-weight:400;color:#9bdde5}.tile:hover{background:#3c4043;border-color:#6c929b}
+.menu-list{padding:0 8px 10px}.menu-list .item{min-height:38px}.divider{height:1px;background:#45474b;margin:7px 5px}
+</style></head><body><section class="panel"><header><div><h1 id="heading"></h1><div class="sub" id="sub"></div></div><button class="close" id="close" title="Cerrar">×</button></header><div id="search" class="search" style="display:none"><span>⌕</span><input id="query" placeholder="Buscar en el historial"></div><main id="content"></main><footer id="footer" class="actions" style="display:none"></footer></section>
+<script>
+const params=new URLSearchParams(location.search),TYPE=params.get("type")||"menu";let DATA={};try{DATA=JSON.parse(params.get("data")||"{}")}catch{}const api=window.qbitBrowserPanel,$=id=>document.getElementById(id),content=$("content"),footer=$("footer");
+function close(){api.close()}$("close").onclick=close;window.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
+function button(label,action,cls="action"){const b=document.createElement("button");b.className=cls;b.textContent=label;b.onclick=()=>api.action(action);return b}
+function row(title,detail,icon,action,meta=""){const b=document.createElement("button");b.className="item";const i=document.createElement("span");i.className="ico";i.textContent=icon;const copy=document.createElement("span");copy.className="copy";const t=document.createElement("span");t.className="title";t.textContent=title||detail||"Página";const u=document.createElement("span");u.className="url";u.textContent=detail||"";const m=document.createElement("span");m.className="meta";m.textContent=meta;copy.append(t,u,m);b.append(i,copy);b.onclick=()=>api.action(action);return b}
+function section(label){const s=document.createElement("div");s.className="section";s.textContent=label;content.append(s)}
+function empty(message){const e=document.createElement("div");e.className="empty";e.textContent=message;content.append(e)}
+if(TYPE==="history"){
+ $("heading").textContent="Historial";$("sub").textContent=DATA.items?.length?DATA.items.length+" páginas recientes":"Tus páginas visitadas";$("search").style.display="flex";const items=Array.isArray(DATA.items)?DATA.items:[];
+ function render(q=""){content.replaceChildren();const found=items.filter(x=>(String(x.title)+" "+String(x.url)).toLowerCase().includes(q.toLowerCase()));if(!found.length){empty(q?"No se encontraron páginas.":"Todavía no hay páginas en el historial.");return;}let last="";for(const x of found){const date=new Date(x.visitedAt||0),day=Number.isNaN(date.getTime())?"":date.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"});if(day!==last){section(day||"Recientes");last=day;}const b=row(x.title,x.url,"◷",{kind:"open-url",url:x.url},date.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}));content.append(b);}}
+ $("query").oninput=e=>render(e.target.value);render();footer.style.display="flex";footer.append(button("Borrar historial","clear-history"),button(DATA.enabled?"Desactivar":"Activar historial","history-toggle","action primary"));
+}else if(TYPE==="downloads"){
+ $("heading").textContent="Descargas";const items=Array.isArray(DATA.items)?DATA.items:[];$("sub").textContent=items.length+" elementos";if(!items.length)empty("Todavía no hay descargas.");
+ for(const x of items){const state=x.state==="completed"?"Completada":x.state==="progressing"?"Descargando":x.state==="interrupted"?"Interrumpida":x.state;const detail=x.total>0?Math.round(x.received/x.total*100)+"% · "+state:state;const b=row(x.filename,x.path||"","↓",{kind:"download-open",id:x.id},detail);content.append(b);if(x.state==="completed"){const show=document.createElement("button");show.className="action";show.textContent="Mostrar en carpeta";show.style.margin="0 8px 6px 51px";show.onclick=()=>api.action({kind:"download-show",id:x.id});content.append(show);}}
+ footer.style.display="flex";footer.append(button("Limpiar completadas","download-clear","action primary"));
+}else{
+ $("heading").textContent="QBIT";$("sub").textContent="Herramientas del navegador";const grid=document.createElement("div");grid.className="menu-grid";
+ for(const [label,ico,action] of [["Nueva pestaña","＋","new"],["Privada","◉","private"],["Reabrir","↶","reopen"]]){const b=document.createElement("button");b.className="tile";const i=document.createElement("b");i.textContent=ico;b.append(i,document.createTextNode(label));b.onclick=()=>api.action(action);grid.append(b)}content.append(grid);
+ section("TU NAVEGADOR");const list=document.createElement("div");list.className="menu-list";for(const [label,ico,action] of [["Historial","◷","history"],["Descargas","↓","downloads"],["Favoritos","☆","bookmarks"],["Guardar página como…","⇩","save"],["Imprimir…","▤","print"],["Traducir al español","文","translate"],["Crear código QR","▦","qr"],["Herramientas de desarrollador","⌘","devtools"],["Borrar datos de sitios…","⌫","clear-site-data"]]){const b=document.createElement("button");b.className="item";const i=document.createElement("span");i.className="ico";i.textContent=ico;const t=document.createElement("span");t.className="copy";t.textContent=label;b.append(i,t);b.onclick=()=>api.action(action);list.append(b)}content.append(list);
+}
+</script></body></html>
