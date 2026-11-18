@@ -286,7 +286,7 @@ const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.co
 let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[];
 function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
 function qbitBrowserUrl(raw){
- let v=String(raw||"").trim();if(!v)throw new Error("Escribí una dirección o una búsqueda.");
+ let v=String(raw||"").trim();if(!v)throw new Error("Escribí una dirección o una búsqueda.");const quick={"doc.new":"https://docs.new","sheet.new":"https://sheets.new","slide.new":"https://slides.new","meet.new":"https://meet.new"};if(quick[v.toLowerCase()])return quick[v.toLowerCase()];
  if(v==="qbit://home")return v;
  if(/^(https?:\/\/|localhost(?::\d+)?(?:\/|$)|127\.0\.0\.1(?::\d+)?(?:\/|$)|\[[0-9a-f:]+\](?::\d+)?(?:\/|$))/i.test(v)){
   if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(v))v="http://"+v;
