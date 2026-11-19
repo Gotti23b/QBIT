@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const http = require("node:http");
 const crypto = require("node:crypto");
+const { parseWebStoreExtensionId, downloadWebStoreExtension } = require("./chrome-webstore.cjs");
 const WebSocket = require("ws");
 let autoUpdater = null;
 try { ({ autoUpdater } = require("electron-updater")); } catch { autoUpdater = null; }
@@ -291,7 +292,7 @@ async function qbitClassroomConnect(){
  try{await shell.openExternal(auth.toString());}catch(error){server.close();throw error;}return resultPromise;
 }
 const QBIT_BROWSER_PROVIDERS=new Map([["chatgpt.com","ChatGPT"],["chat.openai.com","ChatGPT"],["gemini.google.com","Gemini"],["claude.ai","Claude"],["chat.deepseek.com","DeepSeek"],["chat.qwen.ai","Qwen"],["arena.ai","Arena"],["meta.ai","Meta AI"],["www.meta.ai","Meta AI"]]);
-let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[],qbitBrowserPanelView=null;
+let qbitBrowserTabs=[],qbitBrowserActiveTabId=null,qbitBrowserNextTabId=1,qbitBrowserRecentlyClosed=[],qbitBrowserPanelView=null,qbitBrowserSidePanelView=null,qbitBrowserSidePanelExtensionId=null;
 function qbitBrowserProvider(url){try{const h=new URL(url).hostname.toLowerCase();for(const[d,n]of QBIT_BROWSER_PROVIDERS)if(h===d||h.endsWith("."+d))return n;}catch{}return null;}
 function qbitBrowserInitAI(tab){
  if(!tab?.view?.webContents||tab.view.webContents.isDestroyed())return Promise.resolve(false);
@@ -475,9 +476,10 @@ function qbitBrowserBounds(){
   const active=tab.id===qbitBrowserActiveTabId;
   tab.view.setBounds(active?{x:0,y:top,width:Math.max(1,bounds.width),height:Math.max(1,bounds.height-top)}:{x:-10000,y:-10000,width:1,height:1});
  }
- if(qbitBrowserPanelView&&!qbitBrowserPanelView.webContents.isDestroyed()){
-  qbitBrowserPanelView.setBounds({x:Math.max(0,bounds.width-430),y:top,width:Math.min(430,Math.max(280,bounds.width)),height:Math.max(1,bounds.height-top)});
- }
+ const sideWidth=qbitBrowserSidePanelView&&!qbitBrowserSidePanelView.webContents.isDestroyed()?Math.min(420,Math.max(300,Math.floor(bounds.width*.34))):0;
+ for(const tab of qbitBrowserTabs){if(!tab?.view||tab.view.webContents.isDestroyed())continue;const active=tab.id===qbitBrowserActiveTabId;tab.view.setBounds(active?{x:0,y:top,width:Math.max(1,bounds.width-sideWidth),height:Math.max(1,bounds.height-top)}:{x:-10000,y:-10000,width:1,height:1});}
+ if(qbitBrowserSidePanelView&&!qbitBrowserSidePanelView.webContents.isDestroyed())qbitBrowserSidePanelView.setBounds({x:Math.max(0,bounds.width-sideWidth),y:top,width:sideWidth,height:Math.max(1,bounds.height-top)});
+ if(qbitBrowserPanelView&&!qbitBrowserPanelView.webContents.isDestroyed())qbitBrowserPanelView.setBounds({x:Math.max(0,bounds.width-430),y:top,width:Math.min(430,Math.max(280,bounds.width)),height:Math.max(1,bounds.height-top)});
 }
 function qbitBrowserState(){
  const tab=qbitBrowserTabs.find(item=>item.id===qbitBrowserActiveTabId)||null;
@@ -644,7 +646,7 @@ function qbitBrowserWriteExtensionStore(paths){
 }
 function qbitBrowserGetExtensions(){
  const browserSession=session.fromPartition(QBIT_BROWSER_PARTITION);
- return browserSession.extensions.getAllExtensions().map(ext=>({id:ext.id,name:ext.name||ext.manifest?.name||"Extensión",version:ext.version||ext.manifest?.version||"",path:ext.path||""}));
+ return browserSession.extensions.getAllExtensions().map(ext=>({id:ext.id,name:ext.name||ext.manifest?.name||"Extensión",version:ext.version||ext.manifest?.version||"",path:ext.path||"",sidePanelPath:String(ext.manifest?.side_panel?.default_path||""),source:String(ext.path||"").startsWith(path.join(app.getPath("userData"),"extensions")+path.sep)?"webstore":"local"}));
 }
 let qbitBrowserExtensionLoadPromise=null;
 async function qbitBrowserLoadSavedExtensions(){
@@ -682,6 +684,52 @@ async function qbitBrowserInstallExtension(){
  const paths=qbitBrowserReadExtensionStore();if(!paths.includes(folder)){paths.push(folder);qbitBrowserWriteExtensionStore(paths);}
  return{ok:true,name:extension.name||manifest.name,id:extension.id,version:extension.version||manifest.version};
 }
+async function qbitBrowserInstallExtensionFromUrl(raw){
+ if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())throw new Error("QBIT Browser no está abierto.");
+ const id=parseWebStoreExtensionId(raw),browserSession=session.fromPartition(QBIT_BROWSER_PARTITION);
+ const installed=browserSession.extensions.getExtension(id);
+ if(installed)return{ok:true,alreadyInstalled:true,name:installed.name||id,id};
+ const finalDir=path.join(app.getPath("userData"),"extensions",id);
+ const {temporary,manifest}=await downloadWebStoreExtension(id,finalDir,process.versions.chrome);
+ if(!manifest||typeof manifest!=="object"||!manifest.name||!manifest.version||![2,3].includes(Number(manifest.manifest_version))){
+  await fs.promises.rm(temporary,{recursive:true,force:true}).catch(()=>{});
+  throw new Error("El manifest descargado no es una extensión Chromium válida.");
+ }
+ const permissions=[...(Array.isArray(manifest.permissions)?manifest.permissions:[]),...(Array.isArray(manifest.host_permissions)?manifest.host_permissions:[]),...(Array.isArray(manifest.optional_permissions)?manifest.optional_permissions:[])];
+ const detail=[manifest.name+" · versión "+manifest.version,"ID solicitado: "+id,"Permisos: "+(permissions.length?permissions.join(", "):"No declara permisos explícitos"),"Orígenes: "+(Array.isArray(manifest.host_permissions)?manifest.host_permissions.join(", "):"No declara host_permissions"),"","La extensión podrá ejecutar código según los permisos que aceptes. Instalá únicamente extensiones de confianza."].join("\n");
+ const answer=await dialog.showMessageBox(qbitBrowserWindow,{type:"warning",title:"Instalar desde Chrome Web Store",message:"¿Querés instalar "+manifest.name+" en QBIT Browser?",detail,buttons:["Instalar extensión","Cancelar"],defaultId:1,cancelId:1,noLink:true});
+ if(answer.response!==0){await fs.promises.rm(temporary,{recursive:true,force:true});return{ok:false,cancelled:true};}
+ await fs.promises.mkdir(path.dirname(finalDir),{recursive:true});
+ if(fs.existsSync(finalDir))await fs.promises.rm(finalDir,{recursive:true,force:true});
+ await fs.promises.rename(temporary,finalDir);
+ let extension;
+ try{extension=await browserSession.loadExtension(finalDir,{allowFileAccess:false});}
+ catch(error){await fs.promises.rm(finalDir,{recursive:true,force:true});throw error;}
+ if(extension.id!==id){browserSession.removeExtension(extension.id);await fs.promises.rm(finalDir,{recursive:true,force:true});throw new Error("Electron generó un ID distinto al publicado por Google. Se canceló la instalación para evitar cargar una extensión con identidad incorrecta.");}
+ const paths=qbitBrowserReadExtensionStore();if(!paths.includes(finalDir)){paths.push(finalDir);qbitBrowserWriteExtensionStore(paths);}
+ return{ok:true,name:extension.name||manifest.name,id:extension.id,version:extension.version||manifest.version};
+}
+function qbitBrowserCloseSidePanel(){
+ if(!qbitBrowserSidePanelView)return;
+ try{qbitBrowserWindow?.contentView?.removeChildView(qbitBrowserSidePanelView);}catch{}
+ try{if(!qbitBrowserSidePanelView.webContents.isDestroyed())qbitBrowserSidePanelView.webContents.close();}catch{}
+ qbitBrowserSidePanelView=null;qbitBrowserSidePanelExtensionId=null;qbitBrowserBounds();
+}
+async function qbitBrowserOpenSidePanel(id){
+ const browserSession=session.fromPartition(QBIT_BROWSER_PARTITION),extension=browserSession.extensions.getExtension(String(id||""));
+ if(!extension)throw new Error("La extensión ya no está instalada.");
+ const relative=String(extension.manifest?.side_panel?.default_path||"");
+ if(!relative||path.isAbsolute(relative)||relative.split(/[\\/]/).some(part=>part===".."||part==="."))throw new Error("Esta extensión no declara un side_panel.default_path válido.");
+ if(qbitBrowserSidePanelExtensionId===extension.id){qbitBrowserCloseSidePanel();return{ok:true,closed:true};}
+ qbitBrowserCloseSidePanel();
+ const view=new WebContentsView({webPreferences:{partition:QBIT_BROWSER_PARTITION,contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+ qbitBrowserSidePanelView=view;qbitBrowserSidePanelExtensionId=extension.id;
+ qbitBrowserWindow.contentView.addChildView(view);qbitBrowserBounds();
+ view.webContents.setWindowOpenHandler(({url})=>{try{const parsed=new URL(url);if(parsed.protocol==="https:"||parsed.protocol==="http:")qbitBrowserCreateTab(url,true);}catch{}return{action:"deny"};});
+ view.webContents.on("render-process-gone",(_event,details)=>console.warn("[QBIT Browser] Side Panel finalizó:",details));
+ await view.webContents.loadURL("chrome-extension://"+extension.id+"/"+relative.split(/[\\/]/).map(encodeURIComponent).join("/"));
+ return{ok:true,id:extension.id,name:extension.name||extension.id};
+}
 async function qbitBrowserRemoveExtension(id){
  const browserSession=session.fromPartition(QBIT_BROWSER_PARTITION),extension=browserSession.extensions.getExtension(String(id||""));
  if(!extension)throw new Error("La extensión ya no está instalada.");
@@ -698,7 +746,7 @@ function qbitBrowserShowExtensionsMenu(){
   {label:"Actualizar lista",click:()=>qbitBrowserShowExtensionsMenu()},
   {type:"separator"},
   {label:extensions.length?"Extensiones instaladas":"No hay extensiones instaladas",enabled:false},
-  ...extensions.map(ext=>({label:ext.name+"  ·  "+ext.version,submenu:[{label:"Desinstalar de QBIT Browser",click:()=>dialog.showMessageBox(qbitBrowserWindow,{type:"warning",title:"Desinstalar extensión",message:"¿Desinstalar "+ext.name+"?",buttons:["Desinstalar","Cancelar"],defaultId:1,cancelId:1,noLink:true}).then(result=>{if(result.response===0)return qbitBrowserRemoveExtension(ext.id);}).catch(error=>dialog.showErrorBox("No se pudo desinstalar",error.message||String(error)))}]}))
+  ...extensions.map(ext=>({label:ext.name+"  ·  "+ext.version,submenu:[...(ext.sidePanelPath?[{label:qbitBrowserSidePanelExtensionId===ext.id?"Cerrar panel lateral":"Abrir panel lateral",click:()=>qbitBrowserOpenSidePanel(ext.id).catch(error=>dialog.showErrorBox("No se pudo abrir el panel lateral",error.message||String(error)))}]:[{label:"Esta extensión no declara Side Panel",enabled:false}]),{type:"separator"},{label:"Desinstalar de QBIT Browser",click:()=>dialog.showMessageBox(qbitBrowserWindow,{type:"warning",title:"Desinstalar extensión",message:"¿Desinstalar "+ext.name+"?",buttons:["Desinstalar","Cancelar"],defaultId:1,cancelId:1,noLink:true}).then(result=>{if(result.response===0)return qbitBrowserRemoveExtension(ext.id);}).catch(error=>dialog.showErrorBox("No se pudo desinstalar",error.message||String(error)))}]}))
  ];
  Menu.buildFromTemplate(items).popup({window:qbitBrowserWindow});
 }
@@ -748,7 +796,7 @@ function createQbitBrowser(raw=QBIT_BROWSER_HOME){
  qbitBrowserWindow.on("resize",qbitBrowserBounds);
  qbitBrowserWindow.webContents.on("focus",()=>{if(qbitBrowserPanelView)qbitBrowserClosePanel();});
  qbitBrowserWindow.on("close",e=>{if(!isQuitting){e.preventDefault();qbitBrowserWindow.hide();}});
- qbitBrowserWindow.on("closed",()=>{qbitBrowserAiPending.forEach(p=>{clearTimeout(p.timer);p.reject(new Error("QBIT Browser se cerró."));});qbitBrowserAiPending.clear();for(const t of qbitBrowserTabs){try{t.view.webContents.close();}catch{}}qbitBrowserClosePanel();qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;qbitBrowserChromeHeight=QBIT_BROWSER_TOOLBAR_HEIGHT;qbitBrowserPrivatePartition=null;});
+ qbitBrowserWindow.on("closed",()=>{qbitBrowserAiPending.forEach(p=>{clearTimeout(p.timer);p.reject(new Error("QBIT Browser se cerró."));});qbitBrowserAiPending.clear();for(const t of qbitBrowserTabs){try{t.view.webContents.close();}catch{}}qbitBrowserClosePanel();qbitBrowserCloseSidePanel();qbitBrowserTabs=[];qbitBrowserView=null;qbitBrowserWindow=null;qbitBrowserActiveTabId=null;qbitBrowserReady=false;qbitBrowserChromeHeight=QBIT_BROWSER_TOOLBAR_HEIGHT;qbitBrowserPrivatePartition=null;});
  qbitBrowserWindow.loadFile(path.join(__dirname,"browser-window.html"));
  qbitBrowserWindow.once("ready-to-show",async()=>{try{await qbitBrowserLoadSavedExtensions();}catch(error){console.warn("[QBIT Browser] Error cargando extensiones:",error?.message||error);}qbitBrowserCreateTab(raw||QBIT_BROWSER_HOME,true);qbitBrowserBounds();qbitBrowserWindow?.show();});
  return qbitBrowserWindow;
@@ -879,6 +927,7 @@ async function executeQbitBrowserAction(p={}){
 ipcMain.handle("qbit:browser-ai-control",async(e,task)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");return qbitBrowserAiControl(task);});
 ipcMain.handle("qbit:browser-action",async(e,p={})=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return executeQbitBrowserAction(p);});
 ipcMain.handle("qbit:browser-extensions-menu",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserShowExtensionsMenu();return{ok:true};});
+ipcMain.handle("qbit:browser-extension-install-url",async(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");return qbitBrowserInstallExtensionFromUrl(url);});
 ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
 ipcMain.handle("qbit:browser-chrome-height",(e,height)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");const next=Number(height);if(!Number.isFinite(next)||next<QBIT_BROWSER_TOOLBAR_HEIGHT||next>420)throw new Error("Altura de navegador no válida.");qbitBrowserChromeHeight=Math.round(next);qbitBrowserBounds();return{ok:true,height:qbitBrowserChromeHeight};});
 ipcMain.handle("qbit:browser-panel-open",(e,p={})=>{
