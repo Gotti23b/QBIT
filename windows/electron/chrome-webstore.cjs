@@ -45,7 +45,8 @@ async function extractCrx(buffer, targetDir) {
     throw new Error("El paquete CRX no contiene un ZIP válido.");
   }
 
-  const lowerBound = Math.max(0, bytes.length - 65557);
+  if (bytes.length - zipOffset < 22) throw new Error("El ZIP interno está incompleto.");
+  const lowerBound = Math.max(zipOffset, bytes.length - 65557);
   let eocd = -1;
   for (let i = bytes.length - 22; i >= lowerBound; i--) {
     if (bytes.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
@@ -89,7 +90,7 @@ async function extractCrx(buffer, targetDir) {
 
     const normalized = name.replace(/\\/g, "/");
     if (!normalized || normalized.startsWith("/") || /^[a-z]:/i.test(normalized) ||
-        normalized.includes("\0") || normalized.split("/").some(part => part === ".." || part === ".")) {
+        normalized.includes("\0") || normalized.split("/").some(part => part === ".." || part === "." || part.includes(":"))) {
       throw new Error("El paquete contiene una ruta insegura.");
     }
     const outputPath = path.resolve(targetDir, ...normalized.split("/"));
