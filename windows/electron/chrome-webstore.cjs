@@ -17,7 +17,7 @@ function parseWebStoreExtensionId(raw) {
       url.username || url.password || url.port) {
     throw new Error("Por seguridad, solo se aceptan URLs HTTPS oficiales de Chrome Web Store.");
   }
-  const match = url.pathname.match(/^\/detail\/(?:[^/]+\/)?([a-p]{32})\/?$/);
+  const match = url.pathname.match(/^(?:\/webstore)?\/detail\/(?:[^/]+\/)?([a-p]{32})\/?$/);
   if (!match) throw new Error("No pude extraer un ID de extensión válido de esa ficha de Chrome Web Store.");
   return match[1];
 }
@@ -104,7 +104,7 @@ async function extractCrx(buffer, targetDir) {
       continue;
     }
     const absoluteLocalOffset = zipOffset + localOffset;
-    if (absoluteLocalOffset + 30 > bytes.length || bytes.readUInt32LE(absoluteLocalOffset) !== 0x04034b50) {
+    if (absoluteLocalOffset < zipOffset || absoluteLocalOffset + 30 > bytes.length || bytes.readUInt32LE(absoluteLocalOffset) !== 0x04034b50) {
       throw new Error("Entrada ZIP local dañada.");
     }
     const localNameLength = bytes.readUInt16LE(absoluteLocalOffset + 26);
@@ -145,8 +145,25 @@ async function downloadWebStoreExtension(id, targetDir, chromeVersion) {
   if (!response.ok) throw new Error("Google no pudo descargar la extensión (HTTP " + response.status + ").");
   const declaredSize = Number(response.headers.get("content-length") || 0);
   if (declaredSize > MAX_CRX_BYTES) throw new Error("El paquete supera el límite de descarga de 100 MB.");
-  const buffer = Buffer.from(await response.arrayBuffer());
-  if (buffer.length > MAX_CRX_BYTES) throw new Error("El paquete supera el límite de descarga de 100 MB.");
+  const chunks = [];
+  let received = 0;
+  if (!response.body) throw new Error("Google devolvió una descarga vacía.");
+  const reader = response.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > MAX_CRX_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new Error("El paquete supera el límite de descarga de 100 MB.");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const buffer = Buffer.concat(chunks, received);
 
   const parent = path.dirname(targetDir);
   const temporary = path.join(parent, "." + id + "-" + crypto.randomUUID() + ".tmp");
