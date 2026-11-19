@@ -471,13 +471,12 @@ function qbitBrowserBounds(){
  if(!qbitBrowserWindow||qbitBrowserWindow.isDestroyed())return;
  const bounds=qbitBrowserWindow.getContentBounds();
  const top=Math.max(QBIT_BROWSER_TOOLBAR_HEIGHT,Math.min(420,Number(qbitBrowserChromeHeight)||QBIT_BROWSER_TOOLBAR_HEIGHT));
+ const sideWidth=qbitBrowserSidePanelView&&!qbitBrowserSidePanelView.webContents.isDestroyed()?Math.min(420,Math.max(300,Math.floor(bounds.width*.34))):0;
  for(const tab of qbitBrowserTabs){
   if(!tab?.view||tab.view.webContents.isDestroyed())continue;
   const active=tab.id===qbitBrowserActiveTabId;
-  tab.view.setBounds(active?{x:0,y:top,width:Math.max(1,bounds.width),height:Math.max(1,bounds.height-top)}:{x:-10000,y:-10000,width:1,height:1});
+  tab.view.setBounds(active?{x:0,y:top,width:Math.max(1,bounds.width-sideWidth),height:Math.max(1,bounds.height-top)}:{x:-10000,y:-10000,width:1,height:1});
  }
- const sideWidth=qbitBrowserSidePanelView&&!qbitBrowserSidePanelView.webContents.isDestroyed()?Math.min(420,Math.max(300,Math.floor(bounds.width*.34))):0;
- for(const tab of qbitBrowserTabs){if(!tab?.view||tab.view.webContents.isDestroyed())continue;const active=tab.id===qbitBrowserActiveTabId;tab.view.setBounds(active?{x:0,y:top,width:Math.max(1,bounds.width-sideWidth),height:Math.max(1,bounds.height-top)}:{x:-10000,y:-10000,width:1,height:1});}
  if(qbitBrowserSidePanelView&&!qbitBrowserSidePanelView.webContents.isDestroyed())qbitBrowserSidePanelView.setBounds({x:Math.max(0,bounds.width-sideWidth),y:top,width:sideWidth,height:Math.max(1,bounds.height-top)});
  if(qbitBrowserPanelView&&!qbitBrowserPanelView.webContents.isDestroyed())qbitBrowserPanelView.setBounds({x:Math.max(0,bounds.width-430),y:top,width:Math.min(430,Math.max(280,bounds.width)),height:Math.max(1,bounds.height-top)});
 }
@@ -733,6 +732,7 @@ async function qbitBrowserOpenSidePanel(id){
 async function qbitBrowserRemoveExtension(id){
  const browserSession=session.fromPartition(QBIT_BROWSER_PARTITION),extension=browserSession.extensions.getExtension(String(id||""));
  if(!extension)throw new Error("La extensión ya no está instalada.");
+ if(qbitBrowserSidePanelExtensionId===extension.id)qbitBrowserCloseSidePanel();
  browserSession.removeExtension(extension.id);
  const paths=qbitBrowserReadExtensionStore().filter(folder=>path.resolve(folder)!==path.resolve(extension.path||""));
  qbitBrowserWriteExtensionStore(paths);
