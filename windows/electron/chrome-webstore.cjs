@@ -55,12 +55,12 @@ async function extractCrx(buffer, targetDir) {
   const centralSize = bytes.readUInt32LE(eocd + 12);
   const centralOffset = bytes.readUInt32LE(eocd + 16);
   if (entries === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff ||
-      entries > 5000 || centralOffset + centralSize > bytes.length) {
+      entries > 5000 || zipOffset + centralOffset + centralSize > eocd) {
     throw new Error("El ZIP usa una estructura no compatible o supera los límites.");
   }
 
   await fs.promises.mkdir(targetDir, { recursive: true });
-  let cursor = centralOffset;
+  let cursor = zipOffset + centralOffset;
   let totalExpanded = 0;
   let written = 0;
 
@@ -103,12 +103,13 @@ async function extractCrx(buffer, targetDir) {
       await fs.promises.mkdir(outputPath, { recursive: true });
       continue;
     }
-    if (localOffset + 30 > bytes.length || bytes.readUInt32LE(localOffset) !== 0x04034b50) {
+    const absoluteLocalOffset = zipOffset + localOffset;
+    if (absoluteLocalOffset + 30 > bytes.length || bytes.readUInt32LE(absoluteLocalOffset) !== 0x04034b50) {
       throw new Error("Entrada ZIP local dañada.");
     }
-    const localNameLength = bytes.readUInt16LE(localOffset + 26);
-    const localExtraLength = bytes.readUInt16LE(localOffset + 28);
-    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const localNameLength = bytes.readUInt16LE(absoluteLocalOffset + 26);
+    const localExtraLength = bytes.readUInt16LE(absoluteLocalOffset + 28);
+    const dataStart = absoluteLocalOffset + 30 + localNameLength + localExtraLength;
     const dataEnd = dataStart + compressedSize;
     if (dataEnd > bytes.length) throw new Error("Datos ZIP incompletos.");
 
