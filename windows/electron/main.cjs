@@ -713,6 +713,7 @@ function qbitBrowserCloseSidePanel(){
  try{qbitBrowserWindow?.contentView?.removeChildView(qbitBrowserSidePanelView);}catch{}
  try{if(!qbitBrowserSidePanelView.webContents.isDestroyed())qbitBrowserSidePanelView.webContents.close();}catch{}
  qbitBrowserSidePanelView=null;qbitBrowserSidePanelExtensionId=null;qbitBrowserBounds();
+ try{if(qbitBrowserWindow&&!qbitBrowserWindow.isDestroyed())qbitBrowserWindow.webContents.send("qbit:browser-sidepanel-state",{open:false});}catch{}
 }
 async function qbitBrowserOpenSidePanel(id){
  const browserSession=session.fromPartition(QBIT_BROWSER_PARTITION),extension=browserSession.extensions.getExtension(String(id||""));
@@ -724,6 +725,7 @@ async function qbitBrowserOpenSidePanel(id){
  const view=new WebContentsView({webPreferences:{partition:QBIT_BROWSER_PARTITION,contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
  qbitBrowserSidePanelView=view;qbitBrowserSidePanelExtensionId=extension.id;
  qbitBrowserWindow.contentView.addChildView(view);qbitBrowserBounds();
+ try{qbitBrowserWindow.webContents.send("qbit:browser-sidepanel-state",{open:true,id:extension.id,name:extension.name||extension.id});}catch{}
  view.webContents.setWindowOpenHandler(({url})=>{try{const parsed=new URL(url);if(parsed.protocol==="https:"||parsed.protocol==="http:")qbitBrowserCreateTab(url,true);}catch{}return{action:"deny"};});
  view.webContents.on("render-process-gone",(_event,details)=>console.warn("[QBIT Browser] Side Panel finalizó:",details));
  await view.webContents.loadURL("chrome-extension://"+extension.id+"/"+relative.split(/[\\/]/).map(encodeURIComponent).join("/"));
@@ -928,6 +930,7 @@ ipcMain.handle("qbit:browser-ai-control",async(e,task)=>{if(!qbitBrowserWindow||
 ipcMain.handle("qbit:browser-action",async(e,p={})=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");return executeQbitBrowserAction(p);});
 ipcMain.handle("qbit:browser-extensions-menu",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserShowExtensionsMenu();return{ok:true};});
 ipcMain.handle("qbit:browser-extension-install-url",async(e,url)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");return qbitBrowserInstallExtensionFromUrl(url);});
+ipcMain.handle("qbit:browser-sidepanel-close",e=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");qbitBrowserCloseSidePanel();return{ok:true};});
 ipcMain.handle("qbit:browser-open",(e,url)=>{if(!mainWindow||e.sender!==mainWindow.webContents)throw new Error("No autorizado.");createQbitBrowser(url||QBIT_BROWSER_HOME);return{ok:true};});
 ipcMain.handle("qbit:browser-chrome-height",(e,height)=>{if(!qbitBrowserWindow||e.sender!==qbitBrowserWindow.webContents)throw new Error("No autorizado.");const next=Number(height);if(!Number.isFinite(next)||next<QBIT_BROWSER_TOOLBAR_HEIGHT||next>420)throw new Error("Altura de navegador no válida.");qbitBrowserChromeHeight=Math.round(next);qbitBrowserBounds();return{ok:true,height:qbitBrowserChromeHeight};});
 ipcMain.handle("qbit:browser-panel-open",(e,p={})=>{
